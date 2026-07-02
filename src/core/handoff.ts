@@ -6,6 +6,7 @@ import { HammaMessage, HammaSession, HammaShellCommand } from "./schema.js";
 import {
   extractTaskState,
   getMessageImportance,
+  HANDOFF_SCHEMA_VERSION,
   HammaRepoState,
   HammaTaskLedgerItem,
   HammaTaskState,
@@ -15,6 +16,99 @@ const HANDOFF_TARGET_BYTES = 15 * 1024;
 const HANDOFF_HARD_MAX_BYTES = 20 * 1024;
 const TIMELINE_MAX_ENTRIES = 50;
 const TIMELINE_MAX_ENTRY_CHARS = 800;
+
+const CLI_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+
+function assertCliName(value: string, label: "source" | "target"): void {
+  if (!CLI_NAME.test(value)) {
+    throw new Error(
+      `Invalid ${label} CLI name '${value}'. Use 1-64 letters, numbers, underscores, or hyphens, starting with a letter or number.`
+    );
+  }
+}
+
+function assertPathWithin(parent: string, candidate: string): void {
+  const relative = path.relative(parent, candidate);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(`Refusing handoff path outside ${parent}: ${candidate}`);
+  }
+}
+
+async function assertDirectoryNotSymlink(
+  directory: string,
+  label: string
+): Promise<void> {
+  const stats = await fs.lstat(directory);
+  if (stats.isSymbolicLink()) {
+    throw new Error(
+      `Cannot create handoff: ${label} must not be a symbolic link (${directory}).`
+    );
+  }
+  if (!stats.isDirectory()) {
+    throw new Error(
+      `Cannot create handoff: ${label} is not a directory (${directory}).`
+    );
+  }
+}
+
+async function validateProjectPath(projectPath: string): Promise<string> {
+  if (!path.isAbsolute(projectPath)) {
+    throw new Error(
+      `Cannot create handoff: projectPath must be absolute (${projectPath}).`
+    );
+  }
+
+  const resolved = path.resolve(projectPath);
+  try {
+    await assertDirectoryNotSymlink(resolved, "projectPath");
+    const canonical = await fs.realpath(resolved);
+    if (canonical !== resolved) {
+      throw new Error(
+        `Cannot create handoff: projectPath contains symbolic-link components (${projectPath}).`
+      );
+    }
+    return canonical;
+  } catch (error: any) {
+    if (error.message?.startsWith("Cannot create handoff:")) throw error;
+    throw new Error(
+      `Cannot create handoff: invalid projectPath '${projectPath}': ${error.message}`
+    );
+  }
+}
+
+async function prepareTasksRoot(projectPath: string): Promise<string> {
+  const hammaRoot = path.join(projectPath, ".hamma");
+  const tasksRoot = path.join(hammaRoot, "tasks");
+  assertPathWithin(projectPath, tasksRoot);
+
+  for (const [directory, label] of [
+    [hammaRoot, ".hamma directory"],
+    [tasksRoot, ".hamma/tasks directory"],
+  ] as const) {
+    try {
+      await fs.mkdir(directory);
+    } catch (error: any) {
+      if (error.code !== "EEXIST") {
+        throw new Error(`Cannot create ${label}: ${error.message}`);
+      }
+    }
+    await assertDirectoryNotSymlink(directory, label);
+  }
+
+  const canonicalTasksRoot = await fs.realpath(tasksRoot);
+  if (canonicalTasksRoot !== tasksRoot) {
+    throw new Error(
+      "Cannot create handoff: .hamma/tasks contains symbolic-link components."
+    );
+  }
+  assertPathWithin(projectPath, canonicalTasksRoot);
+  return canonicalTasksRoot;
+}
 
 function truncate(s: string | undefined, max: number): string {
   if (!s) return "";
@@ -69,6 +163,19 @@ async function ensureGitignore(projectPath: string): Promise<void> {
   const entry = "\n# Hamma local agent handoff artifacts\n.hamma/\n";
 
   try {
+    const stats = await fs.lstat(gitignorePath).catch((error: any) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (stats?.isSymbolicLink()) {
+      console.warn(
+        pc.yellow(
+          `Warning: Refusing to update symbolic-link .gitignore: ${gitignorePath}`
+        )
+      );
+      return;
+    }
+
     const content = await fs.readFile(gitignorePath, "utf8");
     if (!content.includes(".hamma/")) {
       await fs.appendFile(gitignorePath, entry, "utf8");
@@ -77,7 +184,9 @@ async function ensureGitignore(projectPath: string): Promise<void> {
     if (err.code === "ENOENT") {
       await fs.writeFile(gitignorePath, entry.trimStart(), "utf8");
     } else {
-      console.warn(pc.yellow(`Warning: Could not check/update .gitignore: ${err.message}`));
+      console.warn(
+        pc.yellow(`Warning: Could not check/update .gitignore: ${err.message}`)
+      );
     }
   }
 }
@@ -181,6 +290,7 @@ function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRenderOptions
       `## Source`,
       `- Source CLI: ${project.sourceCli}`,
       `- Target CLI: ${project.targetCli}`,
+      `- Artifact schema version: ${HANDOFF_SCHEMA_VERSION}`,
       `- Source session ID: ${project.sourceSessionId ?? "unknown"}`,
       `- Project path: ${project.path ?? "unknown"}`,
       `- Source rollout path: ${project.sourcePath ?? "unknown"}`,
@@ -481,21 +591,17 @@ export async function createHandoff(
     throw new Error("Cannot create handoff: source session has no projectPath.");
   }
 
-  const safeTargetCli = targetCli.replace(/[^a-zA-Z0-9_-]/g, "");
-  if (!safeTargetCli) {
-    throw new Error("Invalid target CLI name provided.");
-  }
+  assertCliName(targetCli, "target");
+  assertCliName(session.meta.sourceCli, "source");
 
-  const projectPath = session.meta.projectPath;
+  const projectPath = await validateProjectPath(session.meta.projectPath);
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const taskId = `${timestamp}-${session.meta.sourceCli}-to-${safeTargetCli}`;
-  const hammaDir = path.join(projectPath, ".hamma", "tasks", taskId);
-
-  try {
-    await fs.mkdir(hammaDir, { recursive: true });
-  } catch (err: any) {
-    throw new Error(`Cannot write .hamma directory: ${err.message}`);
-  }
+  const taskId = `${timestamp}-${session.meta.sourceCli}-to-${targetCli}`;
+  const tasksRoot = await prepareTasksRoot(projectPath);
+  const finalDir = path.join(tasksRoot, taskId);
+  const tempDir = path.join(tasksRoot, `.tmp-${taskId}`);
+  assertPathWithin(tasksRoot, finalDir);
+  assertPathWithin(tasksRoot, tempDir);
 
   if (useGitignore) {
     await ensureGitignore(projectPath);
@@ -503,17 +609,74 @@ export async function createHandoff(
 
   const repoState = computeRepoState(projectPath);
   const state = extractTaskState(session, { targetCli, repoState });
+  let tempCreated = false;
 
-  await fs.writeFile(path.join(hammaDir, "session.json"), JSON.stringify(session, null, 2), "utf8");
-  await fs.writeFile(path.join(hammaDir, "state.json"), JSON.stringify(state, null, 2), "utf8");
-  await fs.writeFile(path.join(hammaDir, "redaction-report.md"), renderRedactionReport(session), "utf8");
-  await fs.writeFile(path.join(hammaDir, "timeline.md"), renderTimelineMarkdown(session), "utf8");
-  await fs.writeFile(path.join(hammaDir, "commands.md"), renderCommandsMarkdown(session), "utf8");
+  try {
+    try {
+      await fs.lstat(finalDir);
+      throw new Error(`Handoff task directory already exists: ${finalDir}`);
+    } catch (error: any) {
+      if (error.code !== "ENOENT") throw error;
+    }
 
-  const handoffMd = renderHandoffWithSizeGuard(state);
-  const handoffPath = path.join(hammaDir, "handoff.md");
-  await fs.writeFile(handoffPath, handoffMd, "utf8");
+    try {
+      await fs.mkdir(tempDir);
+      tempCreated = true;
+    } catch (error: any) {
+      if (error.code === "EEXIST") {
+        throw new Error(
+          `Temporary handoff directory already exists; remove it before retrying: ${tempDir}`
+        );
+      }
+      throw error;
+    }
 
+    await fs.writeFile(
+      path.join(tempDir, "session.json"),
+      JSON.stringify(session, null, 2),
+      "utf8"
+    );
+    await fs.writeFile(
+      path.join(tempDir, "state.json"),
+      JSON.stringify(state, null, 2),
+      "utf8"
+    );
+    await fs.writeFile(
+      path.join(tempDir, "redaction-report.md"),
+      renderRedactionReport(session),
+      "utf8"
+    );
+    await fs.writeFile(
+      path.join(tempDir, "timeline.md"),
+      renderTimelineMarkdown(session),
+      "utf8"
+    );
+    await fs.writeFile(
+      path.join(tempDir, "commands.md"),
+      renderCommandsMarkdown(session),
+      "utf8"
+    );
+    await fs.writeFile(
+      path.join(tempDir, "handoff.md"),
+      renderHandoffWithSizeGuard(state),
+      "utf8"
+    );
+
+    await fs.rename(tempDir, finalDir);
+    tempCreated = false;
+  } catch (error: any) {
+    if (tempCreated) {
+      await fs
+        .rm(tempDir, { recursive: true, force: true })
+        .catch(() => undefined);
+    }
+    if (error.code === "EEXIST" || error.code === "ENOTEMPTY") {
+      throw new Error(`Handoff task directory already exists: ${finalDir}`);
+    }
+    throw error;
+  }
+
+  const handoffPath = path.join(finalDir, "handoff.md");
   const relativeHandoffPath = path.relative(projectPath, handoffPath);
   const relTaskDir = path.dirname(relativeHandoffPath);
 

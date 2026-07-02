@@ -8,7 +8,7 @@ on:
 
 jobs:
   typecheck-and-test:
-    name: Install, typecheck, and test
+    name: Install, typecheck, build, and test
     runs-on: ubuntu-latest
 
     steps:
@@ -29,6 +29,9 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
 
       - name: Test
         run: pnpm test

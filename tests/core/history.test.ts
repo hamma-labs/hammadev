@@ -48,6 +48,11 @@ beforeEach(async () => {
     JSON.stringify({ transcript: "RAW_TRANSCRIPT_MUST_NOT_APPEAR" }),
     "utf8"
   );
+  await fs.writeFile(
+    path.join(tasksPath, LATEST_ID, "state.json"),
+    JSON.stringify({ project: { sourceCli: "claude", targetCli: "codex" } }),
+    "utf8"
+  );
 });
 
 afterEach(async () => {

@@ -1,5 +1,7 @@
 import { HammaMessage, HammaSession } from "./schema.js";
 
+export const HANDOFF_SCHEMA_VERSION = 1 as const;
+
 export interface HammaTaskLedgerItem {
   id?: string;
   title?: string;
@@ -17,6 +19,7 @@ export interface HammaRepoState {
 }
 
 export interface HammaTaskState {
+  schemaVersion: typeof HANDOFF_SCHEMA_VERSION;
   goal?: string;
   project: {
     path?: string;
@@ -509,6 +512,7 @@ export function extractTaskState(
   }
 
   return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
     goal: goalUser ? truncate(goalUser.content, 500) : undefined,
     project: {
       path: session.meta.projectPath,

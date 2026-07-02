@@ -1,10 +1,11 @@
 {
   "name": "hamma",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/cli.js",
   "scripts": {
     "dev": "tsx src/cli.ts",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
+    "smoke:cli": "pnpm build && node dist/cli.js --help",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -28,6 +29,6 @@
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "bin": {
-    "hamma": "./src/cli.ts"
+    "hamma": "./dist/cli.js"
   }
 }
