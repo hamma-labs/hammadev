@@ -11,8 +11,10 @@ export interface CodexSessionRef {
   sizeBytes?: number;
 }
 
-export async function discoverCodexSessions(): Promise<CodexSessionRef[]> {
-  const pattern = codexSessionsGlob(defaultCodexHome());
+export async function discoverCodexSessions(
+  codexHome: string = defaultCodexHome()
+): Promise<CodexSessionRef[]> {
+  const pattern = codexSessionsGlob(codexHome);
   const files = await fg(pattern, { onlyFiles: true, dot: true });
 
   const sessions: CodexSessionRef[] = [];

@@ -4,7 +4,14 @@ import { discoverCodexSessions, CodexSessionRef } from "./discover.js";
 
 const CODEX_PREFIX = "codex:";
 
-export async function resolveCodexTarget(target: string): Promise<string> {
+export interface ResolveCodexOptions {
+  codexHome?: string;
+}
+
+export async function resolveCodexTarget(
+  target: string,
+  options: ResolveCodexOptions = {}
+): Promise<string> {
   if (target.startsWith(CODEX_PREFIX)) {
     const rest = target.slice(CODEX_PREFIX.length);
     if (!rest) {
@@ -13,7 +20,7 @@ export async function resolveCodexTarget(target: string): Promise<string> {
       );
     }
 
-    const sessions = await discoverCodexSessions();
+    const sessions = await discoverCodexSessions(options.codexHome);
 
     if (rest === "last") {
       const latest = sessions[0];
