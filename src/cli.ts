@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from "node:path";
 import { Command } from "commander";
 import pc from "picocolors";
 import { CodexAdapter } from "./adapters/codex/index.js";
@@ -6,6 +7,7 @@ import { ClaudeAdapter } from "./adapters/claude/index.js";
 import { ClaudeShapeReport } from "./adapters/claude/shape.js";
 import { HammaSession } from "./core/schema.js";
 import { createHandoff } from "./core/handoff.js";
+import { formatHandoffLog, listHandoffs, readHandoff } from "./core/history.js";
 import { runDoctor } from "./core/doctor.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
 
@@ -219,6 +221,39 @@ program
       await createHandoff(session, options.to, options.gitignore);
     } catch (err: any) {
       console.error(pc.red(`Error processing handoff: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command("log")
+  .option("--project <path>", "Project whose local handoff history should be listed")
+  .description("List local handoffs for a project, newest first")
+  .action(async (options) => {
+    const projectPath = path.resolve(options.project ?? process.cwd());
+    try {
+      const handoffs = await listHandoffs(projectPath);
+      if (handoffs.length === 0) {
+        console.log(pc.yellow(`No handoffs found in ${path.join(projectPath, ".hamma", "tasks")}.`));
+        return;
+      }
+      console.log(formatHandoffLog(handoffs));
+    } catch (err: any) {
+      console.error(pc.red(`Error reading handoff history: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command("show")
+  .argument("<task-id>", "Handoff task id or 'latest'")
+  .description("Print a local handoff brief")
+  .action(async (taskId) => {
+    try {
+      const markdown = await readHandoff(process.cwd(), taskId);
+      process.stdout.write(markdown.endsWith("\n") ? markdown : markdown + "\n");
+    } catch (err: any) {
+      console.error(pc.red(`Error reading handoff: ${err.message}`));
       process.exit(1);
     }
   });

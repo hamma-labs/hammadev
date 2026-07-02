@@ -82,6 +82,16 @@ pnpm dev inspect claude:last --summary
 # 5. Hand the Claude session to Codex (last, exact ID, or unique prefix)
 pnpm dev handoff claude:last --to codex
 pnpm dev handoff claude:aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa --to codex
+
+# 6. List this project's local handoffs (newest first)
+pnpm dev log
+
+# 6b. List handoffs from another project
+pnpm dev log --project /path/to/project
+
+# 7. Print the latest or a specific handoff brief
+pnpm dev show latest
+pnpm dev show <task-id>
 ```
 
 Handoffs are written under the source session's project directory as either
@@ -134,6 +144,9 @@ pnpm build
 | `hamma inspect <target> [--summary]` | Print the normalized session as JSON. `<target>` accepts `codex:last`, `codex:<conversationId>`, `claude:last`, `claude:<sessionId>` (exact or unique prefix), a Codex rollout path, or an absolute UUID-named Claude session path. |
 | `hamma handoff codex:<target> --to claude [--no-gitignore]` | Generate a Codex → Claude handoff under the source project's `.hamma/tasks/`. |
 | `hamma handoff claude:<target> --to codex [--no-gitignore]` | Generate a Claude → Codex handoff under the Claude session's `projectPath`. The conservative parser excludes Claude internal/system/tool/thinking records. |
+| `hamma log [--project <path>]` | List local handoffs newest first for the current directory, or for the selected project. Shows task ID, agents, created time, `handoff.md` path, and the continue-from-here line when present. |
+| `hamma show latest` | Print the newest local `handoff.md` from the current directory. |
+| `hamma show <task-id>` | Print one local `handoff.md` by task ID from the current directory. |
 
 In dev, invoke via `pnpm dev <command>`. The `bin` entry is `hamma`, so once
 published/linked it can be invoked directly.
@@ -157,6 +170,9 @@ project Codex or Claude was working in), not this repo:
 
 By default, HammaDev appends `.hamma/` to that project's `.gitignore` so
 handoff artifacts stay local. Pass `--no-gitignore` to skip.
+
+`hamma log` and `hamma show` read only `handoff.md` by default. They do not
+print `session.json` or raw transcript data.
 
 ---
 
@@ -184,7 +200,7 @@ Near-term:
 
 - Additional source adapters: Gemini CLI, opencode, Antigravity.
 - Richer task-ledger extraction (fewer parser warnings, better dedup).
-- Per-project handoff history / `hamma log`.
+- More history filters and handoff retention controls.
 
 Later:
 
