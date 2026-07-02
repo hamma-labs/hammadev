@@ -64,8 +64,17 @@ pnpm dev list codex
 # 2. Inspect the most recent Codex session (summarized JSON)
 pnpm dev inspect codex:last --summary
 
+# 2b. Inspect a specific session by conversationId (exact or unique prefix)
+pnpm dev inspect codex:019f18df-4e55-73a1-91d9-83551639edbf --summary
+
+# 2c. Inspect a rollout file directly by path
+pnpm dev inspect /home/you/.codex/sessions/2026/06/30/rollout-2026-06-30T14-22-05-019f18df-4e55-73a1-91d9-83551639edbf.jsonl --summary
+
 # 3. Create a handoff package for Claude Code to pick up
 pnpm dev handoff codex:last --to claude
+
+# 3b. Same, but selecting a specific session
+pnpm dev handoff codex:019f18df-4e55-73a1-91d9-83551639edbf --to claude
 ```
 
 The last command writes `.hamma/tasks/<timestamp>-codex-to-claude/` inside
@@ -111,8 +120,8 @@ pnpm build
 | --- | --- |
 | `hamma doctor` | Preflight check: Node version, `git` availability, Codex session presence, `projectPath` detection, and `.gitignore` safety. Exits non-zero on any failure. |
 | `hamma list codex` | List Codex sessions found on this machine (newest first). |
-| `hamma inspect codex:last [--summary]` | Print the parsed session as JSON. `--summary` truncates and shows head/tail. |
-| `hamma handoff codex:last --to claude [--no-gitignore]` | Write a handoff package under `.hamma/tasks/`. `--no-gitignore` skips the `.gitignore` update. |
+| `hamma inspect <target> [--summary]` | Print the parsed session as JSON. `--summary` truncates and shows head/tail. `<target>` is `codex:last`, `codex:<conversationId>` (exact or unique prefix), or a rollout `.jsonl` file path. |
+| `hamma handoff <target> --to claude [--no-gitignore]` | Write a handoff package under `.hamma/tasks/`. `<target>` accepts the same forms as `inspect`. `--no-gitignore` skips the `.gitignore` update. |
 
 In dev, invoke via `pnpm dev <command>`. The `bin` entry is `hamma`, so once
 published/linked it can be invoked directly.

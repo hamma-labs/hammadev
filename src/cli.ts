@@ -40,24 +40,20 @@ program
 
 program
   .command("inspect")
-  .argument("<target>", "example: codex:last")
+  .argument("<target>", "codex:last | codex:<conversationId> | path to rollout-*.jsonl")
   .option("--summary", "Print a summarized version of the session")
   .description("Inspect one session")
   .action(async (target, options) => {
-    if (target !== "codex:last") {
-      console.error(pc.red("Error: Unsupported target source. Only 'codex:last' is supported in v0.1-alpha."));
-      process.exit(1);
-    }
-
-    const latest = await CodexAdapter.latest();
-
-    if (!latest) {
-      console.error(pc.red("Error: No Codex sessions found."));
+    let rolloutPath: string;
+    try {
+      rolloutPath = await CodexAdapter.resolve(target);
+    } catch (err: any) {
+      console.error(pc.red(`Error: ${err.message}`));
       process.exit(1);
     }
 
     try {
-      const session = await CodexAdapter.inspect(latest.path);
+      const session = await CodexAdapter.inspect(rolloutPath);
 
       if (options.summary) {
         const truncate = (s: string | undefined, max: number) => {
@@ -97,25 +93,21 @@ program
 
 program
   .command("handoff")
-  .argument("<target>", "example: codex:last")
+  .argument("<target>", "codex:last | codex:<conversationId> | path to rollout-*.jsonl")
   .requiredOption("--to <agent>", "Target CLI (e.g. claude)")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Create a handoff package for another agent")
   .action(async (target, options) => {
-    if (target !== "codex:last") {
-      console.error(pc.red("Error: Unsupported target source. Only 'codex:last' is supported in v0.1-alpha."));
-      process.exit(1);
-    }
-
-    const latest = await CodexAdapter.latest();
-
-    if (!latest) {
-      console.error(pc.red("Error: No Codex sessions found."));
+    let rolloutPath: string;
+    try {
+      rolloutPath = await CodexAdapter.resolve(target);
+    } catch (err: any) {
+      console.error(pc.red(`Error: ${err.message}`));
       process.exit(1);
     }
 
     try {
-      const session = await CodexAdapter.inspect(latest.path);
+      const session = await CodexAdapter.inspect(rolloutPath);
 
       await createHandoff(session, options.to, options.gitignore);
     } catch (err: any) {
