@@ -3,6 +3,7 @@ import { Command } from "commander";
 import pc from "picocolors";
 import { CodexAdapter } from "./adapters/codex/index.js";
 import { createHandoff } from "./core/handoff.js";
+import { runDoctor } from "./core/doctor.js";
 
 const program = new Command();
 
@@ -121,6 +122,14 @@ program
       console.error(pc.red(`Error processing handoff: ${err.message}`));
       process.exit(1);
     }
+  });
+
+program
+  .command("doctor")
+  .description("Validate environment, Codex availability, and .gitignore safety")
+  .action(async () => {
+    const code = await runDoctor();
+    process.exit(code);
   });
 
 program.parseAsync();
