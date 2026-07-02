@@ -52,6 +52,8 @@ in your project. The next agent reads that file and continues.
   (OpenAI, Anthropic, GitHub, Google, Slack, generic `api_key=...`).
 - **Non-destructive.** Never writes to the source agent's session files.
   Optionally appends `.hamma/` to your project's `.gitignore`.
+- **Project status.** Reports local Git state, handoff history, session counts,
+  and `.hamma/` ignore coverage without printing transcripts.
 
 ---
 
@@ -92,6 +94,10 @@ pnpm dev log --project /path/to/project
 # 7. Print the latest or a specific handoff brief
 pnpm dev show latest
 pnpm dev show <task-id>
+
+# 8. Show an overview for this project or another project
+pnpm dev status
+pnpm dev status --project /path/to/project
 ```
 
 Handoffs are written under the source session's project directory as either
@@ -137,6 +143,7 @@ pnpm build
 | Command | Purpose |
 | --- | --- |
 | `hamma doctor` | Preflight check: Node version, `git` availability, Codex session presence, `projectPath` detection, and `.gitignore` safety. Exits non-zero on any failure. |
+| `hamma status [--project <path>]` | Show a read-only overview for the current or selected project: Git state, handoff count/latest route, Codex and Claude session counts, and whether `.hamma/` is ignored. |
 | `hamma list codex` | List Codex sessions found on this machine (newest first). |
 | `hamma list claude` | List candidate Claude Code session files found under `~/.claude`, `~/.config/claude`, and `~/.local/share/claude`. Claude files are never modified. |
 | `hamma inspect claude:last --shape` (also `claude:<sessionId>`) | **Experimental / read-only shape probe.** Reads a Claude Code `.jsonl` line-by-line and prints only structural stats — file size, line counts, top-level key frequency, `type`/role tallies, per-type field shapes, and any `cwd`/`projectPath` values. **No message text, prompt text, tool inputs, tool outputs, or file contents are ever printed.** Used to design the Claude parser without leaking session content. |
@@ -171,7 +178,8 @@ project Codex or Claude was working in), not this repo:
 By default, HammaDev appends `.hamma/` to that project's `.gitignore` so
 handoff artifacts stay local. Pass `--no-gitignore` to skip.
 
-`hamma log` and `hamma show` read only `handoff.md` by default. They do not
+`hamma status`, `hamma log`, and `hamma show` are read-only. Status reads only
+project/Git metadata plus handoff or state metadata; these commands do not
 print `session.json` or raw transcript data.
 
 ---

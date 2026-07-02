@@ -8,6 +8,7 @@ import { ClaudeShapeReport } from "./adapters/claude/shape.js";
 import { HammaSession } from "./core/schema.js";
 import { createHandoff } from "./core/handoff.js";
 import { formatHandoffLog, listHandoffs, readHandoff } from "./core/history.js";
+import { formatProjectStatus, getProjectStatus } from "./core/project-status.js";
 import { runDoctor } from "./core/doctor.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
 
@@ -105,7 +106,7 @@ const program = new Command();
 program
   .name("hamma")
   .description("Shared memory and handoff layer for agentic coding CLIs")
-  .version("0.1.0-alpha");
+  .version("0.1.0-alpha.0");
 
 program
   .command("list")
@@ -221,6 +222,20 @@ program
       await createHandoff(session, options.to, options.gitignore);
     } catch (err: any) {
       console.error(pc.red(`Error processing handoff: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command("status")
+  .option("--project <path>", "Project directory to inspect")
+  .description("Show a read-only project and local session overview")
+  .action(async (options) => {
+    const projectPath = path.resolve(options.project ?? process.cwd());
+    try {
+      console.log(formatProjectStatus(await getProjectStatus(projectPath)));
+    } catch (err: any) {
+      console.error(pc.red(`Error reading project status: ${err.message}`));
       process.exit(1);
     }
   });
