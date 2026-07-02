@@ -1,6 +1,6 @@
 {
   "name": "hammadev",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Local handoff and shared-memory CLI for Codex and Claude Code",
   "main": "dist/cli.js",
   "files": [
@@ -12,7 +12,7 @@
     "hamma": "./dist/cli.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",

@@ -111,9 +111,27 @@ codex "Read .hamma/tasks/<id>/handoff.md and continue the task from the current 
 
 ---
 
-## Install / dev setup
+## Install
 
-Requirements: Node.js 20+ and [pnpm](https://pnpm.io/) 10+.
+Requires Node.js 22.12+ (Node 24 recommended).
+
+Note: The npm package is named `hammadev`, but the CLI command is `hamma`.
+
+```bash
+npm install -g hammadev@alpha
+```
+
+Smoke test the installation:
+
+```bash
+hamma --help
+hamma doctor
+hamma status
+```
+
+## Dev setup
+
+Requirements: Node.js 22.12+ and [pnpm](https://pnpm.io/) 10+.
 
 ```bash
 git clone https://github.com/<you>/hammadev.git
