@@ -7,6 +7,7 @@ import { ClaudeShapeReport } from "./adapters/claude/shape.js";
 import { HammaSession } from "./core/schema.js";
 import { createHandoff } from "./core/handoff.js";
 import { runDoctor } from "./core/doctor.js";
+import { loadSession, resolveSessionTarget } from "./session-loader.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -168,7 +169,7 @@ program
   .command("inspect")
   .argument(
     "<target>",
-    "codex:last | codex:<conversationId> | claude:last | claude:<sessionId> | path to rollout-*.jsonl"
+    "codex:last | codex:<conversationId> | claude:last | claude:<sessionId> | session JSONL path"
   )
   .option("--summary", "Print a summarized view (meta, counts, head/tail messages)")
   .option(
@@ -177,48 +178,25 @@ program
   )
   .description("Inspect one session")
   .action(async (target, options) => {
-    if (target.startsWith("claude:")) {
-      let claudePath: string;
+    if (options.shape) {
       try {
-        claudePath = await ClaudeAdapter.resolve(target);
-      } catch (err: any) {
-        console.error(pc.red(`Error: ${err.message}`));
-        process.exit(1);
-      }
-
-      if (options.shape) {
-        try {
-          const report = await ClaudeAdapter.inspectShape(claudePath);
-          printClaudeShapeReport(report);
-        } catch (err: any) {
-          console.error(
-            pc.red(`Error inspecting Claude session shape: ${err.message}`)
-          );
-          process.exit(1);
+        const resolved = await resolveSessionTarget(target);
+        if (resolved.sourceCli !== "claude") {
+          throw new Error("--shape is only supported for Claude sessions.");
         }
+        const report = await ClaudeAdapter.inspectShape(resolved.sessionPath);
+        printClaudeShapeReport(report);
         return;
-      }
-
-      try {
-        const session = await ClaudeAdapter.inspect(claudePath);
-        console.log(renderSession(session, Boolean(options.summary)));
       } catch (err: any) {
-        console.error(pc.red(`Error inspecting Claude session: ${err.message}`));
+        console.error(
+          pc.red(`Error inspecting Claude session shape: ${err.message}`)
+        );
         process.exit(1);
       }
-      return;
-    }
-
-    let rolloutPath: string;
-    try {
-      rolloutPath = await CodexAdapter.resolve(target);
-    } catch (err: any) {
-      console.error(pc.red(`Error: ${err.message}`));
-      process.exit(1);
     }
 
     try {
-      const session = await CodexAdapter.inspect(rolloutPath);
+      const session = await loadSession(target);
       console.log(renderSession(session, Boolean(options.summary)));
     } catch (err: any) {
       console.error(pc.red(`Error inspecting session: ${err.message}`));
@@ -228,22 +206,16 @@ program
 
 program
   .command("handoff")
-  .argument("<target>", "codex:last | codex:<conversationId> | path to rollout-*.jsonl")
-  .requiredOption("--to <agent>", "Target CLI (e.g. claude)")
+  .argument(
+    "<target>",
+    "codex:last | codex:<conversationId> | claude:last | claude:<sessionId> | session JSONL path"
+  )
+  .requiredOption("--to <agent>", "Target CLI (e.g. claude or codex)")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Create a handoff package for another agent")
   .action(async (target, options) => {
-    let rolloutPath: string;
     try {
-      rolloutPath = await CodexAdapter.resolve(target);
-    } catch (err: any) {
-      console.error(pc.red(`Error: ${err.message}`));
-      process.exit(1);
-    }
-
-    try {
-      const session = await CodexAdapter.inspect(rolloutPath);
-
+      const session = await loadSession(target);
       await createHandoff(session, options.to, options.gitignore);
     } catch (err: any) {
       console.error(pc.red(`Error processing handoff: ${err.message}`));

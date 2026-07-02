@@ -2,12 +2,11 @@
 
 **Persistent memory and handoff layer for AI coding agents.**
 
-HammaDev reads a coding-agent session (currently OpenAI Codex CLI) and produces a
-compact, structured handoff package another agent (currently Claude Code) can
-pick up and continue from — with no shared cloud service and no changes to the
-source agent's files.
+HammaDev reads a Codex CLI or Claude Code session and produces a compact,
+structured handoff package another supported agent can pick up and continue
+from — with no shared cloud service and no changes to the source agent's files.
 
-> **Status:** v0.1-alpha. Local-only CLI. Codex → Claude handoff.
+> **Status:** v0.1-alpha. Local-only CLI. Codex ↔ Claude handoff.
 
 ---
 
@@ -37,7 +36,8 @@ in your project. The next agent reads that file and continues.
 - **Source adapter — Codex CLI.** Discovers rollouts under
   `~/.codex/sessions/**/rollout-*.jsonl` and parses them into a normalized
   `HammaSession` model.
-- **Handoff generator — target `claude`.** Produces a `.hamma/tasks/<id>/`
+- **Source adapter — Claude Code.** Discovers Claude JSONL sessions and conservatively parses visible user/assistant text while excluding internal, system, thinking, and tool records.
+- **Handoff generator — targets `claude` and `codex`.** Produces a `.hamma/tasks/<id>/`
   directory containing:
   - `handoff.md` — a size-guarded (~15 KB target, 20 KB hard cap) markdown
     brief with next action, current state, completed vs. remaining tasks,
@@ -75,14 +75,22 @@ pnpm dev handoff codex:last --to claude
 
 # 3b. Same, but selecting a specific session
 pnpm dev handoff codex:019f18df-4e55-73a1-91d9-83551639edbf --to claude
+
+# 4. Inspect the most recent Claude session
+pnpm dev inspect claude:last --summary
+
+# 5. Hand the Claude session to Codex (last, exact ID, or unique prefix)
+pnpm dev handoff claude:last --to codex
+pnpm dev handoff claude:aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa --to codex
 ```
 
-The last command writes `.hamma/tasks/<timestamp>-codex-to-claude/` inside
-the project directory Codex was working in, and prints a suggested next
-command, e.g.:
+Handoffs are written under the source session's project directory as either
+`.hamma/tasks/<timestamp>-codex-to-claude/` or
+`.hamma/tasks/<timestamp>-claude-to-codex/`. The CLI then prints a suggested
+command, for example:
 
 ```
-claude "Read .hamma/tasks/<id>/handoff.md and continue the task from the current repo state."
+codex "Read .hamma/tasks/<id>/handoff.md and continue the task from the current repo state."
 ```
 
 ---
@@ -120,11 +128,12 @@ pnpm build
 | --- | --- |
 | `hamma doctor` | Preflight check: Node version, `git` availability, Codex session presence, `projectPath` detection, and `.gitignore` safety. Exits non-zero on any failure. |
 | `hamma list codex` | List Codex sessions found on this machine (newest first). |
-| `hamma list claude` | **Experimental / read-only.** List candidate Claude Code session files found under `~/.claude`, `~/.config/claude`, and `~/.local/share/claude`. No parsing, no handoff — discovery only. Claude files are never modified. |
+| `hamma list claude` | List candidate Claude Code session files found under `~/.claude`, `~/.config/claude`, and `~/.local/share/claude`. Claude files are never modified. |
 | `hamma inspect claude:last --shape` (also `claude:<sessionId>`) | **Experimental / read-only shape probe.** Reads a Claude Code `.jsonl` line-by-line and prints only structural stats — file size, line counts, top-level key frequency, `type`/role tallies, per-type field shapes, and any `cwd`/`projectPath` values. **No message text, prompt text, tool inputs, tool outputs, or file contents are ever printed.** Used to design the Claude parser without leaking session content. |
 | `hamma inspect claude:<target> [--summary]` | **Experimental conservative parser (v0.1).** Normalizes a Claude session into `HammaSession`. Only visible user/assistant text messages are included — `system`, `permission-mode`, `mode`, `file-history-snapshot`, `ai-title`, `last-prompt`, and `attachment` records are ignored, and assistant `thinking`/`tool_use` and user `tool_result` blocks are dropped. All emitted message content passes through the same secret redaction used for Codex. No Claude files are modified. |
-| `hamma inspect <target> [--summary]` | Print the parsed session as JSON. `--summary` truncates and shows head/tail. `<target>` is `codex:last`, `codex:<conversationId>` (exact or unique prefix), or a rollout `.jsonl` file path. |
-| `hamma handoff <target> --to claude [--no-gitignore]` | Write a handoff package under `.hamma/tasks/`. `<target>` accepts the same forms as `inspect`. `--no-gitignore` skips the `.gitignore` update. |
+| `hamma inspect <target> [--summary]` | Print the normalized session as JSON. `<target>` accepts `codex:last`, `codex:<conversationId>`, `claude:last`, `claude:<sessionId>` (exact or unique prefix), a Codex rollout path, or an absolute UUID-named Claude session path. |
+| `hamma handoff codex:<target> --to claude [--no-gitignore]` | Generate a Codex → Claude handoff under the source project's `.hamma/tasks/`. |
+| `hamma handoff claude:<target> --to codex [--no-gitignore]` | Generate a Claude → Codex handoff under the Claude session's `projectPath`. The conservative parser excludes Claude internal/system/tool/thinking records. |
 
 In dev, invoke via `pnpm dev <command>`. The `bin` entry is `hamma`, so once
 published/linked it can be invoked directly.
@@ -134,10 +143,10 @@ published/linked it can be invoked directly.
 ## Generated files
 
 Handoff artifacts are written under the *source project's* directory (the
-project Codex was working in), not this repo:
+project Codex or Claude was working in), not this repo:
 
 ```
-<project>/.hamma/tasks/<ISO-timestamp>-codex-to-claude/
+<project>/.hamma/tasks/<ISO-timestamp>-<source>-to-<target>/
 ├── handoff.md            # short markdown brief for the target agent
 ├── state.json            # structured task state
 ├── session.json          # full normalized session
@@ -155,8 +164,8 @@ handoff artifacts stay local. Pass `--no-gitignore` to skip.
 
 - **Local only.** All parsing, redaction, and file writes happen on your
   machine. There is no network call, no backend, no telemetry.
-- **Read-only against source sessions.** HammaDev never modifies rollout
-  files under `~/.codex/sessions/`.
+- **Read-only against source sessions.** HammaDev never modifies Codex rollout
+  files or Claude session JSONL files.
 - **Best-effort secret redaction.** Common API-key patterns (OpenAI,
   Anthropic, GitHub, Google, Slack, generic `key/token/secret/password = …`)
   are replaced with `[REDACTED_SECRET]` in the emitted artifacts, and
@@ -173,8 +182,7 @@ handoff artifacts stay local. Pass `--no-gitignore` to skip.
 
 Near-term:
 
-- Additional source adapters: Claude Code, Gemini CLI, opencode, Antigravity.
-- `claude → codex` and other reverse handoffs.
+- Additional source adapters: Gemini CLI, opencode, Antigravity.
 - Richer task-ledger extraction (fewer parser warnings, better dedup).
 - Per-project handoff history / `hamma log`.
 

@@ -12,8 +12,8 @@ export const CodexAdapter = {
     return sessions[0] ?? null;
   },
 
-  async resolve(target: string) {
-    return resolveCodexTarget(target);
+  async resolve(target: string, codexHome?: string) {
+    return resolveCodexTarget(target, { codexHome });
   },
 
   async inspect(sessionPath: string) {
