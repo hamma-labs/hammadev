@@ -120,6 +120,7 @@ pnpm build
 | --- | --- |
 | `hamma doctor` | Preflight check: Node version, `git` availability, Codex session presence, `projectPath` detection, and `.gitignore` safety. Exits non-zero on any failure. |
 | `hamma list codex` | List Codex sessions found on this machine (newest first). |
+| `hamma list claude` | **Experimental / read-only.** List candidate Claude Code session files found under `~/.claude`, `~/.config/claude`, and `~/.local/share/claude`. No parsing, no handoff — discovery only. Claude files are never modified. |
 | `hamma inspect <target> [--summary]` | Print the parsed session as JSON. `--summary` truncates and shows head/tail. `<target>` is `codex:last`, `codex:<conversationId>` (exact or unique prefix), or a rollout `.jsonl` file path. |
 | `hamma handoff <target> --to claude [--no-gitignore]` | Write a handoff package under `.hamma/tasks/`. `<target>` accepts the same forms as `inspect`. `--no-gitignore` skips the `.gitignore` update. |
 

@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import pc from "picocolors";
 import { CodexAdapter } from "./adapters/codex/index.js";
+import { ClaudeAdapter } from "./adapters/claude/index.js";
 import { createHandoff } from "./core/handoff.js";
 import { runDoctor } from "./core/doctor.js";
 
@@ -14,28 +15,62 @@ program
 
 program
   .command("list")
-  .argument("<source>", "source CLI: codex")
+  .argument("<source>", "source CLI: codex | claude")
   .description("List sessions from a source CLI")
   .action(async (source) => {
-    if (source !== "codex") {
-      console.error(pc.red(`Error: Unsupported target source '${source}'. Only 'codex' is supported.`));
-      process.exit(1);
-    }
+    if (source === "codex") {
+      const sessions = await CodexAdapter.list();
 
-    const sessions = await CodexAdapter.list();
+      if (sessions.length === 0) {
+        console.log(pc.yellow("No Codex sessions found."));
+        return;
+      }
 
-    if (sessions.length === 0) {
-      console.log(pc.yellow("No Codex sessions found."));
+      console.log(pc.bold(`Codex sessions found: ${sessions.length}\n`));
+
+      sessions.slice(0, 20).forEach((s, i) => {
+        console.log(`${i + 1}. ${pc.cyan(s.startedAt ?? "unknown-time")} ${s.conversationId}`);
+        console.log(`   ${s.path}`);
+        console.log(`   updated: ${s.lastUpdatedAt ?? "unknown"} size: ${s.sizeBytes ?? 0} bytes`);
+      });
       return;
     }
 
-    console.log(pc.bold(`Codex sessions found: ${sessions.length}\n`));
+    if (source === "claude") {
+      const sessions = await ClaudeAdapter.list();
 
-    sessions.slice(0, 20).forEach((s, i) => {
-      console.log(`${i + 1}. ${pc.cyan(s.startedAt ?? "unknown-time")} ${s.conversationId}`);
-      console.log(`   ${s.path}`);
-      console.log(`   updated: ${s.lastUpdatedAt ?? "unknown"} size: ${s.sizeBytes ?? 0} bytes`);
-    });
+      console.log(pc.yellow("Claude Code discovery is read-only and experimental — no files are modified."));
+
+      if (sessions.length === 0) {
+        console.log(pc.yellow("\nNo Claude Code session files found."));
+        console.log(
+          "Looked under ~/.claude, ~/.config/claude, and ~/.local/share/claude for projects/**/*.jsonl, sessions/**/*.jsonl, and history/**/*.jsonl."
+        );
+        console.log("If Claude Code is installed elsewhere on this machine, this is expected.");
+        return;
+      }
+
+      console.log(pc.bold(`\nCandidate Claude session files: ${sessions.length}\n`));
+
+      sessions.slice(0, 20).forEach((s, i) => {
+        const idLabel = s.sessionId ?? "unknown-session-id";
+        console.log(`${i + 1}. ${pc.cyan(s.lastUpdatedAt)} ${idLabel}`);
+        console.log(`   ${s.path}`);
+        console.log(
+          `   size: ${s.sizeBytes} bytes  home: ${s.claudeHome}${s.projectPathHint ? `  cwd hint: ${s.projectPathHint}` : ""}`
+        );
+      });
+
+      if (sessions.length > 20) {
+        console.log(pc.dim(`\n… ${sessions.length - 20} more not shown.`));
+      }
+      return;
+    }
+
+    console.error(
+      pc.red(`Error: Unsupported source '${source}'. Supported: 'codex', 'claude'.`)
+    );
+    process.exit(1);
   });
 
 program
