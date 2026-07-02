@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import pc from "picocolors";
 import { CodexAdapter } from "./adapters/codex/index.js";
@@ -101,12 +103,17 @@ function printClaudeShapeReport(report: ClaudeShapeReport) {
   }
 }
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const pkgPath = path.resolve(__dirname, "..", "package.json");
+const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+
 const program = new Command();
 
 program
   .name("hamma")
   .description("Shared memory and handoff layer for agentic coding CLIs")
-  .version("0.1.0-alpha.0");
+  .version(pkg.version);
 
 program
   .command("list")
