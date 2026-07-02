@@ -27,3 +27,7 @@ pnpm-debug.log*
 # Local CLI output dumps
 out.json
 out_full.json
+
+# Local agent/tool output
+.codex/
+graphify-out/
