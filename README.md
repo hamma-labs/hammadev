@@ -126,8 +126,19 @@ Smoke test the installation:
 ```bash
 hamma --help
 hamma doctor
+hamma quickstart
 hamma status
 ```
+
+## 2-Minute Quickstart
+
+New to HammaDev? Run this command from any project directory to see what to do next:
+
+```bash
+hamma quickstart
+```
+
+It will detect your current project, check your environment, find your local Codex and Claude sessions, and give you the exact command you need to copy-paste to perform your first agent handoff.
 
 ## Dev setup
 
@@ -160,6 +171,7 @@ pnpm build
 
 | Command | Purpose |
 | --- | --- |
+| `hamma quickstart` | Guided read-only onboarding for first-time users. Shows project status and exact recommended next commands. |
 | `hamma doctor` | Preflight check: Node version, `git` availability, Codex session presence, `projectPath` detection, and `.gitignore` safety. Exits non-zero on any failure. |
 | `hamma status [--project <path>]` | Show a read-only overview for the current or selected project: Git state, handoff count/latest route, Codex and Claude session counts, and whether `.hamma/` is ignored. |
 | `hamma list codex` | List Codex sessions found on this machine (newest first). |

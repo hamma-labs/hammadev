@@ -13,6 +13,7 @@ import { formatHandoffLog, listHandoffs, readHandoff } from "./core/history.js";
 import { formatProjectStatus, getProjectStatus } from "./core/project-status.js";
 import { runDoctor } from "./core/doctor.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
+import { runQuickstart } from "./core/quickstart.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -286,6 +287,13 @@ program
   .action(async () => {
     const code = await runDoctor();
     process.exit(code);
+  });
+
+program
+  .command("quickstart")
+  .description("Guided read-only onboarding for first-time users")
+  .action(async () => {
+    await runQuickstart(process.cwd());
   });
 
 program.parseAsync();

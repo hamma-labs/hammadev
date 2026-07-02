@@ -31,3 +31,4 @@ out_full.json
 # Local agent/tool output
 .codex/
 graphify-out/
+*.tgz
