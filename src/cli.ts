@@ -4,8 +4,40 @@ import pc from "picocolors";
 import { CodexAdapter } from "./adapters/codex/index.js";
 import { ClaudeAdapter } from "./adapters/claude/index.js";
 import { ClaudeShapeReport } from "./adapters/claude/shape.js";
+import { HammaSession } from "./core/schema.js";
 import { createHandoff } from "./core/handoff.js";
 import { runDoctor } from "./core/doctor.js";
+
+function truncate(s: string | undefined, max: number): string | undefined {
+  if (!s) return s;
+  return s.length > max ? s.slice(0, max) + "..." : s;
+}
+
+function renderSession(session: HammaSession, summary: boolean): string {
+  if (!summary) return JSON.stringify(session, null, 2);
+
+  const view = {
+    meta: session.meta,
+    messageCount: session.messages.length,
+    shellCommandCount: session.shellCommands.length,
+    parserWarningsCount: session.parserWarnings.length,
+    redactionCount: session.security.redactionCount,
+    firstMessages: session.messages.slice(0, 5).map((m) => ({
+      ...m,
+      content: truncate(m.content, 300)
+    })),
+    lastMessages: session.messages.slice(-5).map((m) => ({
+      ...m,
+      content: truncate(m.content, 300)
+    })),
+    lastShellCommands: session.shellCommands.slice(-10).map((c) => ({
+      ...c,
+      command: truncate(c.command, 200),
+      output: c.output !== undefined ? "<omitted>" : undefined
+    }))
+  };
+  return JSON.stringify(view, null, 2);
+}
 
 function printCountMap(label: string, counts: Record<string, number>) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -138,7 +170,7 @@ program
     "<target>",
     "codex:last | codex:<conversationId> | claude:last | claude:<sessionId> | path to rollout-*.jsonl"
   )
-  .option("--summary", "Print a summarized version of the Codex session")
+  .option("--summary", "Print a summarized view (meta, counts, head/tail messages)")
   .option(
     "--shape",
     "Read-only shape report for Claude targets — no message content is printed"
@@ -146,15 +178,6 @@ program
   .description("Inspect one session")
   .action(async (target, options) => {
     if (target.startsWith("claude:")) {
-      if (!options.shape) {
-        console.error(
-          pc.red(
-            "Error: Only shape inspection is supported for Claude targets. Re-run with --shape."
-          )
-        );
-        process.exit(1);
-      }
-
       let claudePath: string;
       try {
         claudePath = await ClaudeAdapter.resolve(target);
@@ -163,11 +186,24 @@ program
         process.exit(1);
       }
 
+      if (options.shape) {
+        try {
+          const report = await ClaudeAdapter.inspectShape(claudePath);
+          printClaudeShapeReport(report);
+        } catch (err: any) {
+          console.error(
+            pc.red(`Error inspecting Claude session shape: ${err.message}`)
+          );
+          process.exit(1);
+        }
+        return;
+      }
+
       try {
-        const report = await ClaudeAdapter.inspectShape(claudePath);
-        printClaudeShapeReport(report);
+        const session = await ClaudeAdapter.inspect(claudePath);
+        console.log(renderSession(session, Boolean(options.summary)));
       } catch (err: any) {
-        console.error(pc.red(`Error inspecting Claude session shape: ${err.message}`));
+        console.error(pc.red(`Error inspecting Claude session: ${err.message}`));
         process.exit(1);
       }
       return;
@@ -183,37 +219,7 @@ program
 
     try {
       const session = await CodexAdapter.inspect(rolloutPath);
-
-      if (options.summary) {
-        const truncate = (s: string | undefined, max: number) => {
-          if (!s) return s;
-          return s.length > max ? s.slice(0, max) + "..." : s;
-        };
-
-        const summary = {
-          meta: session.meta,
-          messageCount: session.messages.length,
-          shellCommandCount: session.shellCommands.length,
-          parserWarningsCount: session.parserWarnings.length,
-          redactionCount: session.security.redactionCount,
-          firstMessages: session.messages.slice(0, 5).map(m => ({
-            ...m,
-            content: truncate(m.content, 300)
-          })),
-          lastMessages: session.messages.slice(-5).map(m => ({
-            ...m,
-            content: truncate(m.content, 300)
-          })),
-          lastShellCommands: session.shellCommands.slice(-10).map(c => ({
-            ...c,
-            command: truncate(c.command, 200),
-            output: c.output !== undefined ? "<omitted>" : undefined
-          }))
-        };
-        console.log(JSON.stringify(summary, null, 2));
-      } else {
-        console.log(JSON.stringify(session, null, 2));
-      }
+      console.log(renderSession(session, Boolean(options.summary)));
     } catch (err: any) {
       console.error(pc.red(`Error inspecting session: ${err.message}`));
       process.exit(1);
