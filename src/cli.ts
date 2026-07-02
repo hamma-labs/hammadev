@@ -3,8 +3,67 @@ import { Command } from "commander";
 import pc from "picocolors";
 import { CodexAdapter } from "./adapters/codex/index.js";
 import { ClaudeAdapter } from "./adapters/claude/index.js";
+import { ClaudeShapeReport } from "./adapters/claude/shape.js";
 import { createHandoff } from "./core/handoff.js";
 import { runDoctor } from "./core/doctor.js";
+
+function printCountMap(label: string, counts: Record<string, number>) {
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    console.log(`${label}: (none)`);
+    return;
+  }
+  console.log(`${label}:`);
+  for (const [k, v] of entries) console.log(`  ${k}: ${v}`);
+}
+
+function printClaudeShapeReport(report: ClaudeShapeReport) {
+  console.log(pc.bold("Claude session shape inspection"));
+  console.log(pc.yellow("(read-only — no message content, tool inputs, or outputs are printed)"));
+  console.log("");
+  console.log(`File: ${report.path}`);
+  console.log(`Size: ${report.sizeBytes} bytes`);
+  console.log(`Total non-empty lines: ${report.totalLines}`);
+  console.log(`Parsed JSON lines: ${report.parsedLines}`);
+  console.log(`Malformed lines: ${report.malformedLines}`);
+  console.log("");
+
+  printCountMap("Top-level key frequency", report.topLevelKeyFrequency);
+  console.log("");
+  printCountMap("Type field values", report.typeCounts);
+  console.log("");
+  printCountMap("Role values", report.roleCounts);
+  console.log("");
+
+  const typeShapes = Object.entries(report.shapeByType).sort((a, b) =>
+    a[0].localeCompare(b[0])
+  );
+  if (typeShapes.length === 0) {
+    console.log("Shape by type: (none)");
+  } else {
+    console.log("Shape by type:");
+    for (const [t, shape] of typeShapes) {
+      console.log(`  ${t}:`);
+      const keys = Object.keys(shape).sort();
+      for (const k of keys) console.log(`    ${k}: ${shape[k]}`);
+    }
+  }
+  console.log("");
+
+  if (report.cwdValues.length === 0) {
+    console.log("Detected cwd values: (none)");
+  } else {
+    console.log("Detected cwd values:");
+    for (const v of report.cwdValues) console.log(`  ${v}`);
+  }
+
+  if (report.projectPathValues.length === 0) {
+    console.log("Detected projectPath values: (none)");
+  } else {
+    console.log("Detected projectPath values:");
+    for (const v of report.projectPathValues) console.log(`  ${v}`);
+  }
+}
 
 const program = new Command();
 
@@ -75,10 +134,45 @@ program
 
 program
   .command("inspect")
-  .argument("<target>", "codex:last | codex:<conversationId> | path to rollout-*.jsonl")
-  .option("--summary", "Print a summarized version of the session")
+  .argument(
+    "<target>",
+    "codex:last | codex:<conversationId> | claude:last | claude:<sessionId> | path to rollout-*.jsonl"
+  )
+  .option("--summary", "Print a summarized version of the Codex session")
+  .option(
+    "--shape",
+    "Read-only shape report for Claude targets — no message content is printed"
+  )
   .description("Inspect one session")
   .action(async (target, options) => {
+    if (target.startsWith("claude:")) {
+      if (!options.shape) {
+        console.error(
+          pc.red(
+            "Error: Only shape inspection is supported for Claude targets. Re-run with --shape."
+          )
+        );
+        process.exit(1);
+      }
+
+      let claudePath: string;
+      try {
+        claudePath = await ClaudeAdapter.resolve(target);
+      } catch (err: any) {
+        console.error(pc.red(`Error: ${err.message}`));
+        process.exit(1);
+      }
+
+      try {
+        const report = await ClaudeAdapter.inspectShape(claudePath);
+        printClaudeShapeReport(report);
+      } catch (err: any) {
+        console.error(pc.red(`Error inspecting Claude session shape: ${err.message}`));
+        process.exit(1);
+      }
+      return;
+    }
+
     let rolloutPath: string;
     try {
       rolloutPath = await CodexAdapter.resolve(target);
