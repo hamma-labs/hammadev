@@ -2,11 +2,50 @@ import {
   ClaudeSessionRef,
   discoverClaudeSessions
 } from "./discover.js";
+import {
+  ClaudeSessionCandidate,
+  rankClaudeSessions
+} from "./quality.js";
+import { filterSessionsByProject } from "../../core/project-match.js";
 
 const CLAUDE_PREFIX = "claude:";
 
 export interface ResolveClaudeOptions {
   claudeHomes?: string[];
+  projectPath?: string;
+}
+
+async function projectSessions(
+  sessions: ClaudeSessionRef[],
+  projectPath: string
+): Promise<{ requestedProject: string; matches: ClaudeSessionRef[] }> {
+  return filterSessionsByProject(sessions, projectPath);
+}
+
+function candidateSummary(candidate: ClaudeSessionCandidate): string {
+  const id = candidate.sessionId ?? "unknown-session-id";
+  const signals = candidate.signals.length > 0
+    ? candidate.signals.join(", ")
+    : "none";
+  const reasons = candidate.reasons.length > 0
+    ? candidate.reasons.join("; ")
+    : "none";
+  return `  - ${id} | updated ${candidate.lastUpdatedAt} | confidence ${candidate.confidence} | score ${candidate.score} | signals: ${signals} | reasons: ${reasons}`;
+}
+
+export async function listClaudeProjectCandidates(
+  projectPath: string,
+  claudeHomes?: string[]
+): Promise<{ projectPath: string; candidates: ClaudeSessionCandidate[] }> {
+  const sessions = await discoverClaudeSessions(claudeHomes);
+  const { requestedProject, matches } = await projectSessions(
+    sessions,
+    projectPath
+  );
+  return {
+    projectPath: requestedProject,
+    candidates: await rankClaudeSessions(matches)
+  };
 }
 
 export async function resolveClaudeTarget(
@@ -34,6 +73,38 @@ export async function resolveClaudeTarget(
   }
 
   if (rest === "last") return sessions[0].path;
+
+  if (rest === "project") {
+    if (!options.projectPath) {
+      throw new Error(
+        "Resolving 'claude:project' requires a project path. Pass --project <path>."
+      );
+    }
+
+    const { requestedProject, matches } = await projectSessions(
+      sessions,
+      options.projectPath
+    );
+
+    if (matches.length === 0) {
+      throw new Error(
+        `No Claude session found for project '${requestedProject}'.`
+      );
+    }
+
+    const candidates = await rankClaudeSessions(matches);
+    const selected = candidates.find((candidate) => candidate.resumable);
+    if (!selected) {
+      const details = candidates.slice(0, 10).map(candidateSummary).join("\n");
+      throw new Error(
+        `No resumable Claude session found for project '${requestedProject}'.\n` +
+        `Candidate sessions:\n${details}\n` +
+        `Select one explicitly with claude:<sessionId> if this assessment is incorrect.`
+      );
+    }
+
+    return selected.path;
+  }
 
   return resolveBySessionId(rest, sessions);
 }

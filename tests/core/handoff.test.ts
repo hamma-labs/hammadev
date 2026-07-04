@@ -27,13 +27,14 @@ const EXPECTED_FILES = [
 
 let projectPath = "";
 let taskPath = "";
+let handoffResult: Awaited<ReturnType<typeof createHandoff>>;
 
 beforeAll(async () => {
   projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-claude-handoff-"));
   const session = await parseClaudeSession(FIXTURE);
   session.meta.projectPath = projectPath;
 
-  await createHandoff(session, "codex", false);
+  handoffResult = await createHandoff(session, "codex", false);
 
   const tasksPath = path.join(projectPath, ".hamma", "tasks");
   const taskNames = await fs.readdir(tasksPath);
@@ -65,6 +66,22 @@ describe("createHandoff with a Claude session", () => {
       await fs.readFile(path.join(taskPath, "state.json"), "utf8")
     );
     expect(state.schemaVersion).toBe(1);
+  });
+
+  it("returns a machine-readable artifact contract", () => {
+    expect(handoffResult).toMatchObject({
+      schemaVersion: 1,
+      sourceCli: "claude",
+      sourceSessionId: "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa",
+      targetCli: "codex",
+      projectPath,
+      taskPath,
+      handoffPath: path.join(taskPath, "handoff.md"),
+      statePath: path.join(taskPath, "state.json")
+    });
+    expect(handoffResult.relativeHandoffPath).toBe(
+      path.relative(projectPath, path.join(taskPath, "handoff.md"))
+    );
   });
 
   it("keeps ignored Claude internal content out of session.json", async () => {

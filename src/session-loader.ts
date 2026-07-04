@@ -10,6 +10,7 @@ export type SupportedSourceCli = "codex" | "claude";
 export interface SessionLoaderOptions {
   codexHome?: string;
   claudeHomes?: string[];
+  projectPath?: string;
 }
 
 export interface ResolvedSessionTarget {
@@ -56,14 +57,20 @@ export async function resolveSessionTarget(
   if (target.startsWith("claude:")) {
     return {
       sourceCli: "claude",
-      sessionPath: await ClaudeAdapter.resolve(target, options.claudeHomes)
+      sessionPath: await ClaudeAdapter.resolve(target, {
+        claudeHomes: options.claudeHomes,
+        projectPath: options.projectPath
+      })
     };
   }
 
   if (target.startsWith("codex:") || path.basename(target).startsWith("rollout-")) {
     return {
       sourceCli: "codex",
-      sessionPath: await CodexAdapter.resolve(target, options.codexHome)
+      sessionPath: await CodexAdapter.resolve(target, {
+        codexHome: options.codexHome,
+        projectPath: options.projectPath
+      })
     };
   }
 

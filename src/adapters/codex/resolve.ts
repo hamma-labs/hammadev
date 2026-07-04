@@ -1,11 +1,61 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { discoverCodexSessions, CodexSessionRef } from "./discover.js";
+import { parseCodexRollout } from "./rollout.js";
+import {
+  SessionCandidate,
+  SessionRef,
+  rankSessions,
+} from "../../core/quality.js";
+import { filterSessionsByProject } from "../../core/project-match.js";
 
 const CODEX_PREFIX = "codex:";
+const EPOCH = new Date(0).toISOString();
 
 export interface ResolveCodexOptions {
   codexHome?: string;
+  projectPath?: string;
+}
+
+function toSessionRef(session: CodexSessionRef): SessionRef {
+  return {
+    sourceCli: "codex",
+    sessionId: session.conversationId,
+    path: session.path,
+    projectPathHint: session.projectPathHint,
+    lastUpdatedAt: session.lastUpdatedAt ?? session.startedAt ?? EPOCH,
+    sizeBytes: session.sizeBytes,
+  };
+}
+
+async function rankCodexSessions(
+  sessions: CodexSessionRef[]
+): Promise<SessionCandidate[]> {
+  return rankSessions(sessions.map(toSessionRef), (ref) =>
+    parseCodexRollout(ref.path)
+  );
+}
+
+export async function listCodexProjectCandidates(
+  projectPath: string,
+  codexHome?: string
+): Promise<{ projectPath: string; candidates: SessionCandidate[] }> {
+  const sessions = await discoverCodexSessions(codexHome);
+  const { requestedProject, matches } = await filterSessionsByProject(
+    sessions,
+    projectPath
+  );
+  return {
+    projectPath: requestedProject,
+    candidates: await rankCodexSessions(matches),
+  };
+}
+
+function candidateSummary(candidate: SessionCandidate): string {
+  const id = candidate.sessionId ?? "unknown-conversation-id";
+  const signals = candidate.signals.length > 0 ? candidate.signals.join(", ") : "none";
+  const reasons = candidate.reasons.length > 0 ? candidate.reasons.join("; ") : "none";
+  return `  - ${id} | updated ${candidate.lastUpdatedAt} | confidence ${candidate.confidence} | score ${candidate.score} | signals: ${signals} | reasons: ${reasons}`;
 }
 
 export async function resolveCodexTarget(
@@ -16,7 +66,7 @@ export async function resolveCodexTarget(
     const rest = target.slice(CODEX_PREFIX.length);
     if (!rest) {
       throw new Error(
-        `Invalid Codex target '${target}'. Expected 'codex:last', 'codex:<conversationId>', or a rollout file path.`
+        `Invalid Codex target '${target}'. Expected 'codex:last', 'codex:project', 'codex:<conversationId>', or a rollout file path.`
       );
     }
 
@@ -26,6 +76,38 @@ export async function resolveCodexTarget(
       const latest = sessions[0];
       if (!latest) throw new Error("No Codex sessions found.");
       return latest.path;
+    }
+
+    if (rest === "project") {
+      if (!options.projectPath) {
+        throw new Error(
+          "Resolving 'codex:project' requires a project path. Pass --project <path>."
+        );
+      }
+
+      const { requestedProject, matches } = await filterSessionsByProject(
+        sessions,
+        options.projectPath
+      );
+
+      if (matches.length === 0) {
+        throw new Error(
+          `No Codex session found for project '${requestedProject}'.`
+        );
+      }
+
+      const candidates = await rankCodexSessions(matches);
+      const selected = candidates.find((candidate) => candidate.resumable);
+      if (!selected) {
+        const details = candidates.slice(0, 10).map(candidateSummary).join("\n");
+        throw new Error(
+          `No resumable Codex session found for project '${requestedProject}'.\n` +
+          `Candidate sessions:\n${details}\n` +
+          `Select one explicitly with codex:<conversationId> if this assessment is incorrect.`
+        );
+      }
+
+      return selected.path;
     }
 
     return resolveByConversationId(rest, sessions);

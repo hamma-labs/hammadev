@@ -12,6 +12,7 @@ import { createHandoff } from "./core/handoff.js";
 import { formatHandoffLog, listHandoffs, readHandoff } from "./core/history.js";
 import { formatProjectStatus, getProjectStatus } from "./core/project-status.js";
 import { runDoctor } from "./core/doctor.js";
+import { installSkill, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
 import { runQuickstart } from "./core/quickstart.js";
 
@@ -119,10 +120,53 @@ program
 program
   .command("list")
   .argument("<source>", "source CLI: codex | claude")
+  .option("--project <path>", "Filter and rank Claude sessions for a project")
+  .option("--json", "Print machine-readable session metadata")
   .description("List sessions from a source CLI")
-  .action(async (source) => {
+  .action(async (source, options) => {
     if (source === "codex") {
+      if (options.project) {
+        try {
+          const result = await CodexAdapter.listProject(
+            path.resolve(options.project)
+          );
+          if (options.json) {
+            process.stdout.write(
+              `${JSON.stringify({ schemaVersion: 1, ...result }, null, 2)}\n`
+            );
+            return;
+          }
+          console.log(pc.bold(`Codex sessions for ${result.projectPath}:\n`));
+          if (result.candidates.length === 0) {
+            console.log(pc.yellow("No Codex sessions found for this project."));
+            return;
+          }
+          result.candidates.slice(0, 20).forEach((candidate, index) => {
+            const id = candidate.sessionId ?? "unknown-conversation-id";
+            console.log(
+              `${index + 1}. ${pc.cyan(candidate.lastUpdatedAt)} ${id} ` +
+              `[${candidate.confidence}, score ${candidate.score}]`
+            );
+            console.log(`   ${candidate.path}`);
+            console.log(
+              `   resumable: ${candidate.resumable ? "yes" : "no"}  ` +
+              `signals: ${candidate.signals.join(", ") || "none"}`
+            );
+            if (candidate.reasons.length > 0) {
+              console.log(`   reasons: ${candidate.reasons.join("; ")}`);
+            }
+          });
+          return;
+        } catch (err: any) {
+          console.error(pc.red(`Error listing Codex sessions: ${err.message}`));
+          process.exit(1);
+        }
+      }
       const sessions = await CodexAdapter.list();
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(sessions, null, 2)}\n`);
+        return;
+      }
 
       if (sessions.length === 0) {
         console.log(pc.yellow("No Codex sessions found."));
@@ -140,7 +184,49 @@ program
     }
 
     if (source === "claude") {
+      if (options.project) {
+        try {
+          const result = await ClaudeAdapter.listProject(
+            path.resolve(options.project)
+          );
+          if (options.json) {
+            process.stdout.write(
+              `${JSON.stringify({ schemaVersion: 1, ...result }, null, 2)}\n`
+            );
+            return;
+          }
+          console.log(pc.bold(`Claude sessions for ${result.projectPath}:\n`));
+          if (result.candidates.length === 0) {
+            console.log(pc.yellow("No Claude sessions found for this project."));
+            return;
+          }
+          result.candidates.slice(0, 20).forEach((candidate, index) => {
+            const id = candidate.sessionId ?? "unknown-session-id";
+            console.log(
+              `${index + 1}. ${pc.cyan(candidate.lastUpdatedAt)} ${id} ` +
+              `[${candidate.confidence}, score ${candidate.score}]`
+            );
+            console.log(`   ${candidate.path}`);
+            console.log(
+              `   resumable: ${candidate.resumable ? "yes" : "no"}  ` +
+              `signals: ${candidate.signals.join(", ") || "none"}`
+            );
+            if (candidate.reasons.length > 0) {
+              console.log(`   reasons: ${candidate.reasons.join("; ")}`);
+            }
+          });
+          return;
+        } catch (err: any) {
+          console.error(pc.red(`Error listing Claude sessions: ${err.message}`));
+          process.exit(1);
+        }
+      }
+
       const sessions = await ClaudeAdapter.list();
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(sessions, null, 2)}\n`);
+        return;
+      }
 
       console.log(pc.yellow("Claude Code discovery is read-only and experimental — no files are modified."));
 
@@ -219,15 +305,35 @@ program
   .command("handoff")
   .argument(
     "<target>",
-    "codex:last | codex:<conversationId> | claude:last | claude:<sessionId> | session JSONL path"
+    "codex:last | codex:project | codex:<conversationId> | claude:last | claude:project | claude:<sessionId> | session JSONL path"
   )
   .requiredOption("--to <agent>", "Target CLI (e.g. claude or codex)")
+  .option("--project <path>", "Project used to resolve claude:project or codex:project")
+  .option("--json", "Print only a machine-readable handoff result")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Create a handoff package for another agent")
   .action(async (target, options) => {
     try {
-      const session = await loadSession(target);
-      await createHandoff(session, options.to, options.gitignore);
+      const isProjectTarget =
+        target === "claude:project" || target === "codex:project";
+      const projectPath = options.project
+        ? path.resolve(options.project)
+        : isProjectTarget
+          ? process.cwd()
+          : undefined;
+      const session = await loadSession(target, { projectPath });
+      if (isProjectTarget && projectPath) {
+        session.meta.projectPath = projectPath;
+      }
+      const result = await createHandoff(
+        session,
+        options.to,
+        options.gitignore,
+        { quiet: Boolean(options.json) }
+      );
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      }
     } catch (err: any) {
       console.error(pc.red(`Error processing handoff: ${err.message}`));
       process.exit(1);
@@ -294,6 +400,62 @@ program
   .description("Guided read-only onboarding for first-time users")
   .action(async () => {
     await runQuickstart(process.cwd());
+  });
+
+const skillCommand = program
+  .command("skill")
+  .description("Install and manage HammaDev agent skills");
+
+skillCommand
+  .command("install")
+  .option("--agent <agent>", "Target agent: codex | claude | both", "both")
+  .option("--force", "Replace an existing hamma-handoff skill")
+  .option("--codex-home <path>", "Override the Codex home directory")
+  .option("--claude-home <path>", "Override the Claude home directory")
+  .option("--json", "Print only a machine-readable install result")
+  .description("Install the packaged hamma-handoff skill for Codex and/or Claude Code")
+  .action(async (options) => {
+    const agent = String(options.agent).toLowerCase();
+    if (!["codex", "claude", "both"].includes(agent)) {
+      console.error(
+        pc.red(`Error: unsupported --agent '${options.agent}'. Use codex, claude, or both.`)
+      );
+      process.exit(1);
+    }
+    const targets: SkillAgent[] = agent === "both" ? ["codex", "claude"] : [agent as SkillAgent];
+
+    try {
+      const results: SkillInstallResult[] = [];
+      for (const target of targets) {
+        results.push(
+          await installSkill({
+            agent: target,
+            home: target === "codex" ? options.codexHome : options.claudeHome,
+            force: Boolean(options.force)
+          })
+        );
+      }
+
+      if (options.json) {
+        const payload = results.length === 1 ? results[0] : { installs: results };
+        process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+        return;
+      }
+
+      for (const result of results) {
+        console.log(pc.green(`${result.skillName} installed for ${result.agent} at:`));
+        console.log(pc.dim(result.destination));
+      }
+      console.log("");
+      console.log(
+        pc.bold(
+          `Restart ${targets.map((t) => (t === "codex" ? "Codex" : "Claude Code")).join(" and ")} to pick up the skill.`
+        )
+      );
+    } catch (err: any) {
+      console.error(pc.red(`Error installing skill: ${err.message}`));
+      process.exit(1);
+    }
   });
 
 program.parseAsync();

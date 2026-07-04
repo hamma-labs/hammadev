@@ -11,6 +11,9 @@ import {
   HammaTaskLedgerItem,
   HammaTaskState,
 } from "./state.js";
+import { scoreSession, SessionConfidence } from "./quality.js";
+
+const EPOCH = new Date(0).toISOString();
 
 const HANDOFF_TARGET_BYTES = 15 * 1024;
 const HANDOFF_HARD_MAX_BYTES = 20 * 1024;
@@ -582,11 +585,40 @@ function renderHandoffWithSizeGuard(state: HammaTaskState): string {
   return truncated + "\n\n> Content truncated to respect handoff size limit. See timeline.md and state.json for the full picture.\n";
 }
 
+export interface HandoffResult {
+  schemaVersion: 1;
+  taskId: string;
+  sourceCli: string;
+  sourceSessionId: string;
+  targetCli: string;
+  projectPath: string;
+  taskPath: string;
+  handoffPath: string;
+  statePath: string;
+  relativeHandoffPath: string;
+  suggestedCommand: string;
+  /** Quality assessment of the source session (see core/quality.ts). */
+  confidence: SessionConfidence;
+  score: number;
+  signals: string[];
+  /**
+   * Human-readable cautions about this handoff. When non-empty (or confidence
+   * is "low", or signals include "hamma-meta"), a consumer should stop and
+   * report rather than blindly continue.
+   */
+  warnings: string[];
+}
+
+export interface CreateHandoffOptions {
+  quiet?: boolean;
+}
+
 export async function createHandoff(
   session: HammaSession,
   targetCli: string,
-  useGitignore: boolean = true
-): Promise<void> {
+  useGitignore: boolean = true,
+  options: CreateHandoffOptions = {}
+): Promise<HandoffResult> {
   if (!session.meta.projectPath) {
     throw new Error("Cannot create handoff: source session has no projectPath.");
   }
@@ -677,18 +709,63 @@ export async function createHandoff(
   }
 
   const handoffPath = path.join(finalDir, "handoff.md");
+  const statePath = path.join(finalDir, "state.json");
   const relativeHandoffPath = path.relative(projectPath, handoffPath);
   const relTaskDir = path.dirname(relativeHandoffPath);
+  const suggestedCommand = `${targetCli} "Read ${relTaskDir}/handoff.md and continue the task from the current repo state."`;
 
-  console.log(pc.green("Handoff created at:"));
-  console.log(pc.dim(`Absolute: ${handoffPath}`));
-  console.log(pc.dim(`Relative: ${relativeHandoffPath}`));
-  console.log("");
-  console.log(pc.bold("Suggested command:"));
-  console.log(pc.cyan(`cd ${projectPath}`));
-  console.log(
-    pc.cyan(
-      `${targetCli} "Read ${relTaskDir}/handoff.md and continue the task from the current repo state."`
-    )
-  );
+  const quality = scoreSession(session, {
+    sourceCli: session.meta.sourceCli,
+    sessionId: session.meta.sourceSessionId,
+    path: session.meta.sourcePath ?? handoffPath,
+    projectPathHint: session.meta.projectPath,
+    lastUpdatedAt:
+      session.meta.lastUpdatedAt ?? session.meta.startedAt ?? EPOCH,
+  });
+
+  const result: HandoffResult = {
+    schemaVersion: 1,
+    taskId,
+    sourceCli: session.meta.sourceCli,
+    sourceSessionId: session.meta.sourceSessionId,
+    targetCli,
+    projectPath,
+    taskPath: finalDir,
+    handoffPath,
+    statePath,
+    relativeHandoffPath,
+    suggestedCommand,
+    confidence: quality.confidence,
+    score: quality.score,
+    signals: quality.signals,
+    warnings: quality.reasons
+  };
+
+  if (!options.quiet) {
+    console.log(pc.green("Handoff created at:"));
+    console.log(pc.dim(`Absolute: ${handoffPath}`));
+    console.log(pc.dim(`Relative: ${relativeHandoffPath}`));
+    if (result.confidence === "low" || result.signals.includes("hamma-meta")) {
+      console.log("");
+      console.log(
+        pc.yellow(
+          `Warning: low-confidence handoff (confidence: ${result.confidence}, score: ${result.score}).`
+        )
+      );
+      for (const warning of result.warnings) {
+        console.log(pc.yellow(`  - ${warning}`));
+      }
+      console.log(
+        pc.yellow(
+          "Review the selected session before continuing; it may not be resumable work."
+        )
+      );
+    }
+    console.log("");
+    console.log(pc.bold("Suggested command:"));
+    console.log(pc.cyan(`cd ${projectPath}`));
+    console.log(pc.cyan(suggestedCommand));
+  }
+
+  return result;
 }
