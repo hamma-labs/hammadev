@@ -12,7 +12,7 @@ import { createHandoff } from "./core/handoff.js";
 import { formatHandoffLog, listHandoffs, readHandoff } from "./core/history.js";
 import { formatProjectStatus, getProjectStatus } from "./core/project-status.js";
 import { runDoctor } from "./core/doctor.js";
-import { installSkill, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
+import { installAllSkills, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
 import { runQuickstart } from "./core/quickstart.js";
 
@@ -305,17 +305,20 @@ program
   .command("handoff")
   .argument(
     "<target>",
-    "codex:last | codex:project | codex:<conversationId> | claude:last | claude:project | claude:<sessionId> | session JSONL path"
+    "codex:last | codex:project | codex:current | codex:previous | codex:<conversationId> | claude:last | claude:project | claude:current | claude:previous | claude:<sessionId> | session JSONL path"
   )
   .requiredOption("--to <agent>", "Target CLI (e.g. claude or codex)")
-  .option("--project <path>", "Project used to resolve claude:project or codex:project")
+  .option("--project <path>", "Project used to resolve claude/codex :project, :current, or :previous")
   .option("--json", "Print only a machine-readable handoff result")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Create a handoff package for another agent")
   .action(async (target, options) => {
     try {
-      const isProjectTarget =
-        target === "claude:project" || target === "codex:project";
+      const PROJECT_SCOPED = new Set([
+        "claude:project", "claude:current", "claude:previous",
+        "codex:project", "codex:current", "codex:previous",
+      ]);
+      const isProjectTarget = PROJECT_SCOPED.has(target);
       const projectPath = options.project
         ? path.resolve(options.project)
         : isProjectTarget
@@ -413,7 +416,7 @@ skillCommand
   .option("--codex-home <path>", "Override the Codex home directory")
   .option("--claude-home <path>", "Override the Claude home directory")
   .option("--json", "Print only a machine-readable install result")
-  .description("Install the packaged hamma-handoff skill for Codex and/or Claude Code")
+  .description("Install the packaged Hamma skills (handoff, snap, resume) for Codex and/or Claude Code")
   .action(async (options) => {
     const agent = String(options.agent).toLowerCase();
     if (!["codex", "claude", "both"].includes(agent)) {
@@ -428,11 +431,11 @@ skillCommand
       const results: SkillInstallResult[] = [];
       for (const target of targets) {
         results.push(
-          await installSkill({
+          ...(await installAllSkills({
             agent: target,
             home: target === "codex" ? options.codexHome : options.claudeHome,
             force: Boolean(options.force)
-          })
+          }))
         );
       }
 

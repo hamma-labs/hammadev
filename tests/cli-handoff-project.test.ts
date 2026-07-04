@@ -181,4 +181,30 @@ describe("handoff claude:project CLI command", () => {
     expect(meta.signals).toContain("hamma-meta");
     expect(result.stdout).not.toContain("Continue the project-specific parser work.");
   });
+
+  it("claude:current snapshots the newest session; claude:previous self-excludes", async () => {
+    const env = { ...process.env, HOME: fakeHome };
+
+    // :current = newest-mtime session (dddd, the hamma-meta one) — unfiltered.
+    const current = JSON.parse(
+      (await execFileAsync(
+        TSX,
+        [CLI, "handoff", "claude:current", "--to", "claude", "--project", projectPath, "--json", "--no-gitignore"],
+        { cwd: projectPath, env }
+      )).stdout
+    );
+    expect(current.sourceSessionId).toBe("dddddddd-4444-4ddd-8ddd-dddddddddddd");
+    expect(current.targetCli).toBe("claude");
+
+    // :previous drops the current (dddd) and the non-resumable cccc, landing on aaaa.
+    const previous = JSON.parse(
+      (await execFileAsync(
+        TSX,
+        [CLI, "handoff", "claude:previous", "--to", "claude", "--project", projectPath, "--json", "--no-gitignore"],
+        { cwd: projectPath, env }
+      )).stdout
+    );
+    expect(previous.sourceSessionId).toBe("aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(previous.sourceSessionId).not.toBe(current.sourceSessionId);
+  });
 });

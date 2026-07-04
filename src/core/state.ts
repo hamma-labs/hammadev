@@ -2,6 +2,12 @@ import { HammaMessage, HammaSession } from "./schema.js";
 
 export const HANDOFF_SCHEMA_VERSION = 1 as const;
 
+export type HammaHandoffOutcome =
+  | "completed"
+  | "actionable"
+  | "blocked"
+  | "ambiguous";
+
 export interface HammaTaskLedgerItem {
   id?: string;
   title?: string;
@@ -20,6 +26,8 @@ export interface HammaRepoState {
 
 export interface HammaTaskState {
   schemaVersion: typeof HANDOFF_SCHEMA_VERSION;
+  outcome: HammaHandoffOutcome;
+  nextAction?: string;
   goal?: string;
   project: {
     path?: string;
@@ -65,6 +73,18 @@ const REMAINING_PATTERNS: RegExp[] = [
 
 const LATEST_STATUS_MARKER =
   /\b(?:task #?\d+ (?:completed|fixed)|fixed finding #?\d+|completed|passes|remaining|next is task)\b/i;
+
+const BARE_CONTINUATION_INSTRUCTION =
+  /^(?:please\s+)?(?:resume|continue|proceed|keep going)(?:\s+(?:the\s+)?(?:task|work))?[.!]?$/i;
+
+const TERMINAL_COMPLETION_STATUS =
+  /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes))\b/i;
+
+const UNRESOLVED_STATUS =
+  /\b(?:remaining|next (?:step|task|action)|todo|still need|needs? to|failed|failing|cannot proceed)\b/i;
+
+const BLOCKED_STATUS =
+  /\b(?:blocked|cannot proceed|need(?:s)? (?:user )?(?:input|decision))\b/i;
 
 const VERIFICATION_CATEGORIES: Array<{
   name: string;
@@ -126,6 +146,18 @@ const RISK_NEGATION_SIGNALS: RegExp[] = [
 
 export function isImportantUserMessage(content: string): boolean {
   return IMPORTANT_USER_WORDS.test(content);
+}
+
+function isBareContinuationInstruction(content: string): boolean {
+  return BARE_CONTINUATION_INSTRUCTION.test(content.trim());
+}
+
+function isTerminalCompletionStatus(content: string): boolean {
+  return TERMINAL_COMPLETION_STATUS.test(content) && !UNRESOLVED_STATUS.test(content);
+}
+
+function isBlockedStatus(content: string): boolean {
+  return BLOCKED_STATUS.test(content) && !RISK_NEGATION_SIGNALS.some((pattern) => pattern.test(content));
 }
 
 export function getMessageImportance(msg: HammaMessage): "high" | "medium" | "low" {
@@ -502,17 +534,53 @@ export function extractTaskState(
   const filesAgg = collectFileMentions(messages);
 
   const remainingTasks = tasks.filter((t) => t.status === "remaining");
+  const blockedTasks = tasks.filter((t) => t.status === "blocked");
+  const latestUserIndex = latestImportantUser ? messages.lastIndexOf(latestImportantUser) : -1;
+  const latestStatusIndex = latestStatusAssistant ? messages.lastIndexOf(latestStatusAssistant) : -1;
+  const statusFollowsLatestUser = latestStatusIndex > latestUserIndex;
+  const latestUserIsBareContinuation = latestImportantUser
+    ? isBareContinuationInstruction(latestImportantUser.content)
+    : false;
+  const latestStatusIsBlocked = Boolean(
+    latestStatusAssistant && statusFollowsLatestUser && isBlockedStatus(latestStatusAssistant.content)
+  );
+  const latestStatusIsComplete = Boolean(
+    latestStatusAssistant &&
+      statusFollowsLatestUser &&
+      isTerminalCompletionStatus(latestStatusAssistant.content)
+  );
+
+  let outcome: HammaHandoffOutcome;
+  if (blockedTasks.length > 0 || latestStatusIsBlocked) {
+    outcome = "blocked";
+  } else if (
+    latestStatusIsComplete ||
+    (tasks.length > 0 && tasks.every((t) => t.status === "completed"))
+  ) {
+    outcome = "completed";
+  } else if (remainingTasks.length > 0) {
+    outcome = "actionable";
+  } else if (latestImportantUser && !latestUserIsBareContinuation) {
+    outcome = "actionable";
+  } else {
+    outcome = "ambiguous";
+  }
+
   let nextRecommended: string | undefined;
-  if (remainingTasks.length > 0) {
+  if (outcome === "blocked" && latestStatusAssistant) {
+    nextRecommended = `Resolve blocker: ${firstParagraph(latestStatusAssistant.content, 200)}`;
+  } else if (remainingTasks.length > 0) {
     const t = remainingTasks[0];
     const label = t.title ?? t.summary;
     nextRecommended = `Task #${t.id}: ${truncate(label, 220)}`;
-  } else if (latestImportantUser) {
+  } else if (outcome === "actionable" && latestImportantUser && !latestUserIsBareContinuation) {
     nextRecommended = truncate(latestImportantUser.content, 240);
   }
 
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
+    outcome,
+    nextAction: nextRecommended,
     goal: goalUser ? truncate(goalUser.content, 500) : undefined,
     project: {
       path: session.meta.projectPath,

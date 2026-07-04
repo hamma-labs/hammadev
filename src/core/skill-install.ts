@@ -3,17 +3,20 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SKILL_NAME = "hamma-handoff";
+const DEFAULT_SKILL_NAME = "hamma-handoff";
 
 export type SkillAgent = "codex" | "claude";
 
 export interface SkillInstallOptions {
   agent?: SkillAgent;
+  /** Which packaged skill to install (folder name under skills/). */
+  skillName?: string;
   /** Home directory of the target agent (e.g. ~/.codex or ~/.claude). */
   home?: string;
   /** @deprecated use `home`. Retained for backwards compatibility. */
   codexHome?: string;
   force?: boolean;
+  /** Override the source skill folder (defaults to the packaged skill). */
   sourcePath?: string;
 }
 
@@ -32,9 +35,13 @@ const REQUIRED_ENTRIES: Record<SkillAgent, string[]> = {
   claude: ["SKILL.md"],
 };
 
-function packagedSkillPath(): string {
+function packagedSkillsRoot(): string {
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(moduleDir, "..", "..", "skills", SKILL_NAME);
+  return path.resolve(moduleDir, "..", "..", "skills");
+}
+
+function packagedSkillPath(skillName: string): string {
+  return path.join(packagedSkillsRoot(), skillName);
 }
 
 function defaultAgentHome(agent: SkillAgent): string {
@@ -75,21 +82,44 @@ async function validateSkillSource(
   }
 }
 
+/** Discover packaged skill folder names (any subfolder of skills/ with a SKILL.md). */
+export async function discoverPackagedSkills(): Promise<string[]> {
+  const root = packagedSkillsRoot();
+  let entries;
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch (error: any) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+  const names: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (await exists(path.join(root, entry.name, "SKILL.md"))) {
+      names.push(entry.name);
+    }
+  }
+  return names.sort();
+}
+
 export async function installSkill(
   options: SkillInstallOptions = {}
 ): Promise<SkillInstallResult> {
   const agent = options.agent ?? "codex";
-  const sourcePath = path.resolve(options.sourcePath ?? packagedSkillPath());
+  const skillName = options.skillName ?? DEFAULT_SKILL_NAME;
+  const sourcePath = path.resolve(
+    options.sourcePath ?? packagedSkillPath(skillName)
+  );
   await validateSkillSource(sourcePath, agent);
 
   const agentHome = path.resolve(
     options.home ?? options.codexHome ?? defaultAgentHome(agent)
   );
   const skillsRoot = path.join(agentHome, "skills");
-  const destination = path.join(skillsRoot, SKILL_NAME);
+  const destination = path.join(skillsRoot, skillName);
   const suffix = `${process.pid}-${Date.now()}`;
-  const staging = path.join(skillsRoot, `.${SKILL_NAME}.tmp-${suffix}`);
-  const backup = path.join(skillsRoot, `.${SKILL_NAME}.backup-${suffix}`);
+  const staging = path.join(skillsRoot, `.${skillName}.tmp-${suffix}`);
+  const backup = path.join(skillsRoot, `.${skillName}.backup-${suffix}`);
 
   await fs.mkdir(skillsRoot, { recursive: true });
   const replaced = await exists(destination);
@@ -122,12 +152,24 @@ export async function installSkill(
   }
 
   return {
-    skillName: SKILL_NAME,
+    skillName,
     agent,
     destination,
     replaced,
     restartRequired: true
   };
+}
+
+/** Install every packaged skill for one agent. */
+export async function installAllSkills(
+  options: Omit<SkillInstallOptions, "skillName" | "sourcePath"> = {}
+): Promise<SkillInstallResult[]> {
+  const skillNames = await discoverPackagedSkills();
+  const results: SkillInstallResult[] = [];
+  for (const skillName of skillNames) {
+    results.push(await installSkill({ ...options, skillName }));
+  }
+  return results;
 }
 
 /** @deprecated use installSkill({ agent: "codex" }). */

@@ -22,7 +22,7 @@ afterAll(async () => {
 });
 
 describe("skill install CLI command", () => {
-  it("installs the repository skill for Codex and emits JSON", async () => {
+  it("installs the full skill set for Codex and emits JSON", async () => {
     const result = await execFileAsync(
       TSX,
       [CLI, "skill", "install", "--agent", "codex", "--codex-home", codexHome, "--json"],
@@ -30,16 +30,14 @@ describe("skill install CLI command", () => {
     );
     const output = JSON.parse(result.stdout);
 
-    expect(output).toMatchObject({
-      skillName: "hamma-handoff",
-      agent: "codex",
-      destination: path.join(codexHome, "skills", "hamma-handoff"),
-      replaced: false,
-      restartRequired: true
-    });
-    await expect(
-      fs.readFile(path.join(output.destination, "SKILL.md"), "utf8")
-    ).resolves.toContain("name: hamma-handoff");
+    const names = output.installs.map((i: { skillName: string }) => i.skillName).sort();
+    expect(names).toEqual(["hamma-handoff", "hamma-resume", "hamma-snap"]);
+    for (const install of output.installs) {
+      expect(install).toMatchObject({ agent: "codex", replaced: false, restartRequired: true });
+      await expect(
+        fs.readFile(path.join(install.destination, "SKILL.md"), "utf8")
+      ).resolves.toContain(`name: ${install.skillName}`);
+    }
   });
 
   it("installs into both agents when --agent both is used", async () => {
@@ -58,15 +56,18 @@ describe("skill install CLI command", () => {
         { cwd: ROOT }
       );
       const output = JSON.parse(result.stdout);
-      expect(output.installs).toHaveLength(2);
-      const agents = output.installs.map((i: { agent: string }) => i.agent).sort();
-      expect(agents).toEqual(["claude", "codex"]);
-      await expect(
-        fs.readFile(path.join(bothClaudeHome, "skills", "hamma-handoff", "SKILL.md"), "utf8")
-      ).resolves.toContain("name: hamma-handoff");
-      await expect(
-        fs.readFile(path.join(bothCodexHome, "skills", "hamma-handoff", "SKILL.md"), "utf8")
-      ).resolves.toContain("name: hamma-handoff");
+      // 3 skills × 2 agents
+      expect(output.installs).toHaveLength(6);
+      const agents = new Set(output.installs.map((i: { agent: string }) => i.agent));
+      expect([...agents].sort()).toEqual(["claude", "codex"]);
+      for (const [home, skill] of [
+        [bothClaudeHome, "hamma-handoff"], [bothClaudeHome, "hamma-snap"], [bothClaudeHome, "hamma-resume"],
+        [bothCodexHome, "hamma-handoff"], [bothCodexHome, "hamma-snap"], [bothCodexHome, "hamma-resume"],
+      ] as const) {
+        await expect(
+          fs.readFile(path.join(home, "skills", skill, "SKILL.md"), "utf8")
+        ).resolves.toContain(`name: ${skill}`);
+      }
     } finally {
       await Promise.all([
         fs.rm(bothCodexHome, { recursive: true, force: true }),

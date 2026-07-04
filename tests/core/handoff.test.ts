@@ -66,6 +66,9 @@ describe("createHandoff with a Claude session", () => {
       await fs.readFile(path.join(taskPath, "state.json"), "utf8")
     );
     expect(state.schemaVersion).toBe(1);
+    expect(["completed", "actionable", "blocked", "ambiguous"]).toContain(
+      state.outcome
+    );
   });
 
   it("returns a machine-readable artifact contract", () => {
@@ -204,6 +207,38 @@ describe("atomic and safe handoff output", () => {
         fs.rm(isolatedProject, { recursive: true, force: true }),
         fs.rm(outside, { recursive: true, force: true }),
       ]);
+    }
+  });
+});
+describe("handoff outcome rendering", () => {
+  it("renders a completed resumed session without resume as remaining work", async () => {
+    const isolatedProject = await fs.mkdtemp(
+      path.join(os.tmpdir(), "hamma-completed-outcome-")
+    );
+    const session = await parseClaudeSession(FIXTURE);
+    session.meta.projectPath = isolatedProject;
+    session.messages.push(
+      { role: "user", content: "resume" },
+      {
+        role: "assistant",
+        content: "All acceptance criteria pass. Typecheck passed with no errors.",
+      }
+    );
+
+    try {
+      const result = await createHandoff(session, "codex", false);
+      const handoff = await fs.readFile(result.handoffPath, "utf8");
+      const state = JSON.parse(await fs.readFile(result.statePath, "utf8"));
+
+      expect(state.outcome).toBe("completed");
+      expect(state.nextAction).toBeUndefined();
+      expect(handoff).toContain(
+        "## Continue from here\nNo remaining action. Verification is recorded below."
+      );
+      expect(handoff).toContain("## Remaining work\n(none detected)");
+      expect(handoff).not.toContain("## Remaining work\n- resume");
+    } finally {
+      await fs.rm(isolatedProject, { recursive: true, force: true });
     }
   });
 });

@@ -181,6 +181,44 @@ describe("resolveClaudeTarget", () => {
     expect(out).toBe(fileC);
   });
 
+  it("claude:current returns the newest-mtime session, unranked and unfiltered", async () => {
+    // projectA's newest session (idF, 2026-06-04T12:00) is an auth-failure /
+    // low-confidence session — :current must still return it (no filtering).
+    const out = await resolveClaudeTarget("claude:current", {
+      claudeHomes: [claudeHome],
+      projectPath: projectA
+    });
+    expect(out.endsWith(`${idF}.jsonl`)).toBe(true);
+  });
+
+  it("claude:previous excludes the current session and picks the newest resumable one", async () => {
+    // Drops idF (self, newest mtime); idD is non-resumable; idB (06-02) is the
+    // newest resumable before it.
+    const out = await resolveClaudeTarget("claude:previous", {
+      claudeHomes: [claudeHome],
+      projectPath: projectA
+    });
+    expect(out).toBe(fileB);
+  });
+
+  it("claude:previous reports when only the current session exists", async () => {
+    await expect(
+      resolveClaudeTarget("claude:previous", {
+        claudeHomes: [claudeHome],
+        projectPath: projectB
+      })
+    ).rejects.toThrow(/only the current session exists/);
+  });
+
+  it("claude:current and claude:previous require a project path", async () => {
+    await expect(
+      resolveClaudeTarget("claude:current", { claudeHomes: [claudeHome] })
+    ).rejects.toThrow(/requires a project path/);
+    await expect(
+      resolveClaudeTarget("claude:previous", { claudeHomes: [claudeHome] })
+    ).rejects.toThrow(/requires a project path/);
+  });
+
   it("returns candidate metadata when no project session is resumable", async () => {
     await expect(
       resolveClaudeTarget("claude:project", {

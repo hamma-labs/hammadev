@@ -214,6 +214,33 @@ describe("resolveCodexTarget — codex:project", () => {
     ).rejects.toThrow(/requires a project path/);
   });
 
+  it("codex:current returns the newest-mtime session, unfiltered (even hamma-meta)", async () => {
+    // metaPath (10:05) is newer than strongPath (09:05) and is hamma-meta —
+    // :current must still return it.
+    const out = await resolveCodexTarget("codex:current", {
+      codexHome: projectHome,
+      projectPath: projectA,
+    });
+    expect(out).toBe(metaPath);
+  });
+
+  it("codex:previous excludes the current session and picks the previous resumable one", async () => {
+    const out = await resolveCodexTarget("codex:previous", {
+      codexHome: projectHome,
+      projectPath: projectA,
+    });
+    expect(out).toBe(strongPath);
+  });
+
+  it("codex:current / codex:previous require a project path", async () => {
+    await expect(
+      resolveCodexTarget("codex:current", { codexHome: projectHome })
+    ).rejects.toThrow(/requires a project path/);
+    await expect(
+      resolveCodexTarget("codex:previous", { codexHome: projectHome })
+    ).rejects.toThrow(/requires a project path/);
+  });
+
   it("reports when a project has no Codex session", async () => {
     const missing = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-codex-missing-"));
     try {

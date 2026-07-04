@@ -78,6 +78,54 @@ export async function resolveCodexTarget(
       return latest.path;
     }
 
+    if (rest === "current" || rest === "previous") {
+      if (!options.projectPath) {
+        throw new Error(
+          `Resolving 'codex:${rest}' requires a project path. Pass --project <path>.`
+        );
+      }
+
+      const { requestedProject, matches } = await filterSessionsByProject(
+        sessions,
+        options.projectPath
+      );
+
+      if (matches.length === 0) {
+        throw new Error(
+          `No Codex session found for project '${requestedProject}'.`
+        );
+      }
+
+      // `matches` preserves discovery order (newest-mtime first) = the session
+      // being actively written.
+      if (rest === "current") {
+        return matches[0].path;
+      }
+
+      const withoutSelf = matches.slice(1);
+      if (withoutSelf.length === 0) {
+        throw new Error(
+          `No previous Codex session found for project '${requestedProject}' (only the current session exists).`
+        );
+      }
+
+      const candidates = await rankCodexSessions(withoutSelf);
+      const resumablePaths = new Set(
+        candidates.filter((candidate) => candidate.resumable).map((c) => c.path)
+      );
+      const selected = withoutSelf.find((s) => resumablePaths.has(s.path));
+      if (!selected) {
+        const details = candidates.slice(0, 10).map(candidateSummary).join("\n");
+        throw new Error(
+          `No resumable previous Codex session found for project '${requestedProject}'.\n` +
+          `Candidate sessions:\n${details}\n` +
+          `Select one explicitly with codex:<conversationId> if this assessment is incorrect.`
+        );
+      }
+
+      return selected.path;
+    }
+
     if (rest === "project") {
       if (!options.projectPath) {
         throw new Error(

@@ -209,14 +209,17 @@ function buildCurrentStateSummary(state: HammaTaskState): string {
   const completed = state.tasks.filter((t) => t.status === "completed").map((t) => t.id).filter(Boolean) as string[];
   const remaining = state.tasks.filter((t) => t.status === "remaining").map((t) => t.id).filter(Boolean) as string[];
 
-  const parts: string[] = [];
+  const parts: string[] = [`Outcome: ${state.outcome}.`];
   if (completed.length > 0) {
-    parts.push(`${completed.length} task${completed.length === 1 ? "" : "s"} completed (${formatIdList(completed)})`);
+    parts.push(`${completed.length} task${completed.length === 1 ? "" : "s"} completed (${formatIdList(completed)}).`);
   }
   if (remaining.length > 0) {
-    parts.push(`${remaining.length} task${remaining.length === 1 ? "" : "s"} remaining (${formatIdList(remaining)})`);
+    parts.push(`${remaining.length} task${remaining.length === 1 ? "" : "s"} remaining (${formatIdList(remaining)}).`);
   }
-  const summary = parts.length ? parts.join(". ") + "." : "No task ledger detected.";
+  if (completed.length === 0 && remaining.length === 0) {
+    parts.push("No task ledger detected.");
+  }
+  const summary = parts.join(" ");
 
   const status = state.current.latestAssistantStatus
     ? "\n\nLatest source-agent status:\n> " + truncate(state.current.latestAssistantStatus, 500).replace(/\n/g, "\n> ")
@@ -266,11 +269,22 @@ function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRenderOptions
   const completed = tasks.filter((t) => t.status === "completed");
   const remaining = tasks.filter((t) => t.status === "remaining" || t.status === "in_progress" || t.status === "blocked");
 
-  const nextAction =
-    current.nextRecommendedTask ??
-    (remaining[0]
-      ? `Task #${remaining[0].id}: ${truncate(remaining[0].title ?? remaining[0].summary, 200)}`
-      : current.latestUserInstruction ?? "Continue from the source agent's last state.");
+  const nextAction = (() => {
+    if (state.outcome === "completed") {
+      return "No remaining action. Verification is recorded below.";
+    }
+    if (state.outcome === "ambiguous") {
+      return "Clarify the next action before continuing.";
+    }
+    if (state.outcome === "blocked") {
+      return state.nextAction ?? current.nextRecommendedTask ?? "Resolve the blocker described in the current state.";
+    }
+    return state.nextAction ??
+      current.nextRecommendedTask ??
+      (remaining[0]
+        ? `Task #${remaining[0].id}: ${truncate(remaining[0].title ?? remaining[0].summary, 200)}`
+        : "Continue from the source agent's last actionable instruction.");
+  })();
 
   const sections: string[] = [];
 
@@ -309,9 +323,11 @@ function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRenderOptions
 
   const remainingBlock = remaining.length
     ? remaining.map((t) => taskLine(t)).join("\n")
-    : current.latestUserInstruction
+    : state.outcome === "actionable" && current.latestUserInstruction
       ? `- ${truncate(current.latestUserInstruction, 240)}`
-      : "(none detected)";
+      : state.outcome === "ambiguous"
+        ? "(none detected; next action is ambiguous)"
+        : "(none detected)";
   sections.push(`## Remaining work\n${remainingBlock}`);
 
   const verificationList = verification.slice(0, opts.compact ? 8 : 16);

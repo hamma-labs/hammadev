@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hamma Snap"
+  short_description: "Snapshot the current session into a resumable handoff"
+  default_prompt: "Use $hamma-snap to snapshot this session so I can resume it in a fresh chat."

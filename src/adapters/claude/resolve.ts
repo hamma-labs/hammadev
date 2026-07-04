@@ -74,6 +74,57 @@ export async function resolveClaudeTarget(
 
   if (rest === "last") return sessions[0].path;
 
+  if (rest === "current" || rest === "previous") {
+    if (!options.projectPath) {
+      throw new Error(
+        `Resolving 'claude:${rest}' requires a project path. Pass --project <path>.`
+      );
+    }
+
+    const { requestedProject, matches } = await projectSessions(
+      sessions,
+      options.projectPath
+    );
+
+    if (matches.length === 0) {
+      throw new Error(
+        `No Claude session found for project '${requestedProject}'.`
+      );
+    }
+
+    // `matches` preserves discovery order (newest-mtime first). The current
+    // session is the one being actively written = newest mtime.
+    if (rest === "current") {
+      return matches[0].path;
+    }
+
+    // `previous`: exclude self (newest mtime), then pick the newest *resumable*
+    // session — recency-first, since "continue where I left off" is a recency
+    // intent, not a quality one.
+    const withoutSelf = matches.slice(1);
+    if (withoutSelf.length === 0) {
+      throw new Error(
+        `No previous Claude session found for project '${requestedProject}' (only the current session exists).`
+      );
+    }
+
+    const candidates = await rankClaudeSessions(withoutSelf);
+    const resumablePaths = new Set(
+      candidates.filter((candidate) => candidate.resumable).map((c) => c.path)
+    );
+    const selected = withoutSelf.find((s) => resumablePaths.has(s.path));
+    if (!selected) {
+      const details = candidates.slice(0, 10).map(candidateSummary).join("\n");
+      throw new Error(
+        `No resumable previous Claude session found for project '${requestedProject}'.\n` +
+        `Candidate sessions:\n${details}\n` +
+        `Select one explicitly with claude:<sessionId> if this assessment is incorrect.`
+      );
+    }
+
+    return selected.path;
+  }
+
   if (rest === "project") {
     if (!options.projectPath) {
       throw new Error(

@@ -41,9 +41,14 @@ Use these in the commands below.
 
 5. **Check handoff confidence before continuing.** If `confidence` is `"low"`, or `signals` includes `"hamma-meta"`, or `warnings` is non-empty, stop and report: the selected session is likely not resumable work (a trivial session, an auth failure, or a Hamma handoff invoked on itself). Show the user the candidates from `hamma list OTHER --project "<absolute-project-root>" --json` and ask them to pick an explicit session id, rather than continuing.
 6. Read `handoffPath` and `statePath` directly. Do not run a separate Hamma status, version, npm, or package-discovery command. Do not read or print `session.json` unless the user explicitly requests transcript-level debugging.
-7. Inspect current Git status and the diff summary once. Reconcile them with the repository state recorded in the handoff; current files are authoritative when they differ.
-8. Tell the user briefly what was recovered: completed work, current work, remaining work, verification evidence, risks, and the next action.
-9. Continue the task from that next action. Do not stop after summarizing unless the handoff is ambiguous, stale, unsafe, low-confidence, or blocked.
+7. When `statePath` contains `outcome`, require one of `completed`, `actionable`, `blocked`, or `ambiguous`, and use `nextAction` only for `actionable` or `blocked` outcomes. For older artifacts without `outcome`, use the handoff text conservatively; a bare `resume` or `continue` is not an actionable task.
+8. Inspect current Git status and the diff summary once. Reconcile them with the repository state recorded in the handoff; current files are authoritative when they differ.
+9. Tell the user briefly what was recovered: outcome, completed work, current work, remaining work, verification evidence, risks, and the next action.
+10. Act according to the structured outcome:
+    - `completed`: if the repository matches the recorded state and verification evidence is present, report completion and stop. Re-run targeted verification only when evidence is missing, stale, or relevant repository drift exists.
+    - `actionable`: continue from `nextAction`.
+    - `blocked`: report the blocker and required input, then stop.
+    - `ambiguous`: report the ambiguity and ask the user for a concrete next action, then stop.
 
 ## Safety and Failure Handling
 
