@@ -35,3 +35,15 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Website typecheck
+        run: pnpm website:typecheck
+
+      - name: Website build
+        run: pnpm website:build
+
+      - name: Install Playwright browser
+        run: pnpm --dir website exec playwright install --with-deps chromium
+
+      - name: Website end-to-end tests
+        run: pnpm website:test:e2e

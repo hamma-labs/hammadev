@@ -1,32 +1,29 @@
+import { ArrowUpRight, Github, Package } from 'lucide-react';
+import Logo from './Logo';
+
 export default function Footer() {
   return (
-    <footer className="border-t border-zinc-900 pt-24 pb-12 flex flex-col items-center text-center">
-      <h2 className="text-3xl md:text-4xl font-bold mb-8">
-        Try HammaDev locally in one minute.
-      </h2>
-
-      <div className="bg-[#0a0a0a] border border-zinc-800 rounded-xl p-6 font-mono text-sm w-full max-w-lg mb-10 shadow-xl text-left">
-        <div className="flex gap-4">
-          <span className="text-zinc-600 select-none">$</span>
-          <span className="text-zinc-300">npm install -g hammadev@alpha</span>
+    <footer className="site-footer">
+      <div className="footer-cta">
+        <div>
+          <span className="footer-eyebrow">Ready when your context isn’t.</span>
+          <h2>Keep the work moving.</h2>
         </div>
-        <div className="flex gap-4 mt-2">
-          <span className="text-zinc-600 select-none">$</span>
-          <span className="text-zinc-300">hamma quickstart</span>
+        <a href="#install" className="footer-button">Install HammaDev <ArrowUpRight size={18} /></a>
+      </div>
+
+      <div className="footer-bottom">
+        <div>
+          <Logo />
+          <p>Local continuity for AI coding agents.</p>
         </div>
+        <nav aria-label="Footer links">
+          <a href="https://github.com/xayrullonematov/hammadev" target="_blank" rel="noopener noreferrer"><Github size={16} /> GitHub</a>
+          <a href="https://www.npmjs.com/package/hammadev" target="_blank" rel="noopener noreferrer"><Package size={16} /> npm</a>
+          <a href="https://github.com/xayrullonematov/hammadev#readme" target="_blank" rel="noopener noreferrer">Docs <ArrowUpRight size={14} /></a>
+        </nav>
       </div>
-
-      <div className="flex gap-4 mb-24">
-        <a href="https://github.com/xayrullonematov/hammadev" className="text-zinc-400 hover:text-white px-4 py-2 bg-zinc-900/50 rounded-lg transition-colors">GitHub</a>
-        <a href="https://www.npmjs.com/package/hammadev" className="text-zinc-400 hover:text-white px-4 py-2 bg-zinc-900/50 rounded-lg transition-colors">npm</a>
-        <a href="#" className="text-zinc-400 hover:text-white px-4 py-2 bg-zinc-900/50 rounded-lg transition-colors">Docs</a>
-      </div>
-
-      <div className="text-zinc-600 text-sm">
-        <p className="font-semibold text-zinc-400 mb-1">HammaDev</p>
-        <p>Local handoff layer for AI coding agents.</p>
-        <p>Alpha software.</p>
-      </div>
+      <div className="footer-meta"><span>HammaDev v0.1 alpha.3</span><span>ISC License</span><span>Built for Codex ↔ Claude Code</span></div>
     </footer>
   );
 }

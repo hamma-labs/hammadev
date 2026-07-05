@@ -1,22 +1,30 @@
-export default function Roadmap() {
-  const roadmapItems = [
-    "Better onboarding",
-    "More agent adapters",
-    "Search across handoffs",
-    "Local web dashboard",
-    "Optional encrypted sync",
-    "Team handoff workflows"
-  ];
+import { ArrowRight } from 'lucide-react';
 
+const roadmapItems = [
+  ['Now', 'Richer task-ledger extraction', 'Fewer parser warnings and better deduplication.'],
+  ['Next', 'More agent adapters', 'Gemini CLI, opencode, and Antigravity.'],
+  ['Later', 'Team continuity', 'Optional encrypted sync and shared handoff memory.'],
+];
+
+export default function Roadmap() {
   return (
-    <section className="border-t border-zinc-900 pt-24 pb-12">
-      <h2 className="text-3xl font-semibold mb-8">What comes next.</h2>
-      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {roadmapItems.map((item, i) => (
-          <div key={i} className="bg-zinc-900/20 border border-zinc-800/50 rounded-lg p-4 text-zinc-300 flex items-center gap-3">
-            <div className="w-2 h-2 border border-zinc-600 rounded-sm"></div>
-            {item}
-          </div>
+    <section className="roadmap-section" aria-labelledby="roadmap-heading">
+      <div className="section-heading-row">
+        <div>
+          <div className="section-kicker">On the path</div>
+          <h2 id="roadmap-heading" className="section-title">What comes next.</h2>
+        </div>
+        <p>The alpha stays local and auditable while the handoff model gets deeper.</p>
+      </div>
+      <div className="roadmap-track">
+        {roadmapItems.map(([phase, title, copy], index) => (
+          <article key={title}>
+            <div className="roadmap-marker"><span>{index + 1}</span></div>
+            <small>{phase}</small>
+            <h3>{title}</h3>
+            <p>{copy}</p>
+            {index < roadmapItems.length - 1 && <ArrowRight aria-hidden="true" />}
+          </article>
         ))}
       </div>
     </section>

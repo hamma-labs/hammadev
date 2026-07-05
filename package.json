@@ -30,7 +30,10 @@
     "smoke:cli": "pnpm build && node dist/cli.js --help",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "website:build": "pnpm --dir website build",
+    "website:typecheck": "pnpm --dir website typecheck",
+    "website:test:e2e": "pnpm --dir website test:e2e"
   },
   "keywords": [
     "ai",

@@ -1,4 +1,5 @@
 import Hero from './components/Hero';
+import Header from './components/Header';
 import Problem from './components/Problem';
 import HowItWorks from './components/HowItWorks';
 import TerminalDemo from './components/TerminalDemo';
@@ -7,17 +8,21 @@ import Safety from './components/Safety';
 import Install from './components/Install';
 import Limitations from './components/Limitations';
 import Roadmap from './components/Roadmap';
+import Updates from './components/Updates';
 import Footer from './components/Footer';
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center">
-      {/* Outer wrapper to contain max content width */}
-      <div className="w-full max-w-5xl px-6 md:px-12 flex flex-col gap-24 md:gap-36 py-12 md:py-24">
+    <main className="min-h-screen overflow-hidden">
+      <div className="ambient ambient-one" aria-hidden="true" />
+      <div className="ambient ambient-two" aria-hidden="true" />
+      <div className="page-wrap">
+        <Header />
         <Hero />
         <Problem />
         <HowItWorks />
         <TerminalDemo />
+        <Updates />
         <Features />
         <Safety />
         <Install />
@@ -25,6 +30,6 @@ export default function App() {
         <Roadmap />
         <Footer />
       </div>
-    </div>
+    </main>
   );
 }

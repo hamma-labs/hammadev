@@ -1,37 +1,38 @@
+import { CheckCircle2, Copy, CornerDownRight } from 'lucide-react';
+
 export default function TerminalDemo() {
   return (
-    <section className="flex flex-col gap-8">
-      <h2 className="text-3xl font-semibold mb-2">A handoff in one command.</h2>
-
-      <div className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-xl overflow-hidden shadow-2xl">
-        <div className="flex items-center px-4 py-3 border-b border-zinc-800/50 bg-[#121212]">
-          <div className="flex gap-2">
-            <div className="w-3 h-3 rounded-full bg-zinc-700"></div>
-            <div className="w-3 h-3 rounded-full bg-zinc-700"></div>
-            <div className="w-3 h-3 rounded-full bg-zinc-700"></div>
-          </div>
+    <section className="demo-section" aria-labelledby="demo-heading">
+      <div className="demo-copy">
+        <div className="section-kicker light">One command, clear next step</div>
+        <h2 id="demo-heading">A handoff you can actually inspect.</h2>
+        <p>Plain Markdown and JSON. No opaque sync layer, no account, no new dashboard to maintain.</p>
+        <div className="demo-stat">
+          <strong>~15 KB</strong>
+          <span>target size for a focused handoff brief</span>
         </div>
-        <div className="p-6 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre">
-          <div className="flex gap-4">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">hamma quickstart</span>
+      </div>
+
+      <div className="terminal-window">
+        <div className="terminal-bar">
+          <div className="traffic-lights"><span /><span /><span /></div>
+          <span>~/project — hamma</span>
+          <Copy size={14} />
+        </div>
+        <div className="terminal-body">
+          <div className="terminal-command"><span>$</span><code>hamma handoff codex:last --to claude</code></div>
+          <div className="terminal-log muted">Reading latest Codex session…</div>
+          <div className="terminal-log"><CheckCircle2 size={14} /> Session matched to ~/project</div>
+          <div className="terminal-log"><CheckCircle2 size={14} /> Secrets redacted (best-effort)</div>
+          <div className="terminal-result">
+            <span>Created handoff</span>
+            <strong>.hamma/tasks/…-codex-to-claude/</strong>
           </div>
-          <div className="flex gap-4 mt-1">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">hamma status</span>
+          <div className="terminal-next">
+            <CornerDownRight size={15} />
+            <div><span>Next</span><code>claude “Read handoff.md and continue.”</code></div>
           </div>
-          <div className="flex gap-4 mt-1">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">hamma handoff codex:last --to claude</span>
-          </div>
-          <div className="mt-6 text-zinc-400">
-            Created handoff:<br/>
-            <span className="text-blue-400">.hamma/tasks/2026-07-02T...-codex-to-claude/handoff.md</span>
-          </div>
-          <div className="mt-6 text-zinc-400">
-            Next:<br/>
-            <span className="text-green-400">claude</span> "Read .hamma/tasks/.../handoff.md and continue from the current repo state."
-          </div>
+          <span className="terminal-cursor" aria-hidden="true" />
         </div>
       </div>
     </section>

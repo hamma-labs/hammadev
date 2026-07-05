@@ -1,22 +1,22 @@
-export default function Limitations() {
-  const limitations = [
-    "Codex and Claude Code session formats may change.",
-    "Redaction is best-effort.",
-    "Handoffs are local markdown/json files, not a hosted workspace.",
-    "No team sync yet.",
-    "No dashboard yet.",
-    "Currently focused on Codex and Claude Code."
-  ];
+import { AlertTriangle } from 'lucide-react';
 
+const limitations = [
+  'Codex and Claude Code only',
+  'Claude parser is conservative',
+  'Local machine scope',
+  'Best-effort secret redaction',
+];
+
+export default function Limitations() {
   return (
-    <section className="bg-red-950/20 border border-red-900/30 rounded-2xl p-8 md:p-12">
-      <h2 className="text-2xl font-semibold mb-6 text-red-100">Current alpha limitations.</h2>
-      <ul className="grid sm:grid-cols-2 gap-4">
-        {limitations.map((limitation, i) => (
-          <li key={i} className="flex items-start gap-3 text-zinc-300">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-800 mt-2 shrink-0"></div>
-            <span>{limitation}</span>
-          </li>
+    <section className="limitations-section" aria-labelledby="limitations-heading">
+      <div>
+        <div className="section-kicker"><AlertTriangle size={14} /> Honest alpha boundaries</div>
+        <h2 id="limitations-heading">Useful today.<br />Still deliberately narrow.</h2>
+      </div>
+      <ul>
+        {limitations.map((limitation, index) => (
+          <li key={limitation}><span>0{index + 1}</span>{limitation}</li>
         ))}
       </ul>
     </section>

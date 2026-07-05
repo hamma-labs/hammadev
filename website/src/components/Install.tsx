@@ -1,45 +1,47 @@
+import { Check, Copy, PackageCheck } from 'lucide-react';
+import { useState } from 'react';
+
+const INSTALL_COMMAND = 'npm install -g hammadev@alpha';
+
 export default function Install() {
+  const [copied, setCopied] = useState(false);
+
+  async function copyInstallCommand() {
+    await navigator.clipboard.writeText(INSTALL_COMMAND);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
-    <section className="flex flex-col md:flex-row gap-12 items-start justify-between border-t border-zinc-900 pt-24">
-      <div className="md:w-1/3">
-        <h2 className="text-3xl font-semibold mb-4">Install the alpha.</h2>
-        <div className="text-sm text-zinc-500 mb-6">
-          <p>Requires Node.js 22.12+</p>
-          <p>Node 24 recommended</p>
-        </div>
-        <p className="text-sm text-zinc-400">
-          The npm package is <code className="bg-zinc-900 px-1 py-0.5 rounded text-zinc-300">hammadev</code>.
-          The CLI command is <code className="bg-zinc-900 px-1 py-0.5 rounded text-zinc-300">hamma</code>.
-        </p>
+    <section id="install" className="install-section" aria-labelledby="install-heading">
+      <div>
+        <div className="section-kicker"><PackageCheck size={14} /> Start locally</div>
+        <h2 id="install-heading" className="section-title">From install to first handoff in minutes.</h2>
+        <p className="install-intro">Requires Node.js 22.12+; Node 24 is recommended. The package is <code>hammadev</code> and the CLI is <code>hamma</code>.</p>
       </div>
 
-      <div className="md:w-2/3 w-full flex flex-col gap-6">
-        <div className="bg-[#0a0a0a] border border-zinc-800 rounded-xl p-6 font-mono text-sm shadow-xl">
-          <div className="flex gap-4">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">npm install -g hammadev@alpha</span>
-          </div>
+      <div className="install-panel">
+        <div className="install-command">
+          <span>$</span>
+          <code>{INSTALL_COMMAND}</code>
+          <button type="button" onClick={copyInstallCommand} aria-label="Copy install command">
+            {copied ? <Check size={17} /> : <Copy size={17} />}
+            <span>{copied ? 'Copied' : 'Copy'}</span>
+          </button>
         </div>
-
-        <div className="bg-[#0a0a0a] border border-zinc-800 rounded-xl p-6 font-mono text-sm shadow-xl">
-          <div className="text-zinc-500 mb-3 text-xs uppercase tracking-wider">Smoke test</div>
-          <div className="flex gap-4">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">hamma --version</span>
-          </div>
-          <div className="flex gap-4 mt-2">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">hamma quickstart</span>
-          </div>
-          <div className="flex gap-4 mt-2">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">hamma doctor</span>
-          </div>
-          <div className="flex gap-4 mt-2">
-            <span className="text-zinc-600 select-none">$</span>
-            <span className="text-zinc-300">hamma status</span>
-          </div>
-        </div>
+        <ol className="install-steps">
+          {[
+            ['01', 'Install the agent skill', 'hamma skill install'],
+            ['02', 'Check your environment', 'hamma doctor'],
+            ['03', 'Run guided onboarding', 'hamma quickstart'],
+          ].map(([number, label, command]) => (
+            <li key={command}>
+              <span>{number}</span>
+              <div><strong>{label}</strong><code>{command}</code></div>
+              <Check size={16} />
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   );
