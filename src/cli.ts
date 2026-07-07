@@ -15,6 +15,8 @@ import { runDoctor } from "./core/doctor.js";
 import { installAllSkills, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
 import { runQuickstart } from "./core/quickstart.js";
+import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
+import { AsyncStructuredLogger } from "./core/logger.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -110,12 +112,45 @@ const __dirname = path.dirname(__filename);
 const pkgPath = path.resolve(__dirname, "..", "package.json");
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
+const cliLogger = new AsyncStructuredLogger({ operation: "cli" });
+
+function fail(category: ErrorCategory, error: unknown): void {
+  cliLogger.error("operation.failed", {
+    category,
+    error: errorMessage(error)
+  });
+  console.error(pc.red(formatCliError(category, error)));
+  process.exitCode = 1;
+}
+
 const program = new Command();
+
+program
+  .option(
+    "--log-level <level>",
+    "Structured log level: off | error | warn | info | debug",
+    process.env.HAMMA_LOG_LEVEL ?? "off"
+  )
+  .hook("preAction", (_command, actionCommand) => {
+    cliLogger.setLevel(actionCommand.optsWithGlobals().logLevel);
+    cliLogger.setOperation(actionCommand.name());
+    cliLogger.info("operation.started");
+  })
+  .hook("postAction", (_command, actionCommand) => {
+    cliLogger.info("operation.completed", { exitCode: process.exitCode ?? 0 });
+  });
 
 program
   .name("hamma")
   .description("Shared memory and handoff layer for agentic coding CLIs")
-  .version(pkg.version);
+  .version(pkg.version)
+  .action(async () => {
+    try {
+      await runQuickstart(process.cwd());
+    } catch (error: unknown) {
+      fail("PROJECT_ERROR", error);
+    }
+  });
 
 program
   .command("list")
@@ -158,8 +193,7 @@ program
           });
           return;
         } catch (err: any) {
-          console.error(pc.red(`Error listing Codex sessions: ${err.message}`));
-          process.exit(1);
+          return fail("SESSION_ERROR", err);
         }
       }
       const sessions = await CodexAdapter.list();
@@ -217,8 +251,7 @@ program
           });
           return;
         } catch (err: any) {
-          console.error(pc.red(`Error listing Claude sessions: ${err.message}`));
-          process.exit(1);
+          return fail("SESSION_ERROR", err);
         }
       }
 
@@ -256,10 +289,10 @@ program
       return;
     }
 
-    console.error(
-      pc.red(`Error: Unsupported source '${source}'. Supported: 'codex', 'claude'.`)
+    return fail(
+      "CLI_ERROR",
+      new Error(`Unsupported source '${source}'. Supported: 'codex', 'claude'.`)
     );
-    process.exit(1);
   });
 
 program
@@ -285,10 +318,7 @@ program
         printClaudeShapeReport(report);
         return;
       } catch (err: any) {
-        console.error(
-          pc.red(`Error inspecting Claude session shape: ${err.message}`)
-        );
-        process.exit(1);
+        return fail("SESSION_ERROR", err);
       }
     }
 
@@ -296,8 +326,7 @@ program
       const session = await loadSession(target);
       console.log(renderSession(session, Boolean(options.summary)));
     } catch (err: any) {
-      console.error(pc.red(`Error inspecting session: ${err.message}`));
-      process.exit(1);
+      return fail("SESSION_ERROR", err);
     }
   });
 
@@ -338,8 +367,7 @@ program
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       }
     } catch (err: any) {
-      console.error(pc.red(`Error processing handoff: ${err.message}`));
-      process.exit(1);
+      return fail("HANDOFF_ERROR", err);
     }
   });
 
@@ -352,8 +380,7 @@ program
     try {
       console.log(formatProjectStatus(await getProjectStatus(projectPath)));
     } catch (err: any) {
-      console.error(pc.red(`Error reading project status: ${err.message}`));
-      process.exit(1);
+      return fail("PROJECT_ERROR", err);
     }
   });
 
@@ -371,8 +398,7 @@ program
       }
       console.log(formatHandoffLog(handoffs));
     } catch (err: any) {
-      console.error(pc.red(`Error reading handoff history: ${err.message}`));
-      process.exit(1);
+      return fail("HISTORY_ERROR", err);
     }
   });
 
@@ -385,8 +411,7 @@ program
       const markdown = await readHandoff(process.cwd(), taskId);
       process.stdout.write(markdown.endsWith("\n") ? markdown : markdown + "\n");
     } catch (err: any) {
-      console.error(pc.red(`Error reading handoff: ${err.message}`));
-      process.exit(1);
+      return fail("HISTORY_ERROR", err);
     }
   });
 
@@ -395,14 +420,18 @@ program
   .description("Validate environment, Codex availability, and .gitignore safety")
   .action(async () => {
     const code = await runDoctor();
-    process.exit(code);
+    process.exitCode = code;
   });
 
 program
   .command("quickstart")
   .description("Guided read-only onboarding for first-time users")
   .action(async () => {
-    await runQuickstart(process.cwd());
+    try {
+      await runQuickstart(process.cwd());
+    } catch (error: unknown) {
+      fail("PROJECT_ERROR", error);
+    }
   });
 
 const skillCommand = program
@@ -420,10 +449,10 @@ skillCommand
   .action(async (options) => {
     const agent = String(options.agent).toLowerCase();
     if (!["codex", "claude", "both"].includes(agent)) {
-      console.error(
-        pc.red(`Error: unsupported --agent '${options.agent}'. Use codex, claude, or both.`)
+      return fail(
+        "INSTALL_ERROR",
+        new Error(`Unsupported --agent '${options.agent}'. Use codex, claude, or both.`)
       );
-      process.exit(1);
     }
     const targets: SkillAgent[] = agent === "both" ? ["codex", "claude"] : [agent as SkillAgent];
 
@@ -456,8 +485,7 @@ skillCommand
         )
       );
     } catch (err: any) {
-      console.error(pc.red(`Error installing skill: ${err.message}`));
-      process.exit(1);
+      return fail("INSTALL_ERROR", err);
     }
   });
 

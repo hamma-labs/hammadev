@@ -1,0 +1,6 @@
+{"type":"session_meta","payload":{"session_id":"demo-session","cwd":"/tmp/hamma-example-project","timestamp":"2026-07-01T09:00:00Z"}}
+{"type":"turn_context","payload":{"cwd":"/tmp/hamma-example-project"}}
+{"type":"event_msg","timestamp":"2026-07-01T09:00:05Z","payload":{"type":"user_message","message":"Implement GET /health and tests. Preserve the existing API and update the README after verification."}}
+{"type":"event_msg","timestamp":"2026-07-01T09:02:00Z","payload":{"type":"agent_message","message":"Implemented GET /health in src/server.ts and added tests/server.test.ts. Task #1 completed. All tests pass. Remaining task #2: run npm run build and document the endpoint. Known risk: deployment configuration has not been verified."}}
+{"type":"response_item","timestamp":"2026-07-01T09:02:05Z","payload":{"type":"function_call","call_id":"demo-call-1","name":"bash","arguments":{"command":"npm test"}}}
+{"type":"response_item","timestamp":"2026-07-01T09:02:10Z","payload":{"type":"function_call_output","call_id":"demo-call-1","output":"12 tests passed"}}

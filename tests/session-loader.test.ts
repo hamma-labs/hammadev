@@ -76,7 +76,7 @@ describe("loadSession", () => {
   });
 
   it("loads an absolute UUID-named Claude session path", async () => {
-    const session = await loadSession(directClaudePath);
+    const session = await loadSession(directClaudePath, { claudeHomes: [claudeHome] });
     expect(session.meta.sourceCli).toBe("claude");
   });
 });

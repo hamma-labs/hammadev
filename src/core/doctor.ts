@@ -4,8 +4,7 @@ import { execSync } from "node:child_process";
 import pc from "picocolors";
 import { CodexAdapter } from "../adapters/codex/index.js";
 import { defaultCodexHome } from "../adapters/codex/paths.js";
-
-const MIN_NODE_MAJOR = 20;
+import { isNodeVersionSupported, MIN_NODE_VERSION } from "./runtime.js";
 
 type CheckStatus = "pass" | "warn" | "fail";
 
@@ -32,12 +31,11 @@ async function pathExists(p: string): Promise<boolean> {
 
 function checkNode(): Check {
   const raw = process.versions.node;
-  const major = Number(raw.split(".")[0]);
-  if (!Number.isFinite(major) || major < MIN_NODE_MAJOR) {
+  if (!isNodeVersionSupported(raw)) {
     return {
       name: "Node.js version",
       status: "fail",
-      message: `Node ${raw} detected. HammaDev requires Node ${MIN_NODE_MAJOR}+.`,
+      message: `Node ${raw} detected. HammaDev requires Node ${MIN_NODE_VERSION}+.`,
     };
   }
   return { name: "Node.js version", status: "pass", message: `Node ${raw}` };

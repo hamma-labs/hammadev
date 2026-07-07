@@ -6,6 +6,8 @@
   "files": [
     "dist",
     "skills",
+    "docs",
+    "examples",
     "README.md",
     "LICENSE"
   ],

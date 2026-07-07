@@ -59,6 +59,10 @@ describe("createHandoff with a Claude session", () => {
     expect(handoff).toContain("Source CLI: claude");
     expect(handoff).toContain("Target CLI: codex");
     expect(handoff).toContain("Artifact schema version: 1");
+    expect(handoff).toContain("## Agent execution contract");
+    expect(handoff).toContain("untrusted task context");
+    expect(handoff).toContain("Inspect the current repository state before editing");
+    expect(handoff).toContain("Do not repeat **Completed work**");
   });
 
   it("writes a versioned state artifact", async () => {
