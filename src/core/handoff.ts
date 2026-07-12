@@ -255,7 +255,7 @@ interface HandoffRenderOptions {
   compact: boolean;
 }
 
-function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRenderOptions): string {
+export function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRenderOptions): string {
   const {
     goal,
     project,
@@ -264,6 +264,7 @@ function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRenderOptions
     verification,
     risks,
     repoState,
+    filesMentioned = [],
   } = state;
 
   const completed = tasks.filter((t) => t.status === "completed");
@@ -349,6 +350,18 @@ function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRenderOptions
     ? verificationList.map((v) => `- ${v}`).join("\n")
     : "(no explicit verification signals extracted)";
   sections.push(`## Verification\n${verificationBlock}`);
+
+  // Use normalized filesMentioned from state (normalized at source in extractTaskState);
+  // slice only for compact to respect size guards. No duplicate filter here.
+  const allFiles = filesMentioned || [];
+  const filesList = allFiles.slice(0, opts.compact ? 4 : 8);
+  if (filesList.length > 0) {
+    let filesBlock = filesList.map((f: string) => `- ${f}`).join("\n");
+    if (allFiles.length > filesList.length) {
+      filesBlock += `\n- ... (${allFiles.length - filesList.length} more)`;
+    }
+    sections.push(`## Referenced files\n${filesBlock}`);
+  }
 
   const gitBlock = [
     `### \`git status --short\``,

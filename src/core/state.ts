@@ -1,4 +1,5 @@
 import { HammaMessage, HammaSession } from "./schema.js";
+import { normalizeFilesMentioned } from "./files.js";
 
 export const HANDOFF_SCHEMA_VERSION = 1 as const;
 
@@ -63,12 +64,16 @@ const COMPLETED_PATTERNS: RegExp[] = [
   /Task #?(\d+)\s+completed/gi,
   /Task #?(\d+)\s+fixed/gi,
   /Fixed finding #?(\d+)/gi,
+  /Task #?(\d+)[^\n]*?(?:done|complete|finished|implemented|shipped|merged)/gi,
+  /#?(\d+)\s+(?:is )?(?:done|completed|fixed|implemented)/gi,
+  /(?:completed|finished|done with)\s+(?:task|finding)\s*#?(\d+)/gi,
 ];
 
 const REMAINING_PATTERNS: RegExp[] = [
   /Next is task #?(\d+)(?::\s*([^\n.]+))?/gi,
   /Remaining[^\n.]*task #?(\d+)(?::\s*([^\n.]+))?/gi,
   /task #?(\d+)\s+remains/gi,
+  /task #?(\d+)[^\n]*?(?:next|remain|todo|pending|still to do)/gi,
 ];
 
 const LATEST_STATUS_MARKER =
@@ -277,51 +282,6 @@ interface TitleCandidate {
   order: number;
 }
 
-function buildTitleRegistry(assistants: HammaMessage[]): Map<string, string> {
-  const candidates = new Map<string, TitleCandidate[]>();
-  let order = 0;
-  const add = (id: string, rawTitle: string, priority: number) => {
-    const title = cleanTitle(rawTitle);
-    if (title.length < 5 || title.length > 220) return;
-    const arr = candidates.get(id) ?? [];
-    arr.push({ title, priority, order: order++ });
-    candidates.set(id, arr);
-  };
-
-  const introPatterns: Array<{ re: RegExp; priority: number }> = [
-    {
-      re: /(?:I(?:'m|['’]m|['’]ve| am)?\s+(?:proceeding|starting|working|treating this as fixing|treating this as|kicking off))\s+(?:with\s+|on\s+|as\s+)?(?:finding|task)\s*#?(\d+):\s*([^\n]{6,300})/gi,
-      priority: 4,
-    },
-    {
-      re: /Next is\s+(?:task|finding)\s*#?(\d+):\s*([^\n]{6,300})/gi,
-      priority: 3,
-    },
-    {
-      re: /Fixed finding\s*#?(\d+):\s*([^\n]{6,300})/gi,
-      priority: 2,
-    },
-  ];
-
-  for (const msg of assistants) {
-    for (const { re, priority } of introPatterns) {
-      for (const m of msg.content.matchAll(re)) {
-        add(m[1], m[2], priority);
-      }
-    }
-    for (const item of extractPlanItems(msg.content)) {
-      add(item.id, item.title, 1);
-    }
-  }
-
-  const registry = new Map<string, string>();
-  for (const [id, list] of candidates) {
-    list.sort((a, b) => b.priority - a.priority || b.order - a.order);
-    registry.set(id, list[0].title);
-  }
-  return registry;
-}
-
 function splitClauses(text: string): string[] {
   const clauses: string[] = [];
   for (const line of text.split(/\n+/)) {
@@ -379,7 +339,26 @@ function dedupRisks(risks: string[], maxItems = 8): string[] {
   return kept;
 }
 
-function categorizeVerification(session: HammaSession): string[] {
+export function extractTaskState(
+  session: HammaSession,
+  options: {
+    targetCli: string;
+    repoState: HammaRepoState;
+  }
+): HammaTaskState {
+  const { targetCli, repoState } = options;
+
+  const messages = session.messages.filter((m) => m.role !== "system");
+
+  // Single forward pass over messages to accumulate tasks, verification, risks, files, users, status
+  const users: HammaMessage[] = [];
+  const assistants: HammaMessage[] = [];
+  const importantUsers: HammaMessage[] = [];
+  let latestImportantUser: HammaMessage | undefined = undefined;
+  let latestStatusAssistant: HammaMessage | undefined = undefined;
+
+  const tasksById = new Map<string, HammaTaskLedgerItem>();
+
   interface Bucket {
     name: string;
     verb: string;
@@ -392,120 +371,153 @@ function categorizeVerification(session: HammaSession): string[] {
     count: 0,
   }));
 
-  for (const msg of session.messages) {
-    if (msg.role !== "assistant") continue;
-    for (const rawLine of msg.content.split(/\n/)) {
-      const line = rawLine.replace(/^[\s>*\-–—•]+/, "").trim();
-      if (!line) continue;
-      for (let i = 0; i < VERIFICATION_CATEGORIES.length; i++) {
-        const cat = VERIFICATION_CATEGORIES[i];
-        if (cat.patterns.some((p) => p.test(line))) {
-          buckets[i].count += 1;
-          if (cat.name === "Tests") {
-            const nm = line.match(/(\d+)\/(\d+)/);
-            if (nm) buckets[i].lastNumericSample = `${nm[1]}/${nm[2]}`;
+  const riskRaw: string[] = [];
+  const fileSet = new Set<string>();
+
+  // title candidate accumulation inside the single pass (eliminates full post-pass buildTitleRegistry content re-scan)
+  const titleCandidates = new Map<string, TitleCandidate[]>();
+  let titleOrder = 0;
+  const addTitle = (id: string, rawTitle: string, priority: number) => {
+    const title = cleanTitle(rawTitle);
+    if (title.length < 5 || title.length > 220) return;
+    const arr = titleCandidates.get(id) ?? [];
+    arr.push({ title, priority, order: titleOrder++ });
+    titleCandidates.set(id, arr);
+  };
+  const introPatterns: Array<{ re: RegExp; priority: number }> = [
+    {
+      re: /(?:I(?:'m|['’]m|['’]ve| am)?\s+(?:proceeding|starting|working|treating this as fixing|treating this as|kicking off))\s+(?:with\s+|on\s+|as\s+)?(?:finding|task)\s*#?(\d+):\s*([^\n]{6,300})/gi,
+      priority: 4,
+    },
+    {
+      re: /Next is\s+(?:task|finding)\s*#?(\d+):\s*([^\n]{6,300})/gi,
+      priority: 3,
+    },
+    {
+      re: /Fixed finding\s*#?(\d+):\s*([^\n]{6,300})/gi,
+      priority: 2,
+    },
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      users.push(msg);
+      if (isImportantUserMessage(msg.content)) {
+        importantUsers.push(msg);
+      }
+      const trimmed = msg.content.trim();
+      if ((isImportantUserMessage(msg.content) && trimmed.length >= 20) || trimmed.length > 60) {
+        latestImportantUser = msg;
+      }
+      for (const p of extractFilePaths(msg.content)) fileSet.add(p);
+    } else if (msg.role === "assistant") {
+      assistants.push(msg);
+      if (LATEST_STATUS_MARKER.test(msg.content)) {
+        latestStatusAssistant = msg;
+      }
+
+      // Compute files once per assistant (avoid redundant extractFilePaths per pattern match)
+      const files = extractFilePaths(msg.content);
+      for (const p of files) fileSet.add(p);
+
+      // Completed / remaining task detection (varied phrasing supported via extended patterns)
+      for (const pat of COMPLETED_PATTERNS) {
+        for (const mm of msg.content.matchAll(pat)) {
+          const id = mm[1];
+          const existing = tasksById.get(id);
+          const summary = firstParagraph(msg.content, 400);
+          tasksById.set(id, {
+            id,
+            title: undefined, // filled from registry later
+            status: "completed",
+            summary: existing?.status === "completed" && existing.summary ? existing.summary : summary,
+            evidence: mergeUnique(existing?.evidence ?? [], msg.timestamp ? [msg.timestamp] : []),
+            risks: existing?.risks ?? [],
+            filesMentioned: normalizeFilesMentioned(mergeUnique(existing?.filesMentioned ?? [], files)),
+          });
+        }
+      }
+
+      for (const pat of REMAINING_PATTERNS) {
+        for (const mm of msg.content.matchAll(pat)) {
+          const id = mm[1];
+          const existing = tasksById.get(id);
+          if (existing && existing.status === "completed") continue;
+          tasksById.set(id, {
+            id,
+            title: undefined,
+            status: "remaining",
+            summary: existing?.summary || firstParagraph(msg.content, 300),
+            evidence: mergeUnique(existing?.evidence ?? [], msg.timestamp ? [msg.timestamp] : []),
+            risks: existing?.risks ?? [],
+            filesMentioned: normalizeFilesMentioned(mergeUnique(existing?.filesMentioned ?? [], files)),
+          });
+        }
+      }
+
+      // title extraction inside single pass
+      for (const { re, priority } of introPatterns) {
+        for (const m of msg.content.matchAll(re)) {
+          addTitle(m[1], m[2], priority);
+        }
+      }
+      for (const item of extractPlanItems(msg.content)) {
+        addTitle(item.id, item.title, 1);
+      }
+
+      // verification accumulation in same pass
+      for (const rawLine of msg.content.split(/\n/)) {
+        const line = rawLine.replace(/^[\s>*\-–—•]+/, "").trim();
+        if (!line) continue;
+        for (let i = 0; i < VERIFICATION_CATEGORIES.length; i++) {
+          const cat = VERIFICATION_CATEGORIES[i];
+          if (cat.patterns.some((p) => p.test(line))) {
+            buckets[i].count += 1;
+            if (cat.name === "Tests") {
+              const nm = line.match(/(\d+)\/(\d+)/);
+              if (nm) buckets[i].lastNumericSample = `${nm[1]}/${nm[2]}`;
+            }
+            break;
           }
-          break;
+        }
+      }
+
+      // risks in pass
+      for (const clause of splitClauses(msg.content)) {
+        if (isActionableRisk(clause)) {
+          riskRaw.push(truncate(clause, 240));
         }
       }
     }
   }
 
-  const results: string[] = [];
-  for (const b of buckets) {
-    if (b.count === 0) continue;
-    if (b.name === "Tests" && b.lastNumericSample) {
-      results.push(`Tests: ${b.lastNumericSample} pass (${b.count} confirmation${b.count === 1 ? "" : "s"})`);
-    } else {
-      results.push(`${b.name}: ${b.verb} (${b.count} confirmation${b.count === 1 ? "" : "s"})`);
-    }
+  if (!latestStatusAssistant && assistants.length > 0) {
+    // preserve original fallback: last assistant if no explicit status marker matched
+    latestStatusAssistant = assistants[assistants.length - 1];
   }
-  return results;
-}
 
-function collectFileMentions(messages: HammaMessage[]): string[] {
-  const files = new Set<string>();
-  for (const msg of messages) {
-    for (const p of extractFilePaths(msg.content)) files.add(p);
-  }
-  return Array.from(files);
-}
-
-function collectRisks(messages: HammaMessage[]): string[] {
-  const raw: string[] = [];
-  for (const msg of messages) {
-    if (msg.role === "system") continue;
-    for (const clause of splitClauses(msg.content)) {
-      if (isActionableRisk(clause)) {
-        raw.push(truncate(clause, 240));
-      }
-    }
-  }
-  return dedupRisks(raw);
-}
-
-export function extractTaskState(
-  session: HammaSession,
-  options: {
-    targetCli: string;
-    repoState: HammaRepoState;
-  }
-): HammaTaskState {
-  const { targetCli, repoState } = options;
-
-  const messages = session.messages.filter((m) => m.role !== "system");
-  const users = messages.filter((m) => m.role === "user");
-  const assistants = messages.filter((m) => m.role === "assistant");
-
-  const importantUsers = users.filter((u) => isImportantUserMessage(u.content));
   const firstUser = users[0];
+  const lastUser = users[users.length - 1];
+  // Goal: favor most recent high-signal substantive user msg to reduce stale/polluted goals from session history
   const goalUser =
-    firstUser && firstUser.content.trim().length >= 20 ? firstUser : importantUsers[0] ?? firstUser;
-  const latestImportantUser = importantUsers[importantUsers.length - 1] ?? users[users.length - 1];
+    (latestImportantUser && latestImportantUser.content.trim().length >= 20
+      ? latestImportantUser
+      : firstUser && firstUser.content.trim().length >= 20
+      ? firstUser
+      : latestImportantUser ?? firstUser);
 
-  const latestStatusAssistant =
-    [...assistants].reverse().find((a) => LATEST_STATUS_MARKER.test(a.content)) ??
-    assistants[assistants.length - 1];
+  // build registry from in-pass accumulated candidates (no separate full scan of assistant contents)
+  const titleRegistry = new Map<string, string>();
+  for (const [id, list] of titleCandidates) {
+    list.sort((a, b) => b.priority - a.priority || b.order - a.order);
+    titleRegistry.set(id, list[0].title);
+  }
 
-  const titleRegistry = buildTitleRegistry(assistants);
-
-  const tasksById = new Map<string, HammaTaskLedgerItem>();
-
-  for (const msg of assistants) {
-    for (const pat of COMPLETED_PATTERNS) {
-      for (const mm of msg.content.matchAll(pat)) {
-        const id = mm[1];
-        const files = extractFilePaths(msg.content);
-        const existing = tasksById.get(id);
-        const summary = firstParagraph(msg.content, 400);
-        tasksById.set(id, {
-          id,
-          title: titleRegistry.get(id) ?? existing?.title,
-          status: "completed",
-          summary: existing?.status === "completed" && existing.summary ? existing.summary : summary,
-          evidence: mergeUnique(existing?.evidence ?? [], msg.timestamp ? [msg.timestamp] : []),
-          risks: existing?.risks ?? [],
-          filesMentioned: mergeUnique(existing?.filesMentioned ?? [], files),
-        });
-      }
-    }
-
-    for (const pat of REMAINING_PATTERNS) {
-      for (const mm of msg.content.matchAll(pat)) {
-        const id = mm[1];
-        const existing = tasksById.get(id);
-        if (existing && existing.status === "completed") continue;
-        const files = extractFilePaths(msg.content);
-        tasksById.set(id, {
-          id,
-          title: titleRegistry.get(id) ?? existing?.title,
-          status: "remaining",
-          summary: existing?.summary || firstParagraph(msg.content, 300),
-          evidence: mergeUnique(existing?.evidence ?? [], msg.timestamp ? [msg.timestamp] : []),
-          risks: existing?.risks ?? [],
-          filesMentioned: mergeUnique(existing?.filesMentioned ?? [], files),
-        });
-      }
+  // fill titles into tasks from registry
+  for (const [id, title] of titleRegistry) {
+    const existing = tasksById.get(id);
+    if (existing) {
+      existing.title = existing.title || title;
     }
   }
 
@@ -522,24 +534,50 @@ export function extractTaskState(
     });
   }
 
-  const tasks = Array.from(tasksById.values()).sort((a, b) => {
+  let tasks = Array.from(tasksById.values()).sort((a, b) => {
     const na = Number(a.id ?? 0);
     const nb = Number(b.id ?? 0);
     if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
     return 0;
   });
 
-  const verification = categorizeVerification(session);
-  const risksAgg = collectRisks(messages);
-  const filesAgg = collectFileMentions(messages);
+  // Ensure non-empty structured tasks (for cases previously "(none detected)") using recent substantive; only if last user is not bare continuation
+  const lastIsBare = lastUser ? isBareContinuationInstruction(lastUser.content) : false;
+  if (tasks.length === 0 && latestImportantUser && !lastIsBare) {
+    tasks = [{
+      id: undefined,
+      title: undefined,
+      status: "remaining",
+      summary: truncate(latestImportantUser.content, 300),
+      evidence: latestImportantUser.timestamp ? [latestImportantUser.timestamp] : [],
+      risks: [],
+      filesMentioned: normalizeFilesMentioned(extractFilePaths(latestImportantUser.content)),
+    }];
+  }
+
+  // build verification results from buckets (post but from single-pass data)
+  const verification: string[] = [];
+  for (const b of buckets) {
+    if (b.count === 0) continue;
+    if (b.name === "Tests" && b.lastNumericSample) {
+      verification.push(`Tests: ${b.lastNumericSample} pass (${b.count} confirmation${b.count === 1 ? "" : "s"})`);
+    } else {
+      verification.push(`${b.name}: ${b.verb} (${b.count} confirmation${b.count === 1 ? "" : "s"})`);
+    }
+  }
+
+  const risksAgg = dedupRisks(riskRaw);
+  const filesAgg = normalizeFilesMentioned(Array.from(fileSet));
 
   const remainingTasks = tasks.filter((t) => t.status === "remaining");
   const blockedTasks = tasks.filter((t) => t.status === "blocked");
-  const latestUserIndex = latestImportantUser ? messages.lastIndexOf(latestImportantUser) : -1;
-  const latestStatusIndex = latestStatusAssistant ? messages.lastIndexOf(latestStatusAssistant) : -1;
+  const messagesForIndex = messages; // already filtered
+  const latestUserIndex = latestImportantUser ? messagesForIndex.lastIndexOf(latestImportantUser) : -1;
+  const latestStatusIndex = latestStatusAssistant ? messagesForIndex.lastIndexOf(latestStatusAssistant) : -1;
   const statusFollowsLatestUser = latestStatusIndex > latestUserIndex;
-  const latestUserIsBareContinuation = latestImportantUser
-    ? isBareContinuationInstruction(latestImportantUser.content)
+  const lastUserForBare = users[users.length - 1];
+  const latestUserIsBareContinuation = lastUserForBare
+    ? isBareContinuationInstruction(lastUserForBare.content)
     : false;
   const latestStatusIsBlocked = Boolean(
     latestStatusAssistant && statusFollowsLatestUser && isBlockedStatus(latestStatusAssistant.content)
@@ -560,7 +598,7 @@ export function extractTaskState(
     outcome = "completed";
   } else if (remainingTasks.length > 0) {
     outcome = "actionable";
-  } else if (latestImportantUser && !latestUserIsBareContinuation) {
+  } else if (lastUserForBare && !latestUserIsBareContinuation) {
     outcome = "actionable";
   } else {
     outcome = "ambiguous";
@@ -572,9 +610,11 @@ export function extractTaskState(
   } else if (remainingTasks.length > 0) {
     const t = remainingTasks[0];
     const label = t.title ?? t.summary;
-    nextRecommended = `Task #${t.id}: ${truncate(label, 220)}`;
-  } else if (outcome === "actionable" && latestImportantUser && !latestUserIsBareContinuation) {
-    nextRecommended = truncate(latestImportantUser.content, 240);
+    nextRecommended = (t.id != null)
+      ? `Task #${t.id}: ${truncate(label, 220)}`
+      : truncate(label, 240);
+  } else if (outcome === "actionable" && lastUserForBare && !latestUserIsBareContinuation) {
+    nextRecommended = truncate(lastUserForBare.content, 240);
   }
 
   return {

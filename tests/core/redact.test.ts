@@ -40,4 +40,29 @@ describe("redactText", () => {
     expect(text).toBe(input);
     expect(count).toBe(0);
   });
+
+  it("redacts AWS access key ID (AKIA*)", async () => {
+    const input = "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE and secret=...";
+    const { text, count } = redactText(input);
+    expect(text).not.toContain("AKIAIOSFODNN7EXAMPLE");
+    expect(text).toContain("[REDACTED_SECRET]");
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it("redacts PEM private key block", async () => {
+    const input = "key:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----";
+    const { text, count } = redactText(input);
+    expect(text).not.toContain("MIIEpAIBAAKCAQEA");
+    expect(text).toContain("[REDACTED_SECRET]");
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it("redacts additional common tokens without touching benign text", async () => {
+    const input = "glpat-abc123def456ghi789jkl0 for gitlab; normal sentence here; no secret";
+    const { text, count } = redactText(input);
+    expect(text).not.toContain("glpat-abc123def456ghi789jkl0");
+    expect(text).toContain("[REDACTED_SECRET]");
+    expect(text).toContain("normal sentence here");
+    expect(count).toBeGreaterThan(0);
+  });
 });

@@ -245,4 +245,47 @@ describe("handoff outcome rendering", () => {
       await fs.rm(isolatedProject, { recursive: true, force: true });
     }
   });
+
+  it("surfaces Referenced files cross-ref context when present and preserves full contract structure", async () => {
+    const isolatedProject = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-files-context-"));
+    const session = await parseClaudeSession(FIXTURE);
+    session.meta.projectPath = isolatedProject;
+    // inject content with files + noise (incl. missed artifacts like state.json etc) to exercise clean filtering
+    session.messages.push(
+      { role: "user", content: "Update logic in src/core/state.ts and src/core/redact.ts for better reliability; see state.json handoff.md README.md troubleshooting.md .github/ci.yml" },
+      { role: "assistant", content: "Updated state extraction and redact patterns. Typecheck passes. Tests: 8/8 pass." }
+    );
+
+    try {
+      const result = await createHandoff(session, "codex", false);
+      const handoff = await fs.readFile(result.handoffPath, "utf8");
+      const state = JSON.parse(await fs.readFile(result.statePath, "utf8"));
+
+      // contract and structure intact
+      expect(handoff).toContain("## Agent execution contract");
+      expect(handoff).toContain("untrusted task context");
+      expect(handoff).toContain("## Source");
+      expect(handoff).toContain("Artifact schema version: 1");
+
+      // improved context
+      expect(state.filesMentioned.length).toBeGreaterThan(0);
+      expect(handoff).toContain("## Referenced files");
+      expect(handoff).toContain("state.ts");
+
+      // cleaned filesMentioned (no artifacts/noise in state or render; state vs render consistent)
+      const isArtifactLike = (f: string) => /handoff|state\.json|session\.json|README|troubleshooting|doctor|ci\.yml|examples|\.github/i.test(f) && !/\/src\//i.test(f);
+      const stateHasNoise = state.filesMentioned.some((f: string) => isArtifactLike(f));
+      expect(stateHasNoise).toBe(false);
+      const refMatch = handoff.match(/## Referenced files\n([\s\S]*?)(?=\n## |$)/);
+      if (refMatch) {
+        const refHasNoise = refMatch[1].split("\n").some((l: string) => isArtifactLike(l));
+        expect(refHasNoise).toBe(false);
+      }
+
+      // outcome better than ambiguous for this
+      expect(["actionable", "completed"]).toContain(state.outcome);
+    } finally {
+      await fs.rm(isolatedProject, { recursive: true, force: true });
+    }
+  });
 });
