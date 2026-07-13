@@ -2,11 +2,11 @@
 
 **Persistent, local handoffs between AI coding agents.**
 
-HammaDev reads a Codex CLI or Claude Code session and produces a compact,
+HammaDev reads a session from Codex, Claude Code, or Grok and produces a compact,
 structured handoff package another supported agent can continue from. There is
 no shared cloud service, and source-agent session files are never modified.
 
-> **Status:** v0.1 alpha · local-only CLI · Codex ↔ Claude
+> **Status:** v0.1 alpha · local-only CLI · Codex ↔ Claude ↔ Grok
 
 ![HammaDev quickstart showing exact readiness gaps](docs/assets/quickstart.svg)
 
@@ -64,11 +64,11 @@ hamma
 # 2. Optionally install the packaged agent skills, then restart the agents.
 hamma skill install
 
-# 3. Create a project-scoped handoff.
+# 3. Create a project-scoped handoff (now supports three sources).
 hamma handoff codex:project --to claude --project "$PWD"
-
-# Or hand work in the other direction.
 hamma handoff claude:project --to codex --project "$PWD"
+hamma handoff grok:project --to codex --project "$PWD"
+hamma handoff grok:last --to claude --project "$PWD"
 ```
 
 ![Generated agent-ready handoff preview](docs/assets/handoff.svg)
@@ -95,21 +95,37 @@ See the fully synthetic examples:
 - [Generated Codex → Claude handoff package](examples/generated/codex-to-claude/)
 - [Example-data notes](examples/README.md)
 
+Grok support uses the same handoff format and tool_history.jsonl cache. Real Grok sessions (from `~/.grok`) are exercised in live verification but not committed as example data.
+
 No example contains a real user session or credential.
 
 ## Current alpha capabilities
 
 - Discovers Codex rollouts under `~/.codex/sessions/**/rollout-*.jsonl`.
 - Discovers Claude sessions under supported Claude home directories.
-- Selects project-scoped current, previous, or best resumable sessions.
-- Parses both formats into a normalized `HammaSession` model.
-- Excludes Claude system, thinking, tool-use, and tool-result records.
+- Discovers Grok sessions under `~/.grok/sessions/<encoded-cwd>/<uuid>/` (using summary.json + chat_history.jsonl + terminal logs).
+- Selects project-scoped current, previous, or best resumable sessions (now including grok:project / grok:last).
+- Parses all three formats into a normalized `HammaSession` model.
 - Applies best-effort secret redaction to emitted message content.
 - Captures `git status --short` and `git diff --stat` without changing Git state.
 - Writes handoffs atomically and can append `.hamma/` to `.gitignore`.
 - Reports project status and local handoff history without printing transcripts.
 - Emits optional buffered JSONL diagnostics with trace IDs via
   `--log-level` or `HAMMA_LOG_LEVEL`.
+
+## Architecture: the sweet-spot hybrid
+
+HammaDev normalizes across differing agent structures using:
+
+- **Specific adapters only for input**: All knowledge of native formats (Claude JSONL events, Codex rollouts, Grok `~/.grok/sessions/<cwd>/<id>/{summary,chat_history,updates,terminal logs}` etc.) lives in `src/adapters/{claude,codex,grok}/`. Core never imports format details.
+
+- **Universal normalized model + artifacts**: Every handoff (regardless of source or `--to` target) is produced from the single `HammaTaskState` (via `extractTaskState` + `renderHandoffMarkdown`). You always get the same `handoff.md`, `state.json`, `tool_history.jsonl` (the high-fidelity tool cache), etc.
+
+- **Universal contract + lightly target-specific consumers**: The "Agent execution contract" (in every handoff.md) and loading protocol ("load tool_history first, reconcile git, start from nextAction") are shared. The packaged skills (`hamma-handoff`, `hamma-resume`, `hamma-snap`) add explicit per-target examples and notes for claude, codex and grok.
+
+**Rule for a new agent**: implement an adapter that emits `HammaSession`, plus (optional) tiny updates only in the skill consumer layer + docs. No new handoff schemas or per-target artifact variants.
+
+See `src/core/state.ts` (the documented `heuristics` extension point) and `src/adapters/grok/STORAGE.md`.
 
 ## Commands
 
@@ -119,12 +135,12 @@ No example contains a real user session or credential.
 | `hamma quickstart` | Explicit alias for the same guided onboarding. |
 | `hamma doctor` | Validate Node 22.12+, Git, session discovery, project-path detection, and ignore safety. |
 | `hamma status [--project <path>]` | Show Git state, handoff history, global/project session counts, and `.hamma/` coverage. |
-| `hamma list codex` | List discovered Codex sessions, newest first. |
-| `hamma list claude [--project <path>] [--json]` | List or rank Claude sessions without modifying them. |
-| `hamma inspect <target> [--summary]` | Print a normalized session. Targets include agent IDs and validated native JSONL paths. |
-| `hamma inspect claude:last --shape` | Print structural Claude JSONL statistics without message content. |
+| `hamma list codex | claude | grok` | List discovered sessions for a source (grok uses ~/.grok/sessions layout). |
+| `hamma list grok [--project <path>] [--json]` | List or filter Grok sessions. |
+| `hamma inspect <target> [--summary]` | Print a normalized session. Targets include `grok:last`, `grok:<id>`, `grok:project`, etc. |
 | `hamma handoff codex:<target> --to claude` | Generate a Codex → Claude package. |
 | `hamma handoff claude:<target> --to codex` | Generate a Claude → Codex package. |
+| `hamma handoff grok:<target> --to codex` | Generate a Grok → Codex (or claude) package. |
 | `hamma log [--project <path>]` | List local handoffs newest first. |
 | `hamma show latest` | Print the newest local `handoff.md`. |
 | `hamma skill install [--force]` | Install the packaged handoff, snapshot, and resume skills. |

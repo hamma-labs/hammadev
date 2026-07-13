@@ -1,4 +1,4 @@
-export type SourceCli = "codex" | "claude" | "gemini" | "antigravity" | "opencode";
+export type SourceCli = "codex" | "claude" | "grok" | "gemini" | "antigravity" | "opencode";
 
 export interface HammaSessionMeta {
   sourceCli: SourceCli;
@@ -33,5 +33,12 @@ export interface HammaSession {
     redacted: boolean;
     redactionCount: number;
     warnings: string[];
+  };
+  /** Optional source-supplied extraction hints (e.g. tuned regexes for this agent's phrasing style).
+   *  Kept in adapter; consumed by extractTaskState. See AC for hybrid.
+   */
+  extractionHints?: {
+    completedPatterns?: RegExp[];
+    remainingPatterns?: RegExp[];
   };
 }

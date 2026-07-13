@@ -129,7 +129,7 @@ describe("goal selection, completed varied phrasing, files context and non-empty
       { role: "user", content: "edit src/core/foo.ts ; also see handoff.md and README.md and .github/workflows/ci.yml and troubleshooting.md" },
       { role: "assistant", content: "done with src/core/foo.ts" },
     ]);
-    const noise = state.filesMentioned.filter((f: string) => /handoff|README|troubleshooting|\.github|ci\.yml/i.test(f) && !/\/src\//i.test(f));
+    const noise = state.filesMentioned.filter((f: string) => /handoff|state\.json|session\.json|README|troubleshooting|\.github|ci\.yml/i.test(f) && !/\/src\//i.test(f));
     expect(noise.length).toBe(0);
     expect(state.filesMentioned.some((f: string) => f.includes("foo.ts"))).toBe(true);
   });
@@ -180,4 +180,69 @@ describe("goal selection, completed varied phrasing, files context and non-empty
       expect(match).toBe(true);
     }
   });
+});
+
+describe("universal output shape from different sources (sweet-spot hybrid)", () => {
+  function makeSession(sourceCli: "claude" | "codex" | "grok", content: string): HammaSession {
+    return {
+      meta: {
+        sourceCli,
+        sourceSessionId: `${sourceCli}-demo-1`,
+        projectPath: "/tmp/hamma-universal-test",
+      },
+      messages: [
+        { role: "user", content: "Implement feature X and verify." },
+        { role: "assistant", content },
+      ],
+      shellCommands: [],
+      parserWarnings: [],
+      security: { redacted: false, redactionCount: 0, warnings: [] },
+    };
+  }
+
+  it("extract + render from claude source produces universal HammaTaskState shape", () => {
+    const raw = makeSession("claude", "Task #1 completed. Next is task #2: add tests.");
+    const state = extractTaskState(raw, { targetCli: "grok", repoState: { warnings: [] } });
+    expect(state.schemaVersion).toBe(1);
+    expect(state).toHaveProperty("outcome");
+    expect(state).toHaveProperty("tasks");
+    expect(Array.isArray(state.tasks)).toBe(true);
+    expect(state.project.sourceCli).toBe("claude");
+    expect(state.project.targetCli).toBe("grok");
+    const md = renderHandoffMarkdown(state, { compact: false });
+    expect(md).toContain("## Agent execution contract");
+    expect(md).toContain("tool_history.jsonl");
+    // no source parsing details leak (tool_history.jsonl is universal and expected)
+    expect(md).not.toMatch(/chat_history\.jsonl|updates\.jsonl/i);
+  });
+
+  it("extract + render from codex source produces universal shape", () => {
+    const raw = makeSession("codex", "Fixed finding #1. Remaining task #2.");
+    const state = extractTaskState(raw, { targetCli: "claude", repoState: { warnings: [] } });
+    expect(state.schemaVersion).toBe(1);
+    expect(state.project.sourceCli).toBe("codex");
+    const md = renderHandoffMarkdown(state, { compact: true });
+    expect(md).toContain("## Continue from here");
+  });
+
+  it("extract + render from grok source + heuristics extension produces universal shape", () => {
+    const raw = makeSession("grok", "SpecialGrokTask #123 logo verification phase succeeded the check.");
+    // attach via the session object (the path used by real grok parse in adapter)
+    raw.extractionHints = {
+      completedPatterns: [/SpecialGrokTask #?(\d+).*?(?:logo|completed|done)/gi],
+    };
+    const state = extractTaskState(raw, {
+      targetCli: "codex",
+      repoState: { warnings: [] },
+      // intentionally omit heuristics: to prove session.extractionHints path
+    });
+    expect(state.schemaVersion).toBe(1);
+    expect(state.project.sourceCli).toBe("grok");
+    // the unique phrase only matched because of the attached hint (not default patterns)
+    expect(state.tasks.some((t: any) => (t.summary || '').includes('SpecialGrokTask #123 logo verification phase succeeded the check.'))).toBe(true);
+    const md = renderHandoffMarkdown(state, { compact: false });
+    expect(md).toContain("## Safety notes");
+    expect(md).toContain("tool_history.jsonl");
+  });
+
 });

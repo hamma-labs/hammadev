@@ -71,4 +71,36 @@ describe("session loader boundaries", () => {
       resolveSessionTarget(target, { claudeHomes: [claudeHome] })
     ).rejects.toThrow("exceeds the 50 MiB limit");
   });
+
+  // Grok equivalent security: early size / boundary checks in resolveSessionTarget for grok dirs
+  it("rejects oversized grok chat_history before parsing", async () => {
+    const root = await temporaryRoot();
+    const gHome = path.join(root, "grok");
+    const sessions = path.join(gHome, "sessions", "dummy");
+    const sessDir = path.join(sessions, SESSION_ID);
+    const chat = path.join(sessDir, "chat_history.jsonl");
+    const summary = path.join(sessDir, "summary.json");
+    await fs.mkdir(sessDir, { recursive: true });
+    await fs.writeFile(chat, "");
+    await fs.truncate(chat, MAX_SESSION_BYTES + 1);
+    await fs.writeFile(summary, JSON.stringify({ info: { id: SESSION_ID } }));
+
+    await expect(
+      resolveSessionTarget(`grok:${SESSION_ID}`, { grokHome: gHome })
+    ).rejects.toThrow("exceeds the 50 MiB limit");
+  });
+
+  it("rejects grok session dir outside configured grokHome root", async () => {
+    const root = await temporaryRoot();
+    const gHome = path.join(root, "grok");
+    const outsideRoot = path.join(root, "othergrok");
+    const sessDir = path.join(outsideRoot, "sessions", "dummy", SESSION_ID);
+    const chat = path.join(sessDir, "chat_history.jsonl");
+    await fs.mkdir(sessDir, { recursive: true });
+    await fs.writeFile(chat, "ok");
+
+    await expect(
+      resolveSessionTarget(`grok:${SESSION_ID}`, { grokHome: gHome })
+    ).rejects.toThrow("outside the allowed");
+  });
 });

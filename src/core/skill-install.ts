@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const DEFAULT_SKILL_NAME = "hamma-handoff";
 
-export type SkillAgent = "codex" | "claude";
+export type SkillAgent = "codex" | "claude" | "grok";
 
 export interface SkillInstallOptions {
   agent?: SkillAgent;
@@ -33,6 +33,7 @@ export interface SkillInstallResult {
 const REQUIRED_ENTRIES: Record<SkillAgent, string[]> = {
   codex: ["SKILL.md", path.join("agents", "openai.yaml")],
   claude: ["SKILL.md"],
+  grok: ["SKILL.md"],  // Grok consumes universal artifacts; may be placed under ~/.grok/skills or used directly via suggested command
 };
 
 function packagedSkillsRoot(): string {
@@ -47,6 +48,9 @@ function packagedSkillPath(skillName: string): string {
 function defaultAgentHome(agent: SkillAgent): string {
   if (agent === "codex") {
     return process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex");
+  }
+  if (agent === "grok") {
+    return process.env.GROK_HOME ?? path.join(os.homedir(), ".grok");
   }
   return process.env.CLAUDE_HOME ?? path.join(os.homedir(), ".claude");
 }

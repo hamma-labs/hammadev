@@ -48,7 +48,7 @@ function missingItems(
     status.codexProjectSessionCount === 0 &&
     status.claudeProjectSessionCount === 0
   ) {
-    missing.push("No Codex or Claude sessions match this project; start an agent session from this directory first.");
+    missing.push("No sessions from supported agents (codex, claude, grok) match this project; start an agent session from this directory first.");
   }
   if (status.isGitRepo && status.hammaIgnored === false) {
     missing.push(".hamma/ is not ignored; add '.hamma/' to .gitignore before sharing the repository.");
@@ -79,7 +79,7 @@ function nextCommands(
     status.codexProjectSessionCount === 0 &&
     status.claudeProjectSessionCount === 0
   ) {
-    commands.push("# Start Codex or Claude Code from this project, then run: hamma");
+    commands.push("# Start a supported agent (codex, claude or grok) from this project, then run: hamma");
   }
   return commands.length > 0 ? commands : ["hamma status"];
 }

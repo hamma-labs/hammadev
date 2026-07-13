@@ -22,7 +22,8 @@ const EXPECTED_FILES = [
   "redaction-report.md",
   "session.json",
   "state.json",
-  "timeline.md"
+  "timeline.md",
+  "tool_history.jsonl",
 ];
 
 let projectPath = "";

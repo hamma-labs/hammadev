@@ -3,6 +3,9 @@ import path from "node:path";
 import { CodexAdapter } from "./adapters/codex/index.js";
 import { defaultCodexHome } from "./adapters/codex/paths.js";
 import { ClaudeAdapter } from "./adapters/claude/index.js";
+import { GrokAdapter } from "./adapters/grok/index.js";
+import { defaultGrokHome } from "./adapters/grok/paths.js";
+import { findSessionDir as findGrokSessionDir } from "./adapters/grok/parse.js";
 import {
   candidateClaudeHomes,
   sessionIdFromFilename
@@ -12,11 +15,12 @@ import { MAX_SESSION_BYTES } from "./core/session-limits.js";
 
 export { MAX_SESSION_BYTES };
 
-export type SupportedSourceCli = "codex" | "claude";
+export type SupportedSourceCli = "codex" | "claude" | "grok";
 
 export interface SessionLoaderOptions {
   codexHome?: string;
   claudeHomes?: string[];
+  grokHome?: string;
   projectPath?: string;
 }
 
@@ -79,6 +83,48 @@ async function validateSessionPath(
   return canonicalPath;
 }
 
+async function validateGrokSessionDir(
+  candidateDir: string,
+  grokHome?: string
+): Promise<string> {
+  const gHome = grokHome ?? defaultGrokHome();
+  const sessionsRoot = path.join(gHome, "sessions");
+  const absoluteDir = path.resolve(candidateDir);
+  const rootResolved = path.resolve(sessionsRoot);
+  if (!isWithin(rootResolved, absoluteDir)) {
+    throw new Error("Grok session directory is outside the allowed sessions root.");
+  }
+
+  let dstat;
+  try {
+    dstat = await fs.stat(absoluteDir);
+  } catch (error: any) {
+    if (error.code === "ENOENT") throw new Error("Grok session directory does not exist.");
+    throw error;
+  }
+  if (!dstat.isDirectory()) throw new Error("Grok session path is not a directory.");
+
+  // Enforce size on the primary transcript file (equivalent to file size check for other agents)
+  const chatPath = path.join(absoluteDir, "chat_history.jsonl");
+  let cstat;
+  try {
+    cstat = await fs.stat(chatPath);
+  } catch (error: any) {
+    if (error.code === "ENOENT") throw new Error("Grok session chat_history.jsonl does not exist.");
+    throw error;
+  }
+  if (!cstat.isFile() || cstat.size > MAX_SESSION_BYTES) {
+    throw new Error(`Grok chat_history.jsonl exceeds the 50 MiB limit (${cstat.size} bytes).`);
+  }
+
+  const canonDir = await fs.realpath(absoluteDir);
+  const canonRoot = await canonicalRoot(sessionsRoot);
+  if (!isWithin(canonRoot, canonDir)) {
+    throw new Error("Grok session resolves outside the allowed session directories.");
+  }
+  return canonDir;
+}
+
 async function resolveDirectClaudePath(target: string): Promise<string> {
   const absolutePath = path.resolve(target);
 
@@ -134,6 +180,26 @@ export async function resolveSessionTarget(
     };
   }
 
+  if (target.startsWith("grok:")) {
+    const id = await GrokAdapter.resolve(target, {
+      grokHome: options.grokHome,
+      projectPath: options.projectPath,
+    });
+    // Locate the on-disk dir (adapters own the format knowledge).
+    let dir: string;
+    try {
+      dir = await findGrokSessionDir(id, options.grokHome);
+    } catch {
+      // For non-existent (e.g. some "last" cases) fall back; parse will surface error.
+      dir = id;
+    }
+    const validated = await validateGrokSessionDir(dir, options.grokHome);
+    return {
+      sourceCli: "grok",
+      sessionPath: validated
+    };
+  }
+
   return {
     sourceCli: "claude",
     sessionPath: await validateSessionPath(
@@ -151,6 +217,10 @@ export async function loadSession(
 
   if (resolved.sourceCli === "claude") {
     return ClaudeAdapter.inspect(resolved.sessionPath);
+  }
+
+  if (resolved.sourceCli === "grok") {
+    return GrokAdapter.inspect(resolved.sessionPath, options.grokHome);
   }
 
   return CodexAdapter.inspect(resolved.sessionPath);

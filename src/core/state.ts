@@ -339,14 +339,39 @@ function dedupRisks(risks: string[], maxItems = 8): string[] {
   return kept;
 }
 
+/**
+ * extractTaskState turns a (source-agnostic) HammaSession into the universal
+ * HammaTaskState used for all handoff artifacts.
+ *
+ * Extension point for source-specific heuristics:
+ *   Pass `heuristics: { completedPatterns?, remainingPatterns? }` to override
+ *   the base regex sets for a particular sourceCli without forking the rest
+ *   of normalization (title extraction, verification bucketing, risk signals,
+ *   file normalization, etc. remain common).
+ *
+ * Preferred: adapters attach to the HammaSession so core call sites need no change:
+ *   const s = { meta: {sourceCli: 'grok', ...}, messages: [...], extractionHints: { completedPatterns: [ /.../ ] } };
+ *   extractTaskState(s, { targetCli, repoState });
+ *
+ *   (tests may pass explicit heuristics: )
+ */
 export function extractTaskState(
   session: HammaSession,
   options: {
     targetCli: string;
     repoState: HammaRepoState;
+    heuristics?: {
+      completedPatterns?: RegExp[];
+      remainingPatterns?: RegExp[];
+    };
   }
 ): HammaTaskState {
-  const { targetCli, repoState } = options;
+  const { targetCli, repoState, heuristics } = options;
+
+  // Prefer hints attached by the source adapter (on HammaSession) so that
+  // source-specific heuristic knowledge stays in adapters/ (AC2).
+  // Fall back to explicit options.heuristics (for tests).
+  const heurs = heuristics ?? session.extractionHints;
 
   const messages = session.messages.filter((m) => m.role !== "system");
 
@@ -420,8 +445,11 @@ export function extractTaskState(
       const files = extractFilePaths(msg.content);
       for (const p of files) fileSet.add(p);
 
-      // Completed / remaining task detection (varied phrasing supported via extended patterns)
-      for (const pat of COMPLETED_PATTERNS) {
+      const completedPats = heurs?.completedPatterns ?? COMPLETED_PATTERNS;
+  const remainingPats = heurs?.remainingPatterns ?? REMAINING_PATTERNS;
+
+  // Completed / remaining task detection (varied phrasing supported via extended patterns)
+      for (const pat of completedPats) {
         for (const mm of msg.content.matchAll(pat)) {
           const id = mm[1];
           const existing = tasksById.get(id);
@@ -438,7 +466,7 @@ export function extractTaskState(
         }
       }
 
-      for (const pat of REMAINING_PATTERNS) {
+      for (const pat of remainingPats) {
         for (const mm of msg.content.matchAll(pat)) {
           const id = mm[1];
           const existing = tasksById.get(id);
