@@ -29,6 +29,7 @@
     "postbuild": "node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
     "smoke:cli": "pnpm build && node dist/cli.js --help",
     "typecheck": "tsc --noEmit",
+    "quality:report": "tsx src/scripts/handoff-quality-guard.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "website:build": "pnpm --dir website build",
