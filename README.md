@@ -180,6 +180,66 @@ print `session.json` or raw transcript data.
 
 ---
 
+## Kiro Hook: Handoff Quality Guard
+
+HammaDev includes a project-level [Kiro Hook](https://kiro.dev) that
+automatically validates the handoff pipeline whenever source code changes.
+
+### What it does
+
+When Kiro saves a TypeScript file under `src/`, the hook runs a full
+validation pipeline and generates a quality report at
+`docs/generated/handoff-quality-report.md`.
+
+The pipeline performs:
+
+1. **Typecheck** - `pnpm typecheck` ensures type safety.
+2. **Tests** - `pnpm test` confirms unit and integration tests pass.
+3. **Build** - `pnpm build` compiles the project.
+4. **Smoke test** - `node dist/cli.js --help` verifies the compiled CLI works.
+5. **Component detection** - Identifies which HammaDev components are affected.
+6. **Risk assessment** - Flags handoff-specific risks for affected components.
+
+### Trigger scope
+
+- **Triggers on:** TypeScript file saves matching `src/**/*.ts`
+- **Does NOT trigger on:** Changes to `docs/generated/` (prevents recursive loops)
+
+### Output
+
+The report includes:
+
+- Generation timestamp
+- Changed source files
+- Validation results with pass/fail status for each step
+- Test totals (passed, failed, skipped)
+- Command durations
+- Overall pass/fail status
+- Affected HammaDev components (Codex adapter, Claude adapter, handoff
+  generation, task-state extraction, secret redaction, CLI commands,
+  Git/project inspection, artifact rendering)
+- Handoff-specific risks
+- Recommended manual verification steps
+
+### Manual invocation
+
+```bash
+pnpm quality:report
+```
+
+### Privacy
+
+The generated report intentionally excludes:
+
+- Session contents and raw transcripts
+- Secrets and API keys
+- Environment variable values
+- Sensitive file contents
+
+Only file paths, command names, and validation status are included.
+
+---
+
 ## Current alpha limitations
 
 - **Supported agents:** Currently only supports handoffs between Codex CLI and Claude Code.
