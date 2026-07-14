@@ -1,13 +1,17 @@
----
-event: file_save
-filePattern: "src/**/*.ts"
-command: "pnpm quality:report"
----
-
 # Handoff Quality Guard
 
-Automatically validates the HammaDev handoff pipeline whenever a TypeScript
-source file under `src/` is created or saved.
+> **Note:** This file is human-readable documentation only. The executable hook
+> configuration is in `handoff-quality-guard.json`.
+
+Automatically validates the HammaDev handoff pipeline whenever Kiro saves a
+TypeScript source file under `src/`.
+
+## How the hook works
+
+The hook uses the **PostFileSave** trigger, meaning it runs *after* Kiro has
+already written the file to disk. It does not block or prevent the save. If
+validation fails, Kiro displays a warning and the command returns a non-zero
+exit status, but the saved file remains on disk.
 
 ## What it does
 
@@ -21,11 +25,14 @@ source file under `src/` is created or saved.
 
 ## Trigger scope
 
-- **Triggers on:** TypeScript file saves under `src/**/*.ts`
-- **Does NOT trigger on:** Changes to `docs/generated/` (avoids recursive loops)
+- **Triggers on:** TypeScript file saves matching `^src/.*\.ts$` (PostFileSave)
+- **Does NOT trigger on:** Changes to `docs/generated/`, `tests/`, or files
+  outside `src/` (the matcher regex excludes them)
 
 ## Exit behavior
 
 The script exits with a non-zero status if any required validation step fails,
-signaling to Kiro that the change introduced a regression. The report is still
-written regardless of pass/fail status.
+signaling to Kiro that the change introduced a regression. Because this is a
+post-save hook, a failure does not undo the file save. The quality report at
+`docs/generated/handoff-quality-report.md` is still written regardless of
+pass/fail status so developers can review what went wrong.

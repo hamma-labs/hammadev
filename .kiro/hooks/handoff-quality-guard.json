@@ -1,0 +1,17 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "handoff-quality-guard",
+      "description": "Validates HammaDev's handoff pipeline and generates a quality report after TypeScript source changes.",
+      "trigger": "PostFileSave",
+      "matcher": "^src/.*\\.ts$",
+      "action": {
+        "type": "command",
+        "command": "pnpm quality:report"
+      },
+      "timeout": 300,
+      "enabled": true
+    }
+  ]
+}
