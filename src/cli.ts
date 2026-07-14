@@ -6,6 +6,7 @@ import { Command } from "commander";
 import pc from "picocolors";
 import { CodexAdapter } from "./adapters/codex/index.js";
 import { ClaudeAdapter } from "./adapters/claude/index.js";
+import { GrokAdapter } from "./adapters/grok/index.js";
 import { ClaudeShapeReport } from "./adapters/claude/shape.js";
 import { HammaSession } from "./core/schema.js";
 import { createHandoff } from "./core/handoff.js";
@@ -15,6 +16,8 @@ import { runDoctor } from "./core/doctor.js";
 import { installAllSkills, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
 import { runQuickstart } from "./core/quickstart.js";
+import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
+import { AsyncStructuredLogger } from "./core/logger.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -110,17 +113,50 @@ const __dirname = path.dirname(__filename);
 const pkgPath = path.resolve(__dirname, "..", "package.json");
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
+const cliLogger = new AsyncStructuredLogger({ operation: "cli" });
+
+function fail(category: ErrorCategory, error: unknown): void {
+  cliLogger.error("operation.failed", {
+    category,
+    error: errorMessage(error)
+  });
+  console.error(pc.red(formatCliError(category, error)));
+  process.exitCode = 1;
+}
+
 const program = new Command();
+
+program
+  .option(
+    "--log-level <level>",
+    "Structured log level: off | error | warn | info | debug",
+    process.env.HAMMA_LOG_LEVEL ?? "off"
+  )
+  .hook("preAction", (_command, actionCommand) => {
+    cliLogger.setLevel(actionCommand.optsWithGlobals().logLevel);
+    cliLogger.setOperation(actionCommand.name());
+    cliLogger.info("operation.started");
+  })
+  .hook("postAction", (_command, actionCommand) => {
+    cliLogger.info("operation.completed", { exitCode: process.exitCode ?? 0 });
+  });
 
 program
   .name("hamma")
   .description("Shared memory and handoff layer for agentic coding CLIs")
-  .version(pkg.version);
+  .version(pkg.version)
+  .action(async () => {
+    try {
+      await runQuickstart(process.cwd());
+    } catch (error: unknown) {
+      fail("PROJECT_ERROR", error);
+    }
+  });
 
 program
   .command("list")
-  .argument("<source>", "source CLI: codex | claude")
-  .option("--project <path>", "Filter and rank Claude sessions for a project")
+  .argument("<source>", "source CLI: codex | claude | grok")
+  .option("--project <path>", "Filter and rank sessions for a project (claude/codex/grok)")
   .option("--json", "Print machine-readable session metadata")
   .description("List sessions from a source CLI")
   .action(async (source, options) => {
@@ -158,8 +194,7 @@ program
           });
           return;
         } catch (err: any) {
-          console.error(pc.red(`Error listing Codex sessions: ${err.message}`));
-          process.exit(1);
+          return fail("SESSION_ERROR", err);
         }
       }
       const sessions = await CodexAdapter.list();
@@ -217,8 +252,7 @@ program
           });
           return;
         } catch (err: any) {
-          console.error(pc.red(`Error listing Claude sessions: ${err.message}`));
-          process.exit(1);
+          return fail("SESSION_ERROR", err);
         }
       }
 
@@ -256,17 +290,62 @@ program
       return;
     }
 
-    console.error(
-      pc.red(`Error: Unsupported source '${source}'. Supported: 'codex', 'claude'.`)
+    if (source === "grok") {
+      try {
+        let sessions: any[] = [];
+        if (options.project) {
+          const result = await GrokAdapter.listProject(path.resolve(options.project));
+          sessions = result.candidates;
+          if (options.json) {
+            process.stdout.write(
+              `${JSON.stringify({ schemaVersion: 1, ...result }, null, 2)}\n`
+            );
+            return;
+          }
+          console.log(pc.bold(`Grok sessions for ${result.projectPath}:\n`));
+        } else {
+          sessions = await GrokAdapter.list();
+          if (options.json) {
+            process.stdout.write(
+              `${JSON.stringify({ schemaVersion: 1, sessions }, null, 2)}\n`
+            );
+            return;
+          }
+          console.log(pc.bold(`\nGrok sessions (newest first): ${sessions.length}\n`));
+        }
+
+        if (sessions.length === 0) {
+          console.log(pc.yellow("No Grok sessions found."));
+          console.log("Looked under ~/.grok/sessions/<encoded-cwd>/<id>/summary.json");
+          return;
+        }
+
+        sessions.slice(0, 20).forEach((s: any, i: number) => {
+          const idLabel = s.sessionId ?? "unknown";
+          const cwd = s.projectPathHint ? `  cwd: ${s.projectPathHint}` : "";
+          console.log(`${i + 1}. ${pc.cyan(s.lastUpdatedAt)} ${idLabel}`);
+          console.log(`   dir: ${s.sessionDir || s.path || ""}${cwd}`);
+        });
+        if (sessions.length > 20) {
+          console.log(pc.dim(`\n… ${sessions.length - 20} more not shown.`));
+        }
+        return;
+      } catch (err: any) {
+        return fail("SESSION_ERROR", err);
+      }
+    }
+
+    return fail(
+      "CLI_ERROR",
+      new Error(`Unsupported source '${source}'. Supported: 'codex', 'claude', 'grok'.`)
     );
-    process.exit(1);
   });
 
 program
   .command("inspect")
   .argument(
     "<target>",
-    "codex:last | codex:<conversationId> | claude:last | claude:<sessionId> | session JSONL path"
+    "codex:last | codex:<id> | claude:last | claude:<id> | grok:last | grok:project | grok:<sessionId> | session JSONL path"
   )
   .option("--summary", "Print a summarized view (meta, counts, head/tail messages)")
   .option(
@@ -285,10 +364,7 @@ program
         printClaudeShapeReport(report);
         return;
       } catch (err: any) {
-        console.error(
-          pc.red(`Error inspecting Claude session shape: ${err.message}`)
-        );
-        process.exit(1);
+        return fail("SESSION_ERROR", err);
       }
     }
 
@@ -296,8 +372,7 @@ program
       const session = await loadSession(target);
       console.log(renderSession(session, Boolean(options.summary)));
     } catch (err: any) {
-      console.error(pc.red(`Error inspecting session: ${err.message}`));
-      process.exit(1);
+      return fail("SESSION_ERROR", err);
     }
   });
 
@@ -305,10 +380,10 @@ program
   .command("handoff")
   .argument(
     "<target>",
-    "codex:last | codex:project | codex:current | codex:previous | codex:<conversationId> | claude:last | claude:project | claude:current | claude:previous | claude:<sessionId> | session JSONL path"
+    "codex:last | codex:project | ... | claude:last | claude:project | ... | grok:last | grok:project | grok:<sessionId> | session JSONL path"
   )
-  .requiredOption("--to <agent>", "Target CLI (e.g. claude or codex)")
-  .option("--project <path>", "Project used to resolve claude/codex :project, :current, or :previous")
+  .requiredOption("--to <agent>", "Target CLI (claude | codex | grok | other)")
+  .option("--project <path>", "Project used to resolve :project/:current/:previous for claude/codex/grok")
   .option("--json", "Print only a machine-readable handoff result")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Create a handoff package for another agent")
@@ -317,6 +392,7 @@ program
       const PROJECT_SCOPED = new Set([
         "claude:project", "claude:current", "claude:previous",
         "codex:project", "codex:current", "codex:previous",
+        "grok:project", "grok:current", "grok:previous",
       ]);
       const isProjectTarget = PROJECT_SCOPED.has(target);
       const projectPath = options.project
@@ -338,8 +414,7 @@ program
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       }
     } catch (err: any) {
-      console.error(pc.red(`Error processing handoff: ${err.message}`));
-      process.exit(1);
+      return fail("HANDOFF_ERROR", err);
     }
   });
 
@@ -352,8 +427,7 @@ program
     try {
       console.log(formatProjectStatus(await getProjectStatus(projectPath)));
     } catch (err: any) {
-      console.error(pc.red(`Error reading project status: ${err.message}`));
-      process.exit(1);
+      return fail("PROJECT_ERROR", err);
     }
   });
 
@@ -371,8 +445,7 @@ program
       }
       console.log(formatHandoffLog(handoffs));
     } catch (err: any) {
-      console.error(pc.red(`Error reading handoff history: ${err.message}`));
-      process.exit(1);
+      return fail("HISTORY_ERROR", err);
     }
   });
 
@@ -385,8 +458,7 @@ program
       const markdown = await readHandoff(process.cwd(), taskId);
       process.stdout.write(markdown.endsWith("\n") ? markdown : markdown + "\n");
     } catch (err: any) {
-      console.error(pc.red(`Error reading handoff: ${err.message}`));
-      process.exit(1);
+      return fail("HISTORY_ERROR", err);
     }
   });
 
@@ -395,14 +467,18 @@ program
   .description("Validate environment, Codex availability, and .gitignore safety")
   .action(async () => {
     const code = await runDoctor();
-    process.exit(code);
+    process.exitCode = code;
   });
 
 program
   .command("quickstart")
   .description("Guided read-only onboarding for first-time users")
   .action(async () => {
-    await runQuickstart(process.cwd());
+    try {
+      await runQuickstart(process.cwd());
+    } catch (error: unknown) {
+      fail("PROJECT_ERROR", error);
+    }
   });
 
 const skillCommand = program
@@ -411,19 +487,20 @@ const skillCommand = program
 
 skillCommand
   .command("install")
-  .option("--agent <agent>", "Target agent: codex | claude | both", "both")
+  .option("--agent <agent>", "Target agent: codex | claude | grok | both", "both")
   .option("--force", "Replace an existing hamma-handoff skill")
   .option("--codex-home <path>", "Override the Codex home directory")
   .option("--claude-home <path>", "Override the Claude home directory")
+  .option("--grok-home <path>", "Override the Grok home directory")
   .option("--json", "Print only a machine-readable install result")
-  .description("Install the packaged Hamma skills (handoff, snap, resume) for Codex and/or Claude Code")
+  .description("Install the packaged Hamma skills (handoff, snap, resume) for supported agents. For grok this installs universal artifacts (skill install for grok may place in ~/.grok/skills or be used directly via handoff suggested command).")
   .action(async (options) => {
     const agent = String(options.agent).toLowerCase();
-    if (!["codex", "claude", "both"].includes(agent)) {
-      console.error(
-        pc.red(`Error: unsupported --agent '${options.agent}'. Use codex, claude, or both.`)
+    if (!["codex", "claude", "grok", "both"].includes(agent)) {
+      return fail(
+        "INSTALL_ERROR",
+        new Error(`Unsupported --agent '${options.agent}'. Use codex, claude, grok, or both.`)
       );
-      process.exit(1);
     }
     const targets: SkillAgent[] = agent === "both" ? ["codex", "claude"] : [agent as SkillAgent];
 
@@ -433,7 +510,7 @@ skillCommand
         results.push(
           ...(await installAllSkills({
             agent: target,
-            home: target === "codex" ? options.codexHome : options.claudeHome,
+            home: target === "codex" ? options.codexHome : (target === "grok" ? options.grokHome : options.claudeHome),
             force: Boolean(options.force)
           }))
         );
@@ -456,8 +533,7 @@ skillCommand
         )
       );
     } catch (err: any) {
-      console.error(pc.red(`Error installing skill: ${err.message}`));
-      process.exit(1);
+      return fail("INSTALL_ERROR", err);
     }
   });
 

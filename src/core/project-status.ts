@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { discoverClaudeSessions } from "../adapters/claude/discover.js";
 import { discoverCodexSessions } from "../adapters/codex/discover.js";
 import { HandoffHistoryEntry, listHandoffs } from "./history.js";
+import { filterSessionsByProject } from "./project-match.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,6 +33,8 @@ export interface ProjectStatus {
   };
   codexSessionCount: number;
   claudeSessionCount: number;
+  codexProjectSessionCount: number;
+  claudeProjectSessionCount: number;
   hammaIgnored: boolean | null;
 }
 
@@ -192,6 +195,11 @@ export async function getProjectStatus(
       discoverClaudeSessions(options.claudeHomes),
     ]);
 
+  const [codexProject, claudeProject] = await Promise.all([
+    filterSessionsByProject(codexSessions, resolvedProjectPath),
+    filterSessionsByProject(claudeSessions, resolvedProjectPath)
+  ]);
+
   return {
     projectPath: resolvedProjectPath,
     isGitRepo: git.isGitRepo,
@@ -200,6 +208,8 @@ export async function getProjectStatus(
     latestHandoff: await latestHandoffStatus(handoffs),
     codexSessionCount: codexSessions.length,
     claudeSessionCount: claudeSessions.length,
+    codexProjectSessionCount: codexProject.matches.length,
+    claudeProjectSessionCount: claudeProject.matches.length,
     hammaIgnored: git.hammaIgnored,
   };
 }
@@ -231,6 +241,8 @@ export function formatProjectStatus(status: ProjectStatus): string {
     `Latest source → target: ${latest ? route : "none"}`,
     `Codex sessions: ${status.codexSessionCount}`,
     `Claude sessions: ${status.claudeSessionCount}`,
+    `Codex project sessions: ${status.codexProjectSessionCount}`,
+    `Claude project sessions: ${status.claudeProjectSessionCount}`,
     `.hamma/ ignored: ${ignored}`,
   ].join("\n");
 }

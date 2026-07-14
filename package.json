@@ -1,16 +1,18 @@
 {
   "name": "hammadev",
-  "version": "0.1.0-alpha.3",
-  "description": "Local handoff and shared-memory CLI for Codex and Claude Code",
+  "version": "0.1.0-alpha.4",
+  "description": "Local handoff and shared-memory CLI for Codex, Claude Code, and Grok",
   "main": "dist/cli.js",
   "files": [
     "dist",
     "skills",
+    "docs",
+    "examples",
     "README.md",
     "LICENSE"
   ],
   "bin": {
-    "hamma": "./dist/cli.js"
+    "hamma": "dist/cli.js"
   },
   "engines": {
     "node": ">=22.12.0"

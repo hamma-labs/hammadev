@@ -75,19 +75,19 @@ describe("quickstart CLI command", () => {
 
     expect(output).toContain("HammaDev quickstart");
     expect(output).toContain(`Project:\n  ${projectPath}`);
-    expect(output).toContain("Environment:");
-    expect(output).toContain("Node: ok");
-    expect(output).toContain("Git repo: no");
+    expect(output).toContain("Readiness:");
+    expect(output).toMatch(/Node.js: \d+\.\d+\.\d+ \(requires 22\.12\.0\+\)/);
+    expect(output).toContain("Git repository: no");
     
     // In CI this could be "n/a (git unavailable)" or "n/a (not a repo)" based on git presence.
     // The main thing is that we aren't throwing an error.
-    expect(output).toMatch(/\.hamma ignored:/);
+    expect(output).toMatch(/\.hamma\/ ignored:/);
 
-    expect(output).toContain("Detected agents:");
-    expect(output).toContain("Codex sessions: 1");
-    expect(output).toContain("Claude sessions: 1");
+    expect(output).toContain("Codex sessions: 1 total, none match this project");
+    expect(output).toContain("Claude sessions: 1 total, 1 for this project");
 
-    expect(output).toContain("Try next:");
-    expect(output).toContain("hamma handoff codex:last --to claude");
+    expect(output).toContain("What is missing:");
+    expect(output).toContain("Run next:");
+    expect(output).toMatch(/hamma handoff claude:project --to codex|npm install -g/);
   });
 });

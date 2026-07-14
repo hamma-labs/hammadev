@@ -2,6 +2,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import readline from "node:readline";
 import fg from "fast-glob";
+import { MAX_SESSION_BYTES } from "../../core/session-limits.js";
 import {
   candidateClaudeHomes,
   claudeProjectsGlobs,
@@ -85,13 +86,15 @@ export async function discoverClaudeSessions(
     for (const file of files) {
       let stat;
       try {
-        stat = await fsp.stat(file);
+        stat = await fsp.lstat(file);
       } catch {
         continue;
       }
       if (!stat.isFile()) continue;
 
-      const { sessionId: peekedId, projectPathHint } = await peekMetadata(file);
+      const { sessionId: peekedId, projectPathHint } = stat.size <= MAX_SESSION_BYTES
+        ? await peekMetadata(file)
+        : {};
       const sessionId = peekedId ?? sessionIdFromFilename(file);
 
       refs.push({

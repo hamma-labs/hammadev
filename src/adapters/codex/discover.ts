@@ -3,6 +3,7 @@ import fsp from "node:fs/promises";
 import readline from "node:readline";
 import fg from "fast-glob";
 import { codexSessionsGlob, defaultCodexHome, parseRolloutFilename } from "./paths.js";
+import { MAX_SESSION_BYTES } from "../../core/session-limits.js";
 
 export interface CodexSessionRef {
   sourceCli: "codex";
@@ -72,8 +73,11 @@ export async function discoverCodexSessions(
     const parsed = parseRolloutFilename(file);
     if (!parsed) continue;
 
-    const stat = await fsp.stat(file);
-    const projectPathHint = await readCodexCwd(file);
+    const stat = await fsp.lstat(file);
+    if (!stat.isFile()) continue;
+    const projectPathHint = stat.size <= MAX_SESSION_BYTES
+      ? await readCodexCwd(file)
+      : undefined;
 
     sessions.push({
       sourceCli: "codex",

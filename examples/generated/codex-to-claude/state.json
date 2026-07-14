@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "outcome": "actionable",
+  "nextAction": "Task #2: Implemented GET /health in src/server.ts and added tests/server.test.ts. Task #1 completed. All tests pass. Remaining task #2: run npm run build and document the endpoint. Known risk: deployment configuration has not bee…",
+  "goal": "Implement GET /health and tests. Preserve the existing API and update the README after verification.",
+  "project": {
+    "path": "/tmp/hamma-example-project",
+    "sourceCli": "codex",
+    "targetCli": "claude",
+    "sourceSessionId": "demo-session",
+    "sourcePath": "/tmp/hamma-example-home/.codex/sessions/2026/07/01/rollout-2026-07-01T09-00-00-demo-session.jsonl",
+    "startedAt": "2026-07-01T09:00:00",
+    "lastUpdatedAt": "2026-07-01T09:02:10Z"
+  },
+  "current": {
+    "latestUserInstruction": "Implement GET /health and tests. Preserve the existing API and update the README after verification.",
+    "latestAssistantStatus": "Implemented GET /health in src/server.ts and added tests/server.test.ts. Task #1 completed. All tests pass. Remaining task #2: run npm run build and document the endpoint. Known risk: deployment configuration has not been verified.",
+    "nextRecommendedTask": "Task #2: Implemented GET /health in src/server.ts and added tests/server.test.ts. Task #1 completed. All tests pass. Remaining task #2: run npm run build and document the endpoint. Known risk: deployment configuration has not bee…"
+  },
+  "tasks": [
+    {
+      "id": "1",
+      "status": "completed",
+      "summary": "Implemented GET /health in src/server.ts and added tests/server.test.ts. Task #1 completed. All tests pass. Remaining task #2: run npm run build and document the endpoint. Known risk: deployment configuration has not been verified.",
+      "evidence": [
+        "2026-07-01T09:02:00Z"
+      ],
+      "risks": [],
+      "filesMentioned": [
+        "src/server.ts",
+        "tests/server.test.ts",
+        "server.ts",
+        "server.test.ts"
+      ]
+    },
+    {
+      "id": "2",
+      "status": "remaining",
+      "summary": "Implemented GET /health in src/server.ts and added tests/server.test.ts. Task #1 completed. All tests pass. Remaining task #2: run npm run build and document the endpoint. Known risk: deployment configuration has not been verified.",
+      "evidence": [
+        "2026-07-01T09:02:00Z"
+      ],
+      "risks": [],
+      "filesMentioned": [
+        "src/server.ts",
+        "tests/server.test.ts",
+        "server.ts",
+        "server.test.ts"
+      ]
+    }
+  ],
+  "verification": [
+    "Tests: pass (1 confirmation)"
+  ],
+  "risks": [
+    "Known risk: deployment configuration has not been verified."
+  ],
+  "filesMentioned": [
+    "src/server.ts",
+    "tests/server.test.ts",
+    "server.ts",
+    "server.test.ts"
+  ],
+  "repoState": {
+    "gitStatusShort": "",
+    "gitDiffStat": "",
+    "warnings": []
+  },
+  "references": {
+    "fullSession": "session.json",
+    "timeline": "timeline.md",
+    "commands": "commands.md",
+    "redactionReport": "redaction-report.md"
+  }
+}

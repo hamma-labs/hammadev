@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="title desc">
+  <title id="title">HammaDev quickstart terminal output</title>
+  <desc id="desc">A terminal showing project readiness, missing setup, and the exact next handoff command.</desc>
+  <rect width="1200" height="640" rx="20" fill="#0d1117"/>
+  <rect width="1200" height="54" rx="20" fill="#161b22"/>
+  <circle cx="32" cy="27" r="8" fill="#ff5f56"/><circle cx="58" cy="27" r="8" fill="#ffbd2e"/><circle cx="84" cy="27" r="8" fill="#27c93f"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21" fill="#c9d1d9">
+    <text x="30" y="92" fill="#7ee787">$ hamma</text>
+    <text x="30" y="130" font-weight="700" fill="#f0f6fc">HammaDev quickstart</text>
+    <text x="30" y="172">Project: /workspace/acme-api</text>
+    <text x="30" y="215" font-weight="700" fill="#f0f6fc">Readiness:</text>
+    <text x="50" y="250"><tspan fill="#3fb950">✔</tspan> Node.js: 24.4.1 (requires 22.12.0+)</text>
+    <text x="50" y="285"><tspan fill="#3fb950">✔</tspan> Git repository: yes</text>
+    <text x="50" y="320"><tspan fill="#3fb950">✔</tspan> Codex sessions: 3 total, 1 for this project</text>
+    <text x="50" y="355"><tspan fill="#d29922">!</tspan> Claude Code: not found</text>
+    <text x="50" y="390"><tspan fill="#d29922">!</tspan> .hamma/ ignored: no</text>
+    <text x="30" y="438" font-weight="700" fill="#f0f6fc">What is missing:</text>
+    <text x="50" y="473">- Claude Code is not installed: npm install -g @anthropic-ai/claude-code</text>
+    <text x="50" y="508">- .hamma/ is not ignored; add it before sharing the repository.</text>
+    <text x="30" y="556" font-weight="700" fill="#f0f6fc">Run next:</text>
+    <text x="50" y="594" fill="#7ee787">npm install -g @anthropic-ai/claude-code</text>
+  </g>
+</svg>

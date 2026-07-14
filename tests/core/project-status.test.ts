@@ -131,6 +131,8 @@ describe("project status", () => {
       },
       codexSessionCount: 2,
       claudeSessionCount: 1,
+      codexProjectSessionCount: 0,
+      claudeProjectSessionCount: 1,
       hammaIgnored: true,
     });
 
