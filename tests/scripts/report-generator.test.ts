@@ -29,8 +29,20 @@ describe("detectComponents", () => {
     expect(result[0].name).toBe("handoff generation");
   });
 
+  it("detects handoff generation changes with prefix matching", () => {
+    const result = detectComponents(["src/core/handoff-utils.ts"]);
+    expect(result.some((c) => c.name === "handoff generation")).toBe(true);
+    expect(result.find((c) => c.name === "handoff generation")!.matchedFiles).toEqual(["src/core/handoff-utils.ts"]);
+  });
+
   it("detects task-state extraction changes", () => {
     const result = detectComponents(["src/core/state.ts"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("task-state extraction");
+  });
+
+  it("detects task-state extraction changes with prefix matching", () => {
+    const result = detectComponents(["src/core/state-utils.ts"]);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("task-state extraction");
   });
@@ -67,6 +79,22 @@ describe("detectComponents", () => {
     const result = detectComponents(["src/core/render-utils.ts"]);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("artifact rendering");
+  });
+
+  it("detects artifact rendering changes via markdown keyword in src/core/", () => {
+    const result = detectComponents(["src/core/markdown-formatter.ts"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("artifact rendering");
+  });
+
+  it("does NOT match artifact rendering for markdown files outside src/core/", () => {
+    const result = detectComponents(["src/scripts/markdown-helper.ts"]);
+    expect(result).toHaveLength(0);
+  });
+
+  it("does NOT match artifact rendering for render files outside src/core/", () => {
+    const result = detectComponents(["src/scripts/render-quality.ts"]);
+    expect(result).toHaveLength(0);
   });
 
   it("detects multiple components from mixed changes", () => {

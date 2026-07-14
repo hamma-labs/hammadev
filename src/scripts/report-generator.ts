@@ -58,11 +58,11 @@ const COMPONENT_RULES: ComponentRule[] = [
   },
   {
     name: "handoff generation",
-    match: (f) => f === "src/core/handoff.ts",
+    match: (f) => f.startsWith("src/core/handoff"),
   },
   {
     name: "task-state extraction",
-    match: (f) => f === "src/core/state.ts",
+    match: (f) => f.startsWith("src/core/state"),
   },
   {
     name: "secret redaction",
@@ -81,8 +81,8 @@ const COMPONENT_RULES: ComponentRule[] = [
     name: "artifact rendering",
     match: (f) =>
       f === "src/core/history.ts" ||
-      f.includes("render") ||
-      f.includes("markdown"),
+      (f.startsWith("src/core/") &&
+        (f.includes("render") || f.includes("markdown"))),
   },
 ];
 

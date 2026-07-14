@@ -97,11 +97,13 @@ function sanitizeOutput(raw: string): string {
 
 /**
  * Get changed source files from git diff (staged + unstaged).
+ * Falls back to diffing against HEAD~1 when the working tree is clean,
+ * which handles the case where the triggering save has already been committed.
  * Returns paths relative to project root.
  */
 function getChangedFiles(cwd: string): string[] {
   try {
-    // Get both staged and unstaged changes, plus untracked files
+    // Get both staged and unstaged changes
     const diffOutput = execSync(
       "git diff --name-only HEAD 2>/dev/null || git diff --name-only",
       { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
@@ -118,6 +120,26 @@ function getChangedFiles(cwd: string): string[] {
       const trimmed = line.trim();
       if (trimmed && trimmed.startsWith("src/") && trimmed.endsWith(".ts")) {
         allFiles.add(trimmed);
+      }
+    }
+
+    // Fallback: if working tree diff is empty, check HEAD~1 to catch
+    // changes that were already committed (e.g. by auto-commit on save)
+    if (allFiles.size === 0) {
+      try {
+        const lastCommitDiff = execSync(
+          "git diff HEAD~1 --name-only 2>/dev/null",
+          { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+        ).trim();
+
+        for (const line of lastCommitDiff.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed && trimmed.startsWith("src/") && trimmed.endsWith(".ts")) {
+            allFiles.add(trimmed);
+          }
+        }
+      } catch {
+        // HEAD~1 may not exist (first commit); ignore
       }
     }
 
