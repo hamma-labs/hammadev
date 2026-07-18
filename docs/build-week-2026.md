@@ -81,6 +81,11 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - `graphify update .` was attempted after the code change, but the `graphify`
   executable is not installed in this environment and no graph output exists.
 
+## Build Week commits
+
+- `cd58f0a` — `feat: add intelligent cross-agent continuation`
+- `97b8079` — `feat: detect repository drift in handoffs`
+
 ## Demo flow (target)
 
 ```bash
