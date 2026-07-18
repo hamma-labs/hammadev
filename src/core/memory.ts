@@ -771,6 +771,8 @@ export async function resumeMemory(
       `Project memory '${inspection.manifest.name}' has no synchronized revision yet.`
     );
   }
+  const root = await storeRoot(inspection.manifest.projectPath, false);
+  await setActive(root, inspection.manifest.name);
   const relativeRevision = path.relative(
     inspection.manifest.projectPath,
     inspection.latest.revisionPath

@@ -192,6 +192,21 @@ describe("memory CLI", () => {
     expect(listed.memories).toMatchObject([
       { name: "build-week", active: true, revisionCount: 2 },
     ]);
+
+    await run([
+      "memory", "start", "other-thread", "--json", "--no-gitignore",
+    ]);
+    expect(JSON.parse(await run(["memory", "list", "--json"])).memories)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "other-thread", active: true }),
+        expect.objectContaining({ name: "build-week", active: false }),
+      ]));
+    await run(["memory", "resume", "build-week", "--to", "codex", "--json"]);
+    expect(JSON.parse(await run(["memory", "list", "--json"])).memories)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "other-thread", active: false }),
+        expect.objectContaining({ name: "build-week", active: true }),
+      ]));
   }, 30_000);
 
   it("can safely select the newest resumable project session when source is omitted", async () => {
