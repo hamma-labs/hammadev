@@ -102,8 +102,11 @@ const REMAINING_PATTERNS: RegExp[] = [
   /Next is task #?(\d+)(?::\s*([^\n.]+))?/gi,
   /Remaining[^\n.]*task #?(\d+)(?::\s*([^\n.]+))?/gi,
   /task #?(\d+)\s+remains/gi,
-  /task #?(\d+)[^\n]*?(?:next|remain|todo|pending|still to do)/gi,
+  /task #?(\d+)[^\n.!?]*?(?:next|remain|todo|pending|still to do)/gi,
 ];
+
+const EXPLICIT_NEXT_ACTION =
+  /\b(?:next action|next step)\s*:\s*([^\n]+)/i;
 
 const LATEST_STATUS_MARKER =
   /\b(?:task #?\d+ (?:completed|fixed)|fixed finding #?\d+|completed|passes|remaining|next is task)\b/i;
@@ -388,6 +391,47 @@ function splitClauses(text: string): string[] {
   return clauses;
 }
 
+function taskClauseSummary(
+  text: string,
+  id: string,
+  status: "completed" | "remaining",
+  max: number
+): string {
+  const escapedId = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const taskReference = new RegExp(`\\b(?:task|finding)\\s*#?${escapedId}\\b`, "i");
+  const statusSignal = status === "completed"
+    ? /\b(?:completed|complete|done|fixed|finished|implemented|shipped|merged)\b/i
+    : /\b(?:next|remain|remaining|todo|pending|still to do)\b/i;
+  const clauses = splitClauses(text);
+  const matchingStatus = clauses.find(
+    (clause) => taskReference.test(clause) && statusSignal.test(clause)
+  );
+  const matchingTask = clauses.find((clause) => taskReference.test(clause));
+  return truncate(matchingStatus ?? matchingTask ?? firstParagraph(text, max), max);
+}
+
+function explicitNextAction(text: string): string | undefined {
+  const match = text.match(EXPLICIT_NEXT_ACTION);
+  if (!match) return undefined;
+  const [firstClause] = splitClauses(match[1]);
+  const action = truncate(firstClause ?? match[1], 240);
+  return action || undefined;
+}
+
+function extendPatterns(base: RegExp[], additional?: RegExp[]): RegExp[] {
+  if (!additional?.length) return base;
+  const seen = new Set(base.map((pattern) => `${pattern.source}\0${pattern.flags}`));
+  return [
+    ...base,
+    ...additional.filter((pattern) => {
+      const key = `${pattern.source}\0${pattern.flags}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }),
+  ];
+}
+
 function isActionableRisk(clause: string): boolean {
   const hasRisk = RISK_SIGNALS.some((p) => p.test(clause));
   if (!hasRisk) return false;
@@ -436,7 +480,7 @@ function dedupRisks(risks: string[], maxItems = 8): string[] {
  * HammaTaskState used for all handoff artifacts.
  *
  * Extension point for source-specific heuristics:
- *   Pass `heuristics: { completedPatterns?, remainingPatterns? }` to override
+ *   Pass `heuristics: { completedPatterns?, remainingPatterns? }` to extend
  *   the base regex sets for a particular sourceCli without forking the rest
  *   of normalization (title extraction, verification bucketing, risk signals,
  *   file normalization, etc. remain common).
@@ -464,6 +508,8 @@ export function extractTaskState(
   // source-specific heuristic knowledge stays in adapters/ (AC2).
   // Fall back to explicit options.heuristics (for tests).
   const heurs = heuristics ?? session.extractionHints;
+  const completedPats = extendPatterns(COMPLETED_PATTERNS, heurs?.completedPatterns);
+  const remainingPats = extendPatterns(REMAINING_PATTERNS, heurs?.remainingPatterns);
 
   const messages = session.messages.filter((m) => m.role !== "system");
 
@@ -547,15 +593,12 @@ export function extractTaskState(
       const files = extractFilePaths(msg.content);
       for (const p of files) fileSet.add(p);
 
-      const completedPats = heurs?.completedPatterns ?? COMPLETED_PATTERNS;
-  const remainingPats = heurs?.remainingPatterns ?? REMAINING_PATTERNS;
-
-  // Completed / remaining task detection (varied phrasing supported via extended patterns)
+      // Completed / remaining task detection (varied phrasing supported via extended patterns)
       for (const pat of completedPats) {
         for (const mm of msg.content.matchAll(pat)) {
           const id = mm[1];
           const existing = tasksById.get(id);
-          const summary = firstParagraph(msg.content, 400);
+          const summary = taskClauseSummary(msg.content, id, "completed", 400);
           tasksById.set(id, {
             id,
             title: undefined, // filled from registry later
@@ -577,7 +620,7 @@ export function extractTaskState(
             id,
             title: undefined,
             status: "remaining",
-            summary: existing?.summary || firstParagraph(msg.content, 300),
+            summary: existing?.summary || taskClauseSummary(msg.content, id, "remaining", 300),
             evidence: mergeUnique(existing?.evidence ?? [], msg.timestamp ? [msg.timestamp] : []),
             risks: existing?.risks ?? [],
             filesMentioned: normalizeFilesMentioned(mergeUnique(existing?.filesMentioned ?? [], files)),
@@ -783,8 +826,13 @@ export function extractTaskState(
   }
 
   let nextRecommended: string | undefined;
+  const statedNextAction = latestStatusAssistant
+    ? explicitNextAction(latestStatusAssistant.content)
+    : undefined;
   if (outcome === "blocked" && latestStatusAssistant) {
     nextRecommended = `Resolve blocker: ${firstParagraph(latestStatusAssistant.content, 200)}`;
+  } else if (statedNextAction) {
+    nextRecommended = statedNextAction;
   } else if (remainingTasks.length > 0) {
     const t = remainingTasks[0];
     const label = t.title ?? t.summary;

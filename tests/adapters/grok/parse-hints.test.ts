@@ -42,6 +42,27 @@ describe("grok parse hints + extract (stable temp-dir, shipped paths)", () => {
     expect(hasMarker).toBe(false);
   });
 
+  it("extends universal task patterns instead of replacing them", async () => {
+    const id = "525252-1111-4aaa-8aaa-525252525252";
+    const content = "Task #1 completed in src/server.ts. Task #2 remains. Next action: document GET /health in README.md.";
+    const dir = await makeTempGrokSession(
+      id,
+      JSON.stringify({ type: "assistant", content })
+    );
+
+    const parsed = await parseGrokSession(dir);
+    const state = extractTaskState(parsed, {
+      targetCli: "codex",
+      repoState: { warnings: [] },
+    });
+
+    expect(state.tasks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "1", status: "completed" }),
+      expect.objectContaining({ id: "2", status: "remaining" }),
+    ]));
+    expect(state.nextAction).toBe("document GET /health in README.md.");
+  });
+
   it("parseGrokSession rejects oversized chat_history.jsonl with 50 MiB error (drives MAX in parse)", async () => {
     const id = "999999-1111-4aaa-8aaa-999999999999";
     const dir = await makeTempGrokSession(id, "small");

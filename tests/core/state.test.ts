@@ -151,6 +151,32 @@ describe("goal selection, completed varied phrasing, files context and non-empty
     expect(["actionable", "completed"]).toContain(state.outcome);
   });
 
+  it("keeps mixed task statuses separate and honors an explicit next action", () => {
+    const raw = session([
+      { role: "user", content: "Implement the health endpoint and document it." },
+      {
+        role: "assistant",
+        content: "Task #1 completed in src/server.ts. Task #2 remains. Next action: document GET /health in README.md.",
+      },
+    ]);
+    raw.meta.sourceCli = "grok";
+    raw.extractionHints = {
+      completedPatterns: [/HammaGrokHintProof #?(\d+).*?marker-phase-only/gi],
+    };
+
+    const state = extractTaskState(raw, {
+      targetCli: "codex",
+      repoState: { warnings: [] },
+    });
+
+    expect(state.tasks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "1", status: "completed", summary: "Task #1 completed in src/server.ts." }),
+      expect.objectContaining({ id: "2", status: "remaining", summary: "Task #2 remains." }),
+    ]));
+    expect(state.nextAction).toBe("document GET /health in README.md.");
+    expect(state.outcome).toBe("actionable");
+  });
+
   it("integration on codex fixture: extractTaskState + renderHandoffMarkdown produce zero artifact noise in filesMentioned and Referenced section (rendered paths subset of state)", async () => {
     const raw = await parseCodexRollout(CODEX_FIXTURE);
     // inject noise mentions (including previously missed artifacts) to force filtering
