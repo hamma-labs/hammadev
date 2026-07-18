@@ -1,347 +1,295 @@
-# HammaDev
+<p align="center">
+  <img src="docs/assets/hammadev-mark.svg" width="88" height="88" alt="HammaDev logo" />
+</p>
 
-**Persistent, local handoffs between AI coding agents.**
+<h1 align="center">HammaDev</h1>
 
-HammaDev reads a session from Codex, Claude Code, or Grok and produces a compact,
-structured handoff package another supported agent can continue from. There is
-no shared cloud service, and source-agent session files are never modified.
+<p align="center">
+  <strong>Persistent, local task memory for AI coding agents.</strong><br />
+  Switch between Codex, Claude Code, and Grok without losing the actionable state of your work.
+</p>
 
-**Sessions belong to agents. Memory belongs to the project.** A named project
-memory keeps the latest recorded `HammaTaskState` across several underlying
-Codex, Claude Code, or Grok sessions without renaming or rewriting any of them.
+<p align="center">
+  <a href="https://www.npmjs.com/package/hammadev"><img src="https://img.shields.io/npm/v/hammadev?color=7257e8&label=npm" alt="npm version" /></a>
+  <img src="https://img.shields.io/badge/Node.js-%E2%89%A522.12-b9df79" alt="Node.js 22.12 or newer" />
+  <img src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20%C2%B7%20Grok-f06f52" alt="Codex, Claude Code, and Grok" />
+  <img src="https://img.shields.io/badge/local--only-no%20telemetry-17202a" alt="Local-only with no telemetry" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-ISC-f6f4ef" alt="ISC license" /></a>
+</p>
 
-> **Status:** v0.1 alpha · local-only CLI · Codex ↔ Claude ↔ Grok
+<p align="center">
+  <img src="docs/assets/hammadev-memory-hero.png" width="1100" alt="Three coding-agent sessions connected through a persistent project memory" />
+</p>
 
-![HammaDev quickstart showing exact readiness gaps](docs/assets/quickstart.svg)
+> **Sessions belong to agents. Memory belongs to the project.**
 
-## What problem does this solve?
+HammaDev discovers project-related coding sessions, reconstructs the task state,
+and gives the next agent a compact continuation contract: what is complete, what
+remains, what was verified, which files matter, what changed in Git, what could
+be stale, and exactly what to do next.
 
-Each coding agent stores conversation history in its own format. After switching
-agents, the new agent usually cannot tell what was completed, what failed, which
-files changed, or what should happen next.
+It never renames or modifies native agent sessions. There is no cloud backend,
+account, telemetry, or transcript upload.
 
-HammaDev extracts the goal, task ledger, verification signals, repository state,
-known risks, and next action into a size-guarded `handoff.md`, with structured
-supporting artifacts under the source project's local `.hamma/` directory.
+## Why HammaDev?
 
-### Why not just paste context?
+Pasting an entire transcript transfers volume, not trustworthy state. The next
+agent still has to work out which claims are current, whether tests passed, and
+whether the repository has moved on.
 
-Pasting a transcript transfers volume, not state. It can expose secrets, include
-stale tool output, omit the current Git state, and encourage the next agent to
-repeat completed work. HammaDev instead creates a consistent execution contract:
-inspect the repository first, continue from one explicit action, preserve
-unrelated changes, and verify before claiming completion.
+HammaDev turns that history into an evidence-aware execution contract:
 
-After generating a handoff, `hamma benchmark latest` reports how its effective
-continuation context compares with the normalized source session. It counts only
-the three artifacts the receiving-agent contract loads and reports local archive
-files separately; estimated tokens are clearly labeled, provider-neutral size
-estimates.
+| Capability | What the receiving agent gets |
+| --- | --- |
+| Intelligent continuation | The strongest resumable session for the current Git project, selected and explained. |
+| Persistent named memory | One stable task identity across several Codex, Claude Code, or Grok sessions. |
+| Evidence provenance | Agent claims distinguished from commands, repository evidence, tool evidence, and user confirmation. |
+| Git reconciliation | Recorded HEAD, branch, working-tree state, relevant-file digests, and explainable drift. |
+| Readiness assessment | `ready`, `review_recommended`, or `not_ready`, with concrete signals and blockers. |
+| Context benchmark | Source-session size compared honestly with the effective continuation artifacts. |
 
-It is still a convenience layer—not a security boundary or a substitute for
-reviewing sensitive context.
+The core rule is deliberately simple:
 
-## Install and validate the alpha
+> When a handoff conflicts with the live repository, trust the repository.
 
-Requires Node.js 22.12 or newer.
+## Quick start
+
+HammaDev requires Node.js 22.12 or newer.
 
 ```bash
 npm install -g hammadev@alpha
 
-# Confirm the alpha binary and runtime are usable.
-hamma --version
-hamma doctor
-
-# Run guided onboarding from the project you want to hand off.
 cd /path/to/project
 hamma
 ```
 
-`hamma` with no subcommand is the main first-run experience. It reports whether
-Codex and Claude are installed, whether sessions exist for the current project,
-whether the directory is a Git repository, and whether `.hamma/` is ignored. It
-then prints the exact next command.
+Running `hamma` with no subcommand performs guided, read-only onboarding. It
+checks the runtime, Git project, supported agent installations, project sessions,
+and `.hamma/` ignore coverage, then prints the safest next command.
 
-If a shell still resolves an older global install, check `command -v hamma` and
-`npm list -g hammadev`, then reinstall with the `@alpha` tag.
-
-## Demo flow
+### Continue the best available session
 
 ```bash
-# 1. Diagnose this project and get the next command.
-hamma
+# Preview the selection decision without writing a handoff.
+hamma continue --to codex --explain
 
-# 2. Optionally install the packaged agent skills, then restart the agents.
-hamma skill install
-
-# 3. Create a project-scoped handoff (now supports three sources).
-hamma handoff codex:project --to claude --project "$PWD"
-hamma handoff claude:project --to codex --project "$PWD"
-hamma handoff grok:project --to codex --project "$PWD"
-hamma handoff grok:last --to claude --project "$PWD"
+# Create the handoff and print the exact Codex continuation command.
+hamma continue --to codex
 ```
 
-For a development thread that spans several agent switches:
+### Keep a named development thread
 
 ```bash
+# Create one stable project-owned identity.
 hamma memory start build-week --goal "Ship the Build Week release"
+
+# Work normally, then checkpoint the exact current session.
 hamma memory sync --source codex:current
+
+# Inspect current state, live Git drift, and readiness.
 hamma memory show build-week
+
+# Switch agents without re-explaining the task.
 hamma memory resume build-week --to claude
 ```
 
-`memory sync` writes an immutable revision under the project-local `.hamma/`
-directory. With no `--source`, it selects the newest safe, resumable project
-session; passing an exact source is recommended when several agents are active.
-Optional native hook recipes and their limitations are documented in
-[named memory checkpoints](docs/memory-hooks.md).
+After `memory start`, the active memory is project-scoped, so ordinary
+`hamma memory sync` calls do not need the name again. Each successful sync
+creates an immutable revision; it does not overwrite earlier task state.
 
-![Generated agent-ready handoff preview](docs/assets/handoff.svg)
+## The continuation flow
+
+```text
+Codex session A ─┐
+Claude session B ├─> HammaSession ─> HammaTaskState ─> compact handoff
+Grok session C  ─┘                         │
+                                            └─> memory:build-week
+                                                revision 1 → 2 → 3
+```
+
+1. Agent-specific adapters read native sessions without modifying them.
+2. HammaDev normalizes each source into one `HammaSession` model.
+3. Task extraction reconstructs goals, ledger state, verification, evidence,
+   risks, files, Git metadata, and the next action.
+4. The handoff records a repository snapshot and an explainable readiness result.
+5. The receiving agent reconciles the handoff with live Git state before editing.
+
+![Generated HammaDev handoff with execution contract, next action, completed work, and verification](docs/assets/handoff.svg)
 
 ## What gets generated?
 
+One-off handoffs are written atomically under the source project:
+
 ```text
-<project>/.hamma/tasks/<timestamp>-<source>-to-<target>/
-├── handoff.md            # agent execution contract and compact brief
-├── state.json            # versioned structured task state
-├── tool_history.jsonl    # high-fidelity shell/tool execution cache
-├── session.json          # full normalized session archive
+.hamma/tasks/<timestamp>-<source>-to-<target>/
+├── handoff.md            # compact agent execution contract
+├── state.json            # versioned HammaTaskState
+├── tool_history.jsonl    # shell/tool execution cache
+├── session.json          # normalized local archive
 ├── timeline.md           # importance-filtered chronology
-├── commands.md           # shell/tool command summary
-└── redaction-report.md   # redaction counts and warnings
+├── commands.md           # command summary
+└── redaction-report.md   # best-effort redaction report
 ```
 
-The handoff starts with a strict target-agent contract, followed by **Continue
-from here**, current state, completed and remaining work, verification, Git
-state, risks, source metadata, safety notes, and artifact references.
+Named memories store smaller immutable revisions:
 
-See the fully synthetic examples:
+```text
+.hamma/memories/
+├── active.json
+└── build-week/
+    ├── memory.json
+    └── revisions/<revision-id>/
+        ├── state.json
+        ├── handoff.md
+        ├── tool_history.jsonl
+        └── revision.json
+```
 
-- [Fake Codex and Claude sessions](examples/sessions/)
-- [Generated Codex → Claude handoff package](examples/generated/codex-to-claude/)
-- [Example-data notes](examples/README.md)
+Full transcripts are not copied into named-memory revisions.
 
-Grok support uses the same handoff format and tool_history.jsonl cache. Real Grok sessions (from `~/.grok`) are exercised in live verification but not committed as example data.
+## Inspect before continuing
 
-No example contains a real user session or credential.
+```bash
+# Compare the recorded Git snapshot with the live repository.
+hamma show latest --check-drift
 
-## Current alpha capabilities
+# Explain whether another agent has enough trustworthy state to continue.
+hamma show latest --check-drift --readiness
 
-- Discovers Codex rollouts under `~/.codex/sessions/**/rollout-*.jsonl`.
-- Discovers Claude sessions under supported Claude home directories.
-- Discovers Grok sessions under `~/.grok/sessions/<encoded-cwd>/<uuid>/` (using summary.json + chat_history.jsonl + terminal logs).
-- Selects project-scoped current, previous, or best resumable sessions (now including grok:project / grok:last).
-- Parses all three formats into a normalized `HammaSession` model.
-- Applies best-effort secret redaction to emitted message content.
-- Captures `git status --short` and `git diff --stat` without changing Git state.
-- Selects the strongest cross-agent project session with `hamma continue`.
-- Maintains immutable named project-memory revisions across multiple native
-  agent sessions with explicit, skill-driven, or opt-in lifecycle checkpoints.
-- Detects repository drift and assesses explainable handoff readiness.
-- Benchmarks effective continuation size separately from archive-only storage.
-- Writes handoffs atomically and can append `.hamma/` to `.gitignore`.
-- Reports project status and local handoff history without printing transcripts.
-- Emits optional buffered JSONL diagnostics with trace IDs via
-  `--log-level` or `HAMMA_LOG_LEVEL`.
+# Compare source context with the effective continuation package.
+hamma benchmark latest
+```
 
-## Architecture: the sweet-spot hybrid
+All applicable commands support structured `--json` output. Human diagnostics
+and structured logs stay off stdout, so JSON consumers remain safe.
 
-HammaDev normalizes across differing agent structures using:
-
-- **Specific adapters only for input**: All knowledge of native formats (Claude JSONL events, Codex rollouts, Grok `~/.grok/sessions/<cwd>/<id>/{summary,chat_history,updates,terminal logs}` etc.) lives in `src/adapters/{claude,codex,grok}/`. Core never imports format details.
-
-- **Universal normalized model + artifacts**: Every handoff (regardless of source or `--to` target) is produced from the single `HammaTaskState` (via `extractTaskState` + `renderHandoffMarkdown`). You always get the same `handoff.md`, `state.json`, `tool_history.jsonl` (the high-fidelity tool cache), etc.
-
-- **Universal contract + lightly target-specific consumers**: The "Agent execution contract" (in every handoff.md) and loading protocol ("load tool_history first, reconcile git, start from nextAction") are shared. The packaged skills (`hamma-handoff`, `hamma-resume`, `hamma-snap`) add explicit per-target examples and notes for claude, codex and grok.
-
-**Rule for a new agent**: implement an adapter that emits `HammaSession`, plus (optional) tiny updates only in the skill consumer layer + docs. No new handoff schemas or per-target artifact variants.
-
-See `src/core/state.ts` (the documented `heuristics` extension point) and `src/adapters/grok/STORAGE.md`.
-
-## Commands
+## Command map
 
 | Command | Purpose |
 | --- | --- |
-| `hamma` | Main first-run command. Diagnose this project and print exact next steps. |
-| `hamma quickstart` | Explicit alias for the same guided onboarding. |
-| `hamma doctor` | Validate Node 22.12+, Git, session discovery, project-path detection, and ignore safety. |
-| `hamma status [--project <path>]` | Show Git state, handoff history, global/project session counts, and `.hamma/` coverage. |
-| `hamma list codex | claude | grok` | List discovered sessions for a source (grok uses ~/.grok/sessions layout). |
-| `hamma list grok [--project <path>] [--json]` | List or filter Grok sessions. |
-| `hamma inspect <target> [--summary]` | Print a normalized session. Targets include `grok:last`, `grok:<id>`, `grok:project`, etc. |
-| `hamma handoff codex:<target> --to claude` | Generate a Codex → Claude package. |
-| `hamma handoff claude:<target> --to codex` | Generate a Claude → Codex package. |
-| `hamma handoff grok:<target> --to codex` | Generate a Grok → Codex (or claude) package. |
-| `hamma continue --to codex [--explain]` | Select and explain the strongest project session, then create a continuation handoff. |
-| `hamma memory start <name> [--goal <text>]` | Create and activate a stable project-owned development thread. |
-| `hamma memory sync [name] [--source <target>]` | Select a safe project session and append an immutable task-state revision. |
-| `hamma memory list` / `hamma memory show [name]` | List memories or inspect latest state, drift, and readiness. |
-| `hamma memory resume [name] --to <agent>` | Print an exact cross-agent continuation command for the latest revision. |
-| `hamma log [--project <path>]` | List local handoffs newest first. |
-| `hamma show latest` | Print the newest local `handoff.md`. |
-| `hamma show latest --check-drift --readiness` | Compare live Git state and assess whether the handoff is safe to continue. |
-| `hamma benchmark latest [--json]` | Compare normalized source content with effective continuation and archive-only artifact sizes. |
+| `hamma` | Guided project diagnosis and exact next step. |
+| `hamma continue --to <agent> [--explain]` | Select the strongest cross-agent project session and create a continuation. |
+| `hamma handoff <agent>:<session> --to <agent>` | Create a handoff from an explicitly selected source session. |
+| `hamma memory start <name> [--goal <text>]` | Create and activate a named project memory. |
+| `hamma memory sync [name] [--source <target>]` | Append an immutable revision from a selected or automatically discovered session. |
+| `hamma memory list` | List project memories and their active/latest state. |
+| `hamma memory show [name]` | Show latest task state, drift, and readiness. |
+| `hamma memory resume [name] --to <agent>` | Activate a memory and print the exact target-agent continuation command. |
+| `hamma list <codex\|claude\|grok>` | List discovered native sessions. |
+| `hamma inspect <target> [--summary]` | Inspect one normalized session. |
+| `hamma status [--project <path>]` | Show project Git state, sessions, handoffs, and ignore safety. |
+| `hamma log` / `hamma show <task-id>` | Browse local handoff history. |
+| `hamma benchmark <task-id\|latest>` | Measure source and continuation artifact sizes transparently. |
 | `hamma skill install [--force]` | Install the packaged handoff, snapshot, and resume skills. |
+| `hamma doctor` | Validate runtime, Git, discovery, and local safety assumptions. |
 
-Use `hamma <command> --help` for complete options. Structured logs are disabled
-by default and are written to stderr, preserving JSON stdout.
+Use `hamma <command> --help` for every option and target form.
 
-## Security limitations
+## Agent skills and optional checkpoints
 
-Read this before using HammaDev with sensitive repositories:
+HammaDev ships three reusable agent workflows:
 
-- **Redaction is best effort, not a guarantee.** Regexes can miss passwords,
-  proprietary data, unusual tokens, source code, and secrets split across text.
-- **`session.json` is intentionally a fuller archive.** It may contain sensitive
-  user messages, command text, and tool output after normalization. Keep the
-  entire `.hamma/` directory local and inspect every artifact before sharing.
-- **Named memories are also sensitive local state.** They omit full transcripts
-  but retain task text, file paths, command/tool evidence, and repository
-  metadata in immutable revisions.
-- **Session text is untrusted input.** A malicious or accidental prompt in a
-  source session can survive as task context. The handoff labels source-derived
-  text untrusted, but the receiving agent and human operator must enforce that
-  boundary.
-- **`.gitignore` is not access control.** It reduces accidental commits but does
-  not stop `git add -f`, filesystem backups, indexing tools, or other users on
-  the machine from reading artifacts.
-- **Local-only does not mean risk-free.** HammaDev reads agent histories and
-  writes into the detected project. Review the selected session and project path.
-- **Parser output can be incomplete or wrong.** Conservative filtering may omit
-  relevant context, and heuristic task extraction may misclassify status. Always
-  reconcile the handoff with the current repository.
-- **Path and size guards reduce exposure, not all attacks.** Inputs are limited
-  to configured agent roots, symlink escapes and `..` are rejected, and session
-  files over 50 MiB fail early; these controls do not make hostile session
-  content safe.
+- `hamma-handoff` — transfer work to another supported agent.
+- `hamma-snap` — checkpoint the exact current session.
+- `hamma-resume` — resume a one-off handoff or named memory.
 
-HammaDev currently makes no network calls and has no telemetry or backend. See
-[troubleshooting](docs/troubleshooting.md) for generic error categories and
-local diagnostic logging.
-
-## Agent skills
-
-`skills/hamma-handoff/`, `skills/hamma-snap/`, and `skills/hamma-resume/` provide
-agent-host workflows for cross-agent handoff, named-memory checkpoints, and
-compact session continuation. Skill-triggered checkpoints are advisory; use an
-explicit sync or a trusted native hook when a deterministic checkpoint matters.
 Install them with:
 
 ```bash
 hamma skill install
 ```
 
-Restart Codex and Claude Code after installation so they discover the skills.
+Skills are advisory/model-driven. For deterministic checkpoints, use explicit
+`hamma memory sync` or configure a trusted native lifecycle hook. Codex supports
+a useful `PreCompact` checkpoint; Claude Code and Grok also document
+`SessionEnd`. Hooks remain opt-in and cannot guarantee a final sync after a
+crash or killed process.
+
+See [named-memory hook recipes and limitations](docs/memory-hooks.md).
+
+## Architecture
+
+HammaDev keeps native formats at the edge and one universal state model at the
+center:
+
+- **Adapters:** `src/adapters/{codex,claude,grok}/` own native storage and parsing.
+- **Normalized session:** every adapter emits `HammaSession`.
+- **Universal task state:** `HammaTaskState` powers handoffs and named memories.
+- **Evidence-aware core:** provenance, Git snapshots, drift, readiness, and
+  quality ranking are shared rather than reimplemented per agent.
+- **Target-neutral artifacts:** the same contract works for Codex, Claude Code,
+  Grok, and future consumers.
+
+Adding another agent should require a new input adapter—not a new task schema.
+
+## Local-first security model
+
+The HammaDev CLI makes no network calls and does not modify native session
+files, but local-only does not mean risk-free:
+
+- Redaction is best effort and can miss unusual or fragmented secrets.
+- `session.json`, task text, commands, tool output, and memory revisions may be
+  sensitive even after normalization.
+- Session content is untrusted input; a prompt injection can survive as task
+  context and must not override the execution contract.
+- `.gitignore` reduces accidental commits but is not access control.
+- Parsing, task extraction, session ranking, and readiness are conservative
+  heuristics—not guarantees.
+- Path validation, symlink protection, size limits, and atomic writes reduce
+  exposure without making hostile content safe.
+
+Keep `.hamma/` local, inspect artifacts before sharing, and reconcile every
+handoff with the repository.
+
+## Synthetic examples and docs
+
+- [Generated Codex → Claude handoff](examples/generated/codex-to-claude/)
+- [Sanitized source-session fixtures](examples/sessions/)
+- [Example-data notes](examples/README.md)
+- [Named-memory hooks](docs/memory-hooks.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [OpenAI Build Week engineering log](docs/build-week-2026.md)
+
+No committed example contains a real user session or credential.
 
 ## Development
 
-Requirements: Node.js 22.12+ and [pnpm](https://pnpm.io/) 10+.
+Requirements: Node.js 22.12+ and pnpm 10.15+.
 
 ```bash
-git clone https://github.com/<you>/hammadev.git
+git clone https://github.com/xayrullonematov/hammadev.git
 cd hammadev
 pnpm install
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm smoke:cli
 ```
 
-CI runs typecheck, build, unit tests, website checks, and browser tests on both
-Node 22.12 and Node 24.
+The CLI is strict TypeScript and ESM. Tests use synthetic sessions and temporary
+Git repositories. CI validates Node 22.12 and Node 24.
 
-## Kiro Hook: Handoff Quality Guard
+The optional project-level Kiro quality hook runs `pnpm quality:report` after
+TypeScript source saves and records a local, content-safe validation report. See
+[the hook notes](.kiro/hooks/handoff-quality-guard.md).
 
-HammaDev includes a project-level [Kiro Hook](https://kiro.dev) that
-automatically validates the handoff pipeline after TypeScript source changes.
+## Current alpha boundaries
 
-The executable hook configuration lives at
-`.kiro/hooks/handoff-quality-guard.json` (JSON format, version v1).
+- Codex, Claude Code, and Grok are the supported native source adapters.
+- Task reconstruction, evidence classification, and redaction remain heuristic.
+- Named-memory hooks are opt-in; explicit sync is the portable fallback.
+- Memory is project-local on one machine; there is no cloud or team backend.
+- The readiness result helps a developer decide whether to continue—it does not
+  guarantee that another agent will succeed.
 
-### How the hook works
+## Build Week provenance
 
-The hook uses the **PostFileSave** trigger. This means it runs *after* Kiro has
-already saved the file to disk. It is non-blocking: a validation failure
-produces a visible warning and a non-zero exit status, but does not prevent or
-undo the file save.
-
-### What it does
-
-When Kiro saves a TypeScript file matching `^src/.*\.ts$`, the hook runs
-`pnpm quality:report`, which performs a full validation pipeline and generates
-a quality report at `docs/generated/handoff-quality-report.md`.
-
-The pipeline performs:
-
-1. **Typecheck** - `pnpm typecheck` ensures type safety.
-2. **Tests** - `pnpm test` confirms unit and integration tests pass.
-3. **Build** - `pnpm build` compiles the project.
-4. **Smoke test** - `node dist/cli.js --help` verifies the compiled CLI works.
-5. **Component detection** - Identifies which HammaDev components are affected.
-6. **Risk assessment** - Flags handoff-specific risks for affected components.
-
-### Trigger scope
-
-- **Triggers on:** TypeScript file saves matching `^src/.*\.ts$` (PostFileSave)
-- **Does NOT trigger on:** Changes to `docs/generated/`, `tests/`, or files
-  outside `src/` (the matcher regex excludes them)
-
-### Exit behavior
-
-The script exits with a non-zero status if any required validation step fails,
-signaling to Kiro that the change introduced a regression. Because this is a
-post-save hook, a failure does not undo the file save. The quality report is
-still written regardless of pass/fail status so developers can review what
-went wrong.
-
-### Output
-
-The report includes:
-
-- Generation timestamp
-- Changed source files
-- Validation results with pass/fail status for each step
-- Test totals (passed, failed, skipped)
-- Command durations
-- Overall pass/fail status
-- Affected HammaDev components (Codex adapter, Claude adapter, handoff
-  generation, task-state extraction, secret redaction, CLI commands,
-  Git/project inspection, artifact rendering)
-- Handoff-specific risks
-- Recommended manual verification steps
-
-### Manual invocation
-
-```bash
-pnpm quality:report
-```
-
-### Privacy
-
-The generated report intentionally excludes:
-
-- Session contents and raw transcripts
-- Secrets and API keys
-- Environment variable values
-- Sensitive file contents
-
-Only file paths, command names, and validation status are included.
-
----
-
-## Current alpha limitations
-
-- Only Codex CLI and Claude Code handoffs are supported.
-- Claude parsing is intentionally conservative and may omit useful tool context.
-- Handoffs remain local to one machine; there is no sync or team backend.
-- Task extraction and redaction are heuristic and require human review.
-
-## Roadmap
-
-- Additional source adapters: Gemini CLI, opencode, and Antigravity.
-- Richer task-ledger extraction and verification evidence.
-- More history filters and handoff retention controls.
-- Optional cross-machine and team workflows after the local format stabilizes.
+HammaDev existed before OpenAI Build Week. The event work added intelligent
+cross-agent continuation, versioned Git drift detection, evidence provenance,
+explainable readiness, transparent context benchmarking, and persistent named
+project memory. The exact baseline, design decisions, verification results, and
+commits are recorded in [the Build Week log](docs/build-week-2026.md).
 
 ## License
 
-ISC. See `package.json`.
+[ISC](LICENSE)
