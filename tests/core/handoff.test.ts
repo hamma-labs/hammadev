@@ -82,6 +82,10 @@ describe("createHandoff with a Claude session", () => {
       untrackedFiles: [],
       changedFileDigests: [],
     });
+    expect(state.readiness).toMatchObject({
+      schemaVersion: 1,
+      level: "review_recommended",
+    });
   });
 
   it("returns a machine-readable artifact contract", () => {
@@ -95,9 +99,20 @@ describe("createHandoff with a Claude session", () => {
       handoffPath: path.join(taskPath, "handoff.md"),
       statePath: path.join(taskPath, "state.json")
     });
+    expect(handoffResult.readiness).toMatchObject({
+      schemaVersion: 1,
+      level: "review_recommended",
+    });
     expect(handoffResult.relativeHandoffPath).toBe(
       path.relative(projectPath, path.join(taskPath, "handoff.md"))
     );
+  });
+
+  it("renders the readiness-at-creation summary", async () => {
+    const handoff = await fs.readFile(path.join(taskPath, "handoff.md"), "utf8");
+    expect(handoff).toContain("## Readiness at creation");
+    expect(handoff).toContain("Level: review_recommended");
+    expect(handoff).toContain("Heuristic assessment only");
   });
 
   it("keeps ignored Claude internal content out of session.json", async () => {

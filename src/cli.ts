@@ -33,6 +33,11 @@ import {
   formatRepositoryDrift,
   GitRepositorySnapshot,
 } from "./core/git-snapshot.js";
+import {
+  assessHandoffReadiness,
+  formatHandoffReadiness,
+} from "./core/readiness.js";
+import { HammaTaskState } from "./core/state.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -532,33 +537,41 @@ program
     "--check-drift",
     "Compare the handoff Git snapshot with the live repository"
   )
-  .option("--json", "Print a machine-readable handoff and drift result")
+  .option("--readiness", "Assess whether the handoff is ready to continue")
+  .option("--json", "Print a machine-readable drift/readiness result")
   .description("Print a local handoff brief")
   .action(async (taskId, options) => {
     try {
-      if (options.checkDrift) {
+      if (options.checkDrift || options.readiness) {
         const record = await readHandoffRecord(process.cwd(), taskId);
-        const state = record.state as {
+        const state = record.state as (Partial<HammaTaskState> & {
           repoState?: { snapshot?: GitRepositorySnapshot };
-        } | undefined;
+        }) | undefined;
         const drift = checkRepositoryDrift(
           process.cwd(),
           state?.repoState?.snapshot
         );
+        const readiness = options.readiness
+          ? assessHandoffReadiness(state, drift)
+          : undefined;
         if (options.json) {
           process.stdout.write(
             `${JSON.stringify({
               schemaVersion: 1,
               taskId: record.taskId,
               handoffPath: record.handoffPath,
-              drift,
+              ...(options.checkDrift || options.readiness ? { drift } : {}),
+              ...(readiness ? { readiness } : {}),
             }, null, 2)}\n`
           );
           return;
         }
+        const reports: string[] = [];
+        if (options.checkDrift) reports.push(formatRepositoryDrift(drift));
+        if (readiness) reports.push(formatHandoffReadiness(readiness));
         process.stdout.write(
           `${record.markdown.endsWith("\n") ? record.markdown : record.markdown + "\n"}` +
-          `\n${formatRepositoryDrift(drift)}\n`
+          `\n${reports.join("\n\n")}\n`
         );
         return;
       }

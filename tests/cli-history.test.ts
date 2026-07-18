@@ -97,4 +97,22 @@ describe("history CLI commands", () => {
       },
     });
   });
+
+  it("show --readiness --json assesses an old handoff without breaking JSON", async () => {
+    const output = JSON.parse(
+      await run(["show", "latest", "--readiness", "--json"], projectPath)
+    );
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      taskId: LATEST_ID,
+      readiness: {
+        schemaVersion: 1,
+        level: "not_ready",
+      },
+    });
+    expect(output.readiness.blockers).toContain(
+      "Structured handoff state is missing or unreadable."
+    );
+    expect(output.drift.categories).toEqual(["repository_unavailable"]);
+  });
 });

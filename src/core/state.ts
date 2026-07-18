@@ -1,6 +1,7 @@
 import { HammaMessage, HammaSession } from "./schema.js";
 import { normalizeFilesMentioned } from "./files.js";
 import { GitRepositorySnapshot } from "./git-snapshot.js";
+import type { HandoffReadinessResult } from "./readiness.js";
 
 export const HANDOFF_SCHEMA_VERSION = 1 as const;
 
@@ -76,6 +77,7 @@ export interface HammaTaskState {
   risks: string[];
   filesMentioned: string[];
   repoState: HammaRepoState;
+  readiness?: HandoffReadinessResult;
   references: {
     fullSession: string;
     timeline: string;

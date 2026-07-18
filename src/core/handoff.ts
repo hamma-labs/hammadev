@@ -12,7 +12,14 @@ import {
   HammaTaskState,
 } from "./state.js";
 import { scoreSession, SessionConfidence } from "./quality.js";
-import { captureGitRepositorySnapshot } from "./git-snapshot.js";
+import {
+  captureGitRepositorySnapshot,
+  compareRepositorySnapshots,
+} from "./git-snapshot.js";
+import {
+  assessHandoffReadiness,
+  HandoffReadinessResult,
+} from "./readiness.js";
 
 const EPOCH = new Date(0).toISOString();
 
@@ -369,6 +376,18 @@ export function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRender
     `Claims are not equivalent to command, repository, tool, or user-confirmed evidence.`
   );
 
+  if (state.readiness) {
+    const readinessWarnings = state.readiness.warnings.length;
+    const readinessBlockers = state.readiness.blockers.length;
+    sections.push(
+      `## Readiness at creation\n` +
+      `- Level: ${state.readiness.level}\n` +
+      `- Warnings: ${readinessWarnings}\n` +
+      `- Blockers: ${readinessBlockers}\n` +
+      `- Heuristic assessment only; current repository state still takes precedence.`
+    );
+  }
+
   // Use normalized filesMentioned from state (normalized at source in extractTaskState);
   // slice only for compact to respect size guards. No duplicate filter here.
   const allFiles = filesMentioned || [];
@@ -679,6 +698,7 @@ export interface HandoffResult {
    * report rather than blindly continue.
    */
   warnings: string[];
+  readiness: HandoffReadinessResult;
 }
 
 export interface CreateHandoffOptions {
@@ -717,6 +737,10 @@ export async function createHandoff(
   repoState.snapshot = captureGitRepositorySnapshot(
     projectPath,
     state.filesMentioned
+  );
+  state.readiness = assessHandoffReadiness(
+    state,
+    compareRepositorySnapshots(repoState.snapshot, repoState.snapshot)
   );
   let tempCreated = false;
 
@@ -833,13 +857,17 @@ export async function createHandoff(
     confidence: quality.confidence,
     score: quality.score,
     signals: quality.signals,
-    warnings: quality.reasons
+    warnings: quality.reasons,
+    readiness: state.readiness,
   };
 
   if (!options.quiet) {
     console.log(pc.green("Handoff created at:"));
     console.log(pc.dim(`Absolute: ${handoffPath}`));
     console.log(pc.dim(`Relative: ${relativeHandoffPath}`));
+    console.log(
+      `Handoff readiness: ${result.readiness.level.replace(/_/g, " ").toUpperCase()}`
+    );
     if (result.confidence === "low" || result.signals.includes("hamma-meta")) {
       console.log("");
       console.log(
