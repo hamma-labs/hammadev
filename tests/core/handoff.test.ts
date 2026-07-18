@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { parseClaudeSession } from "../../src/adapters/claude/parse.js";
 import { createHandoff } from "../../src/core/handoff.js";
+import { benchmarkHandoff } from "../../src/core/benchmark.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(
@@ -53,6 +54,17 @@ describe("createHandoff with a Claude session", () => {
       /^\d{4}-\d{2}-\d{2}T.+-claude-to-codex$/
     );
     expect((await fs.readdir(taskPath)).sort()).toEqual(EXPECTED_FILES);
+  });
+
+  it("produces a benchmarkable continuation package", async () => {
+    const benchmark = await benchmarkHandoff(taskPath);
+
+    expect(benchmark.source).toMatchObject({
+      available: true,
+      basis: "normalized_message_and_tool_content",
+    });
+    expect(benchmark.effectiveContinuation.missingArtifacts).toEqual([]);
+    expect(benchmark.archiveOnly.missingArtifacts).toEqual([]);
   });
 
   it("identifies Claude as the source and Codex as the target", async () => {

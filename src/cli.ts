@@ -38,6 +38,10 @@ import {
   formatHandoffReadiness,
 } from "./core/readiness.js";
 import { HammaTaskState } from "./core/state.js";
+import {
+  benchmarkHandoff,
+  formatContextEfficiencyBenchmark,
+} from "./core/benchmark.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -577,6 +581,27 @@ program
       }
       const markdown = await readHandoff(process.cwd(), taskId);
       process.stdout.write(markdown.endsWith("\n") ? markdown : markdown + "\n");
+    } catch (err: any) {
+      return fail("HISTORY_ERROR", err);
+    }
+  });
+
+program
+  .command("benchmark")
+  .argument("<task-id>", "Handoff task id or 'latest'")
+  .option("--project <path>", "Project whose local handoff should be benchmarked")
+  .option("--json", "Print a machine-readable benchmark")
+  .description("Compare normalized source context with continuation artifact sizes")
+  .action(async (taskId, options) => {
+    try {
+      const projectPath = path.resolve(options.project ?? process.cwd());
+      const record = await readHandoffRecord(projectPath, taskId);
+      const benchmark = await benchmarkHandoff(record.taskPath, record.taskId);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(benchmark, null, 2)}\n`);
+        return;
+      }
+      process.stdout.write(`${formatContextEfficiencyBenchmark(benchmark)}\n`);
     } catch (err: any) {
       return fail("HISTORY_ERROR", err);
     }
