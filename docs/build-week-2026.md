@@ -101,6 +101,7 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 
 - `cd58f0a` — `feat: add intelligent cross-agent continuation`
 - `97b8079` — `feat: detect repository drift in handoffs`
+- `bf62f75` — `feat: add evidence provenance to handoffs`
 
 ## Demo flow (target)
 
