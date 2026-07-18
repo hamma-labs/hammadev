@@ -1,5 +1,6 @@
 import { HammaMessage, HammaSession } from "./schema.js";
 import { normalizeFilesMentioned } from "./files.js";
+import { GitRepositorySnapshot } from "./git-snapshot.js";
 
 export const HANDOFF_SCHEMA_VERSION = 1 as const;
 
@@ -22,6 +23,7 @@ export interface HammaTaskLedgerItem {
 export interface HammaRepoState {
   gitStatusShort?: string;
   gitDiffStat?: string;
+  snapshot?: GitRepositorySnapshot;
   warnings: string[];
 }
 

@@ -31,6 +31,18 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - Implemented Grok project selection using the existing shared quality
   scorer instead of newest-session-only selection.
 
+### Day 1 — versioned Git snapshot and drift detection
+
+- Added a compact Git snapshot to `state.json`: HEAD, branch/detached state,
+  staged, unstaged, and untracked file lists, changed-file and referenced-file
+  digests, and a deterministic metadata fingerprint.
+- Added `hamma show <task-id> --check-drift` plus structured `--json` output.
+  Comparisons explain HEAD, branch, working-tree, untracked-file, and relevant
+  file differences without storing source contents or full diffs.
+- Git drift matters because a handoff is historical context: another agent may
+  commit, switch branches, or edit task-relevant files before the receiving
+  agent loads it. The live repository remains authoritative.
+
 ## Architectural decisions
 
 - Reuse `scoreSession` and `rankCandidates`; do not introduce a competing
@@ -38,6 +50,12 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - Keep native parsing inside adapters. Cross-agent orchestration consumes only
   normalized `SessionCandidate` and `HammaSession` values.
 - Make explain/dry-run read-only and keep JSON stdout free of human logs.
+- Keep the outer handoff schema at version 1 by adding an optional versioned
+  `repoState.snapshot`. Handoffs created before this field existed remain
+  readable and report that recorded repository metadata is unavailable.
+- Build the fingerprint from safe, sorted Git metadata and file digests. It is
+  a deterministic comparison aid, not cryptographic proof of repository
+  identity or history.
 
 ## Codex contributions
 
@@ -45,6 +63,8 @@ users still had to know whether to run `claude:project`, `codex:project`, or
   ranking, state extraction, handoff, and safety boundaries.
 - Cross-agent continuation orchestration, shared Grok ranking, dry-run JSON UX,
   and focused unit/CLI tests.
+- Git snapshot data model, deterministic comparison, drift rendering, tolerant
+  old-handoff reads, synthetic Git repositories, and CLI integration tests.
 
 ## Verification log
 
@@ -55,6 +75,9 @@ users still had to know whether to run `claude:project`, `codex:project`, or
   recorded as a passing or failing repository baseline.
 - After provisioning the pinned toolchain locally: TypeScript typecheck passed,
   build and compiled CLI smoke passed, and 199 tests passed across 32 files.
+- Git snapshot milestone: targeted drift tests passed (32 tests across 4 files),
+  full typecheck passed, the full suite passed (210 tests across 33 files), build
+  passed, compiled CLI smoke passed, and `git diff --check` passed.
 - `graphify update .` was attempted after the code change, but the `graphify`
   executable is not installed in this environment and no graph output exists.
 
@@ -64,6 +87,8 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 cd /path/to/project
 hamma continue --to codex --explain
 hamma continue --to codex
+hamma show latest --check-drift
+hamma show latest --check-drift --json
 ```
 
 The first command should show the winning source session and selection signals

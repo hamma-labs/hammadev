@@ -10,6 +10,14 @@ export interface HandoffHistoryEntry {
   continueFromHere?: string;
 }
 
+export interface HandoffRecord {
+  taskId: string;
+  taskPath: string;
+  handoffPath: string;
+  markdown: string;
+  state?: unknown;
+}
+
 const TASK_TIMESTAMP =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z(?:-|$)/;
 
@@ -130,6 +138,43 @@ export async function readHandoff(
     }
     throw error;
   }
+}
+
+export async function readHandoffRecord(
+  projectPath: string,
+  taskId: string
+): Promise<HandoffRecord> {
+  const resolvedTaskId =
+    taskId === "latest"
+      ? (await listHandoffs(projectPath))[0]?.taskId
+      : taskId;
+  if (!resolvedTaskId) {
+    throw new Error(`No handoffs found in ${tasksPath(projectPath)}.`);
+  }
+  assertTaskId(resolvedTaskId);
+  const taskPath = path.join(tasksPath(projectPath), resolvedTaskId);
+  const handoffPath = path.join(taskPath, "handoff.md");
+  let markdown: string;
+  try {
+    markdown = await fs.readFile(handoffPath, "utf8");
+  } catch (error: any) {
+    if (error.code === "ENOENT") {
+      throw new Error(
+        `Handoff '${resolvedTaskId}' was not found in ${tasksPath(projectPath)}.`
+      );
+    }
+    throw error;
+  }
+
+  let state: unknown;
+  try {
+    state = JSON.parse(
+      await fs.readFile(path.join(taskPath, "state.json"), "utf8")
+    );
+  } catch (error: any) {
+    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+  }
+  return { taskId: resolvedTaskId, taskPath, handoffPath, markdown, state };
 }
 
 export function formatHandoffLog(entries: HandoffHistoryEntry[]): string {

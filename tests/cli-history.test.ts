@@ -81,4 +81,20 @@ describe("history CLI commands", () => {
     expect(output).toContain("Continue the old handoff.");
     expect(output).not.toContain("Continue the latest handoff.");
   });
+
+  it("show --check-drift --json remains valid for an old handoff", async () => {
+    const output = JSON.parse(
+      await run(["show", "latest", "--check-drift", "--json"], projectPath)
+    );
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      taskId: LATEST_ID,
+      drift: {
+        detected: true,
+        categories: ["repository_unavailable"],
+        recordedSnapshotAvailable: false,
+        currentSnapshotAvailable: false,
+      },
+    });
+  });
 });

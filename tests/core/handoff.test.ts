@@ -74,6 +74,14 @@ describe("createHandoff with a Claude session", () => {
     expect(["completed", "actionable", "blocked", "ambiguous"]).toContain(
       state.outcome
     );
+    expect(state.repoState.snapshot).toMatchObject({
+      version: 1,
+      available: false,
+      stagedFiles: [],
+      unstagedFiles: [],
+      untrackedFiles: [],
+      changedFileDigests: [],
+    });
   });
 
   it("returns a machine-readable artifact contract", () => {

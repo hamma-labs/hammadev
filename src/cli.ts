@@ -10,7 +10,12 @@ import { GrokAdapter } from "./adapters/grok/index.js";
 import { ClaudeShapeReport } from "./adapters/claude/shape.js";
 import { HammaSession } from "./core/schema.js";
 import { createHandoff } from "./core/handoff.js";
-import { formatHandoffLog, listHandoffs, readHandoff } from "./core/history.js";
+import {
+  formatHandoffLog,
+  listHandoffs,
+  readHandoff,
+  readHandoffRecord,
+} from "./core/history.js";
 import { formatProjectStatus, getProjectStatus } from "./core/project-status.js";
 import { runDoctor } from "./core/doctor.js";
 import { installAllSkills, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
@@ -23,6 +28,11 @@ import {
   loadContinuationSession,
   parseContinuationAgent,
 } from "./continuation.js";
+import {
+  checkRepositoryDrift,
+  formatRepositoryDrift,
+  GitRepositorySnapshot,
+} from "./core/git-snapshot.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -518,9 +528,40 @@ program
 program
   .command("show")
   .argument("<task-id>", "Handoff task id or 'latest'")
+  .option(
+    "--check-drift",
+    "Compare the handoff Git snapshot with the live repository"
+  )
+  .option("--json", "Print a machine-readable handoff and drift result")
   .description("Print a local handoff brief")
-  .action(async (taskId) => {
+  .action(async (taskId, options) => {
     try {
+      if (options.checkDrift) {
+        const record = await readHandoffRecord(process.cwd(), taskId);
+        const state = record.state as {
+          repoState?: { snapshot?: GitRepositorySnapshot };
+        } | undefined;
+        const drift = checkRepositoryDrift(
+          process.cwd(),
+          state?.repoState?.snapshot
+        );
+        if (options.json) {
+          process.stdout.write(
+            `${JSON.stringify({
+              schemaVersion: 1,
+              taskId: record.taskId,
+              handoffPath: record.handoffPath,
+              drift,
+            }, null, 2)}\n`
+          );
+          return;
+        }
+        process.stdout.write(
+          `${record.markdown.endsWith("\n") ? record.markdown : record.markdown + "\n"}` +
+          `\n${formatRepositoryDrift(drift)}\n`
+        );
+        return;
+      }
       const markdown = await readHandoff(process.cwd(), taskId);
       process.stdout.write(markdown.endsWith("\n") ? markdown : markdown + "\n");
     } catch (err: any) {
