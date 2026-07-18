@@ -28,6 +28,12 @@ repeat completed work. HammaDev instead creates a consistent execution contract:
 inspect the repository first, continue from one explicit action, preserve
 unrelated changes, and verify before claiming completion.
 
+After generating a handoff, `hamma benchmark latest` reports how its effective
+continuation context compares with the normalized source session. It counts only
+the three artifacts the receiving-agent contract loads and reports local archive
+files separately; estimated tokens are clearly labeled, provider-neutral size
+estimates.
+
 It is still a convenience layer—not a security boundary or a substitute for
 reviewing sensitive context.
 
@@ -79,6 +85,7 @@ hamma handoff grok:last --to claude --project "$PWD"
 <project>/.hamma/tasks/<timestamp>-<source>-to-<target>/
 ├── handoff.md            # agent execution contract and compact brief
 ├── state.json            # versioned structured task state
+├── tool_history.jsonl    # high-fidelity shell/tool execution cache
 ├── session.json          # full normalized session archive
 ├── timeline.md           # importance-filtered chronology
 ├── commands.md           # shell/tool command summary
@@ -108,6 +115,9 @@ No example contains a real user session or credential.
 - Parses all three formats into a normalized `HammaSession` model.
 - Applies best-effort secret redaction to emitted message content.
 - Captures `git status --short` and `git diff --stat` without changing Git state.
+- Selects the strongest cross-agent project session with `hamma continue`.
+- Detects repository drift and assesses explainable handoff readiness.
+- Benchmarks effective continuation size separately from archive-only storage.
 - Writes handoffs atomically and can append `.hamma/` to `.gitignore`.
 - Reports project status and local handoff history without printing transcripts.
 - Emits optional buffered JSONL diagnostics with trace IDs via
@@ -141,8 +151,11 @@ See `src/core/state.ts` (the documented `heuristics` extension point) and `src/a
 | `hamma handoff codex:<target> --to claude` | Generate a Codex → Claude package. |
 | `hamma handoff claude:<target> --to codex` | Generate a Claude → Codex package. |
 | `hamma handoff grok:<target> --to codex` | Generate a Grok → Codex (or claude) package. |
+| `hamma continue --to codex [--explain]` | Select and explain the strongest project session, then create a continuation handoff. |
 | `hamma log [--project <path>]` | List local handoffs newest first. |
 | `hamma show latest` | Print the newest local `handoff.md`. |
+| `hamma show latest --check-drift --readiness` | Compare live Git state and assess whether the handoff is safe to continue. |
+| `hamma benchmark latest [--json]` | Compare normalized source content with effective continuation and archive-only artifact sizes. |
 | `hamma skill install [--force]` | Install the packaged handoff, snapshot, and resume skills. |
 
 Use `hamma <command> --help` for complete options. Structured logs are disabled

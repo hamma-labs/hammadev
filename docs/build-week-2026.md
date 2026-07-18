@@ -75,6 +75,28 @@ continue or review a handoff. It is not a probability, a guarantee of agent
 success, or a substitute for inspecting the repository. Older handoffs without
 provenance or snapshots are assessed conservatively rather than rejected.
 
+### Day 3 — context-efficiency benchmarking
+
+- Added `hamma benchmark <task-id|latest> [--json]` to compare normalized
+  source-session content with the exact artifact bytes the receiving-agent
+  contract asks an agent to load.
+- Defined **effective continuation context** as `handoff.md`, `state.json`, and
+  `tool_history.jsonl`. These are the compact brief, structured task state, and
+  high-fidelity tool cache used by the execution contract.
+- Reported `session.json`, `timeline.md`, `commands.md`, and
+  `redaction-report.md` separately as archive-only local artifacts. They remain
+  useful for inspection and debugging but are excluded from the main
+  continuation total.
+- Added deterministic estimated-token metrics using `ceil(UTF-8 bytes / 4)`.
+  These are explicitly cross-agent size estimates, not OpenAI, Claude, Grok, or
+  any other provider's exact tokenizer result.
+
+The source denominator is the UTF-8 byte sum of normalized message content plus
+normalized shell command and output content. It intentionally excludes JSON
+formatting and session metadata, avoiding an artificially favorable comparison.
+If the continuation artifacts are larger than a small source session, HammaDev
+reports a negative reduction and labels the package larger.
+
 ## Architectural decisions
 
 - Reuse `scoreSession` and `rankCandidates`; do not introduce a competing
@@ -91,6 +113,13 @@ provenance or snapshots are assessed conservatively rather than rejected.
 - Allow readiness blockers to override otherwise strong signals. Repository
   drift produces explainable review warnings instead of being hidden inside a
   combined score.
+- Benchmark the actual receiving-agent loading contract, not every file stored
+  locally. Use normalized content rather than native agent files so old source
+  paths are never reopened and existing session-path boundaries are not
+  bypassed.
+- Keep token estimation dependency-free and provider-neutral. Percentages are
+  computed without clamping, and zero-byte or unavailable source metrics yield
+  an unavailable percentage rather than invented savings.
 
 ## Codex contributions
 
@@ -104,6 +133,9 @@ provenance or snapshots are assessed conservatively rather than rejected.
   user evidence handling, compatibility-preserving rendering, and focused tests.
 - Readiness dimensions, categorical override rules, live drift integration,
   old-handoff tolerance, stable JSON output, and deterministic test coverage.
+- Effective-versus-archive artifact classification, transparent source-content
+  measurement, honest reduction math, dependency-free token estimates, stable
+  benchmark JSON, and generated-package/CLI test coverage.
 
 ## Verification log
 
@@ -123,6 +155,17 @@ provenance or snapshots are assessed conservatively rather than rejected.
 - Readiness milestone: 44 targeted tests across 4 files passed, full typecheck
   passed, the full suite passed (232 tests across 35 files), build and compiled
   CLI smoke passed, and `git diff --check` passed.
+- Context-efficiency milestone: 11 dedicated benchmark tests plus generated
+  handoff integration coverage passed; full typecheck passed, the full suite
+  passed (244 tests across 37 files), build and compiled CLI smoke passed, and
+  `git diff --check` passed.
+- A representative synthetic generated handoff measured 187,073 bytes
+  (182.7 KiB, ~46,769 estimated tokens) of normalized source content and 51,922
+  bytes (50.7 KiB, ~12,981 estimated tokens) of effective continuation context:
+  a 72.25% byte reduction. Its 188.9 KiB `session.json`, 32.5 KiB timeline, and
+  other archive-only artifacts were reported separately and excluded. A tiny
+  safe fixture also produced a negative reduction, verifying that the benchmark
+  does not hide continuation overhead.
 - `graphify update .` was attempted after the code change, but the `graphify`
   executable is not installed in this environment and no graph output exists.
 
@@ -132,6 +175,7 @@ provenance or snapshots are assessed conservatively rather than rejected.
 - `97b8079` — `feat: detect repository drift in handoffs`
 - `bf62f75` — `feat: add evidence provenance to handoffs`
 - `2364711` — `feat: assess handoff readiness`
+- `cc3b828` — `feat: benchmark handoff context efficiency`
 
 ## Demo flow (target)
 
@@ -143,8 +187,22 @@ hamma show latest --check-drift
 hamma show latest --check-drift --json
 hamma show latest --readiness
 hamma show latest --check-drift --readiness --json
+hamma benchmark latest
+hamma benchmark latest --json
 ```
 
 The first command should show the winning source session and selection signals
 without writing artifacts. The second should create the handoff and print the
-exact Codex continuation command.
+exact Codex continuation command. The final two commands report the size of the
+effective receiving-agent context separately from local archive artifacts.
+
+## Context benchmark limitations
+
+- Source metrics describe HammaDev's normalized message and tool content, not
+  the raw native agent file or an exact model prompt.
+- Artifact byte counts are exact on-disk sizes; token counts are estimates.
+- The estimate does not model provider-specific tokenization, system prompts,
+  caching, compression, billing, latency, or model context-window behavior.
+- Repeated information across the three required artifacts is counted honestly.
+- Older handoffs without a compatible normalized `session.json` remain readable,
+  but source reductions are reported as unavailable.
