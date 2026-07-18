@@ -97,6 +97,32 @@ formatting and session metadata, avoiding an artificially favorable comparison.
 If the continuation artifacts are larger than a small source session, HammaDev
 reports a negative reduction and labels the package larger.
 
+### Day 3 — persistent named project memory
+
+- Added a stable Hamma-owned identity for long-running development threads:
+  `hamma memory start`, `sync`, `list`, `show`, and `resume`.
+- Stored compact immutable revisions under `.hamma/memories/<name>/revisions/`
+  with `HammaTaskState`, a guarded handoff, tool history, source metadata, Git
+  snapshot, readiness, and parent-revision drift. Full transcripts are not
+  copied into named-memory revisions.
+- Reused project-aware session discovery and quality filtering. Automatic sync
+  refuses stale-only candidates and equally recent candidates from different
+  agents; `--source` is available for an intentional exact selection.
+- Added an active project pointer, atomic manifest/revision writes, a
+  per-memory synchronization lock, duplicate-content no-ops, conservative task
+  merging, and warnings instead of silently discarding conflicting task IDs.
+- Extended `hamma-snap` and `hamma-resume` with named-memory workflows and
+  documented opt-in lifecycle-hook recipes. Skills remain advisory and native
+  sessions are never renamed or modified.
+
+The hook investigation found stable command hooks in current Codex, including
+`PreCompact`, but no documented Codex `SessionEnd`; `Stop` is turn-scoped.
+Claude Code and Grok document `PreCompact` and `SessionEnd`. Hooks still depend
+on installation, project trust, a live process, and a parseable source session,
+so the honest fallback remains skill-driven or explicit `hamma memory sync`.
+Codex's separate experimental memory feature is agent-local background memory,
+not a stable cross-agent project-thread identity.
+
 ## Architectural decisions
 
 - Reuse `scoreSession` and `rankCandidates`; do not introduce a competing
@@ -120,6 +146,14 @@ reports a negative reduction and labels the package larger.
 - Keep token estimation dependency-free and provider-neutral. Percentages are
   computed without clamping, and zero-byte or unavailable source metrics yield
   an unavailable percentage rather than invented savings.
+- Keep named memory as a revisioned view of the existing `HammaTaskState`, not
+  a second task schema. The original goal and compatible completed work survive
+  agent switches; current session state, evidence, Git snapshot, drift, and
+  readiness are recomputed for each revision.
+- Prefer lifecycle hooks only as optional checkpoints. Do not install hooks or
+  mutate agent configuration automatically, do not sync on every tool call,
+  and do not claim zero-touch updates when trust, crashes, and active writes can
+  prevent them.
 
 ## Codex contributions
 
@@ -136,6 +170,9 @@ reports a negative reduction and labels the package larger.
 - Effective-versus-archive artifact classification, transparent source-content
   measurement, honest reduction math, dependency-free token estimates, stable
   benchmark JSON, and generated-package/CLI test coverage.
+- Cross-agent lifecycle capability investigation, immutable named-memory
+  storage, conservative state merging, source conflict protection, native-hook
+  event bridging, skill guidance, and synthetic multi-revision CLI tests.
 
 ## Verification log
 
@@ -159,6 +196,9 @@ reports a negative reduction and labels the package larger.
   handoff integration coverage passed; full typecheck passed, the full suite
   passed (244 tests across 37 files), build and compiled CLI smoke passed, and
   `git diff --check` passed.
+- Named-memory milestone: 11 focused storage, merge, hook, and end-to-end CLI
+  tests passed; full typecheck passed, the full suite passed (255 tests across
+  39 files), build and compiled CLI smoke passed, and `git diff --check` passed.
 - A representative synthetic generated handoff measured 187,073 bytes
   (182.7 KiB, ~46,769 estimated tokens) of normalized source content and 51,922
   bytes (50.7 KiB, ~12,981 estimated tokens) of effective continuation context:
@@ -176,6 +216,7 @@ reports a negative reduction and labels the package larger.
 - `bf62f75` — `feat: add evidence provenance to handoffs`
 - `2364711` — `feat: assess handoff readiness`
 - `cc3b828` — `feat: benchmark handoff context efficiency`
+- `1439b2e` — `feat: add persistent named project memory`
 
 ## Demo flow (target)
 
@@ -189,12 +230,34 @@ hamma show latest --readiness
 hamma show latest --check-drift --readiness --json
 hamma benchmark latest
 hamma benchmark latest --json
+hamma memory start build-week --goal "Ship the Build Week release"
+hamma memory sync --source codex:current
+hamma memory show build-week
+hamma memory resume build-week --to claude
 ```
 
 The first command should show the winning source session and selection signals
 without writing artifacts. The second should create the handoff and print the
 exact Codex continuation command. The final two commands report the size of the
 effective receiving-agent context separately from local archive artifacts.
+The named-memory commands demonstrate one stable Hamma-owned thread spanning
+several native agent sessions while retaining evidence, Git state, readiness,
+and an immutable update history.
+
+## Named-memory limitations
+
+- Native hooks are opt-in checkpoints, not a cross-agent delivery guarantee.
+  Project trust, crashes, disabled hooks, or an actively written session can
+  prevent an update.
+- Automatic source selection is conservative but heuristic. When multiple
+  agents are active, use `--source <agent>:<id>` to identify the intended
+  session exactly.
+- State merging preserves compatible completed work and evidence; it does not
+  attempt a semantic three-way merge of contradictory agent narratives.
+- The source fingerprint detects duplicate normalized session content. It is
+  not proof of authorship, freshness, or repository identity.
+- Memory artifacts remain local and may contain sensitive task text, paths,
+  commands, and tool output. `.gitignore` is not access control.
 
 ## Context benchmark limitations
 

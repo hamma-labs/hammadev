@@ -6,6 +6,10 @@ HammaDev reads a session from Codex, Claude Code, or Grok and produces a compact
 structured handoff package another supported agent can continue from. There is
 no shared cloud service, and source-agent session files are never modified.
 
+**Sessions belong to agents. Memory belongs to the project.** A named project
+memory keeps the latest recorded `HammaTaskState` across several underlying
+Codex, Claude Code, or Grok sessions without renaming or rewriting any of them.
+
 > **Status:** v0.1 alpha · local-only CLI · Codex ↔ Claude ↔ Grok
 
 ![HammaDev quickstart showing exact readiness gaps](docs/assets/quickstart.svg)
@@ -77,6 +81,21 @@ hamma handoff grok:project --to codex --project "$PWD"
 hamma handoff grok:last --to claude --project "$PWD"
 ```
 
+For a development thread that spans several agent switches:
+
+```bash
+hamma memory start build-week --goal "Ship the Build Week release"
+hamma memory sync --source codex:current
+hamma memory show build-week
+hamma memory resume build-week --to claude
+```
+
+`memory sync` writes an immutable revision under the project-local `.hamma/`
+directory. With no `--source`, it selects the newest safe, resumable project
+session; passing an exact source is recommended when several agents are active.
+Optional native hook recipes and their limitations are documented in
+[named memory checkpoints](docs/memory-hooks.md).
+
 ![Generated agent-ready handoff preview](docs/assets/handoff.svg)
 
 ## What gets generated?
@@ -116,6 +135,8 @@ No example contains a real user session or credential.
 - Applies best-effort secret redaction to emitted message content.
 - Captures `git status --short` and `git diff --stat` without changing Git state.
 - Selects the strongest cross-agent project session with `hamma continue`.
+- Maintains immutable named project-memory revisions across multiple native
+  agent sessions with explicit, skill-driven, or opt-in lifecycle checkpoints.
 - Detects repository drift and assesses explainable handoff readiness.
 - Benchmarks effective continuation size separately from archive-only storage.
 - Writes handoffs atomically and can append `.hamma/` to `.gitignore`.
@@ -152,6 +173,10 @@ See `src/core/state.ts` (the documented `heuristics` extension point) and `src/a
 | `hamma handoff claude:<target> --to codex` | Generate a Claude → Codex package. |
 | `hamma handoff grok:<target> --to codex` | Generate a Grok → Codex (or claude) package. |
 | `hamma continue --to codex [--explain]` | Select and explain the strongest project session, then create a continuation handoff. |
+| `hamma memory start <name> [--goal <text>]` | Create and activate a stable project-owned development thread. |
+| `hamma memory sync [name] [--source <target>]` | Select a safe project session and append an immutable task-state revision. |
+| `hamma memory list` / `hamma memory show [name]` | List memories or inspect latest state, drift, and readiness. |
+| `hamma memory resume [name] --to <agent>` | Print an exact cross-agent continuation command for the latest revision. |
 | `hamma log [--project <path>]` | List local handoffs newest first. |
 | `hamma show latest` | Print the newest local `handoff.md`. |
 | `hamma show latest --check-drift --readiness` | Compare live Git state and assess whether the handoff is safe to continue. |
@@ -170,6 +195,9 @@ Read this before using HammaDev with sensitive repositories:
 - **`session.json` is intentionally a fuller archive.** It may contain sensitive
   user messages, command text, and tool output after normalization. Keep the
   entire `.hamma/` directory local and inspect every artifact before sharing.
+- **Named memories are also sensitive local state.** They omit full transcripts
+  but retain task text, file paths, command/tool evidence, and repository
+  metadata in immutable revisions.
 - **Session text is untrusted input.** A malicious or accidental prompt in a
   source session can survive as task context. The handoff labels source-derived
   text untrusted, but the receiving agent and human operator must enforce that
@@ -194,7 +222,9 @@ local diagnostic logging.
 ## Agent skills
 
 `skills/hamma-handoff/`, `skills/hamma-snap/`, and `skills/hamma-resume/` provide
-agent-host workflows for cross-agent handoff and compact session continuation.
+agent-host workflows for cross-agent handoff, named-memory checkpoints, and
+compact session continuation. Skill-triggered checkpoints are advisory; use an
+explicit sync or a trusted native hook when a deterministic checkpoint matters.
 Install them with:
 
 ```bash
