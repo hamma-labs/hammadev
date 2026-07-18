@@ -217,6 +217,7 @@ not a stable cross-agent project-thread identity.
 - `2364711` — `feat: assess handoff readiness`
 - `cc3b828` — `feat: benchmark handoff context efficiency`
 - `1439b2e` — `feat: add persistent named project memory`
+- `dab3fcc` — `fix: activate named memory on resume`
 
 ## Demo flow (target)
 
