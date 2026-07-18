@@ -14,6 +14,7 @@ description: Resume your own previous session in a fresh chat using a compact Ha
 
 **When to use**:
 - User says "resume previous session", "continue from last time", "new chat but pick up where we left".
+- User names a Hamma project memory such as `build-week`, `auth-refactor`, or `payment-bug`.
 
 **Steps**:
 
@@ -21,27 +22,45 @@ description: Resume your own previous session in a fresh chat using a compact Ha
 
 2. Check `command -v hamma`. If missing, instruct user to install + `hamma skill install --force`.
 
-3. Run (self-excludes current chat):
+3. If the user supplied a named project memory, prefer the stable Hamma-owned thread:
+   ```bash
+   hamma memory resume <name> --to THIS --project "<root>" --json
+   ```
+   Validate the returned revision and paths under `.hamma/memories/<name>/`,
+   load `state.json`, `tool_history.jsonl`, then `handoff.md`, report drift and
+   readiness, and continue from the recorded next action. Do not rename or
+   modify the native agent session.
+   While working in a named memory, checkpoint after meaningful verified
+   milestones and before ending when no native hook is configured:
+   ```bash
+   hamma memory sync <name> --source THIS:current --project "<root>" --json
+   ```
+   This instruction is advisory; do not claim a checkpoint occurred unless the
+   command succeeded and returned a revision id.
+
+4. If no memory name was supplied, use the previous-session fallback below.
+
+5. Run (self-excludes current chat):
    ```bash
    hamma handoff THIS:previous --to THIS --project "<root>" --json
    ```
    (THIS = your CLI, e.g. claude, codex or grok)
 
-4. Parse JSON. Validate schemaVersion=1 and paths under .hamma/tasks/.
+6. Parse JSON. Validate schemaVersion=1 and paths under .hamma/tasks/.
 
-5. **Quality gate**: If low confidence or warnings → list candidates with `hamma list THIS:project --json` and ask user to pick explicit id.
+7. **Quality gate**: If low confidence or warnings → list candidates with `hamma list THIS:project --json` and ask user to pick explicit id.
 
-6. Load context efficiently:
+8. Load context efficiently:
    - `state.json` → tasks + nextAction
    - `tool_history.jsonl` → **your previous tool cache**. Use this as execution history to avoid re-running commands.
    - `handoff.md` → narrative + risks
    - Only full `session.json` on explicit debug request.
 
-7. Check current git status/diff. Current state wins.
+9. Check current git status/diff. Current state wins.
 
-8. Summarize to user what you recovered + next step.
+10. Summarize to user what you recovered + next step.
 
-9. Continue from nextAction.
+11. Continue from nextAction.
 
 **Output format on load**:
 ```json

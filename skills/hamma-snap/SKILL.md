@@ -17,19 +17,29 @@ description: Snapshot the current long session into a compact HammaDev handoff +
 
 2. Ensure `hamma` is installed via `command -v hamma`. Prompt user if missing.
 
-3. Create snapshot of *this* session:
+3. Check whether this project has an active named memory:
+   ```bash
+   hamma memory show --project "<root>" --json
+   ```
+   If it succeeds, checkpoint *this exact session* into that memory:
+   ```bash
+   hamma memory sync --source THIS:current --project "<root>" --json
+   ```
+   Report the immutable revision id, drift warnings, and readiness. Then stop.
+
+4. If there is no active named memory, create the existing one-off snapshot:
    ```bash
    hamma handoff THIS:current --to THIS --project "<root>" --json
    ```
    (THIS = your CLI, e.g. claude, codex, grok)
 
-4. Parse the JSON. Confirm `handoffPath` and `statePath`.
+5. Parse the JSON. Confirm `handoffPath` and `statePath`.
 
-5. Tell the user:
+6. Tell the user:
    "Snapshot created. Open a fresh chat and run:
    `<suggestedCommand from JSON>`"
 
-6. **Stop here**. Do not continue the work in this chat.
+7. **Stop here**. Do not continue the work in this chat.
 
 **What gets created** (under .hamma/tasks/):
 - handoff.md + state.json (contract)
@@ -39,6 +49,8 @@ description: Snapshot the current long session into a compact HammaDev handoff +
 **Safety**:
 - Does not modify your current session files.
 - The cache is for the *next* chat only.
+- Skill invocation is advisory/model-driven. Native hooks or explicit
+  `hamma memory sync` are required when a deterministic checkpoint is needed.
 
 **Example response**:
 "Created compact handoff with tool cache. In a new chat run the suggested command to resume exactly where we are."

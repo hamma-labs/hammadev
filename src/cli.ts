@@ -42,6 +42,16 @@ import {
   benchmarkHandoff,
   formatContextEfficiencyBenchmark,
 } from "./core/benchmark.js";
+import {
+  formatMemoryInspection,
+  formatMemoryList,
+  inspectMemory,
+  listMemories,
+  resolveMemoryProjectPath,
+  resumeMemory,
+  startMemory,
+  syncMemory,
+} from "./core/memory.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -146,6 +156,22 @@ function fail(category: ErrorCategory, error: unknown): void {
   });
   console.error(pc.red(formatCliError(category, error)));
   process.exitCode = 1;
+}
+
+async function readJsonStdin(): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of process.stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += buffer.byteLength;
+    if (bytes > 1024 * 1024) {
+      throw new Error("Hook event exceeds the 1 MiB input limit.");
+    }
+    chunks.push(buffer);
+  }
+  const input = Buffer.concat(chunks).toString("utf8").trim();
+  if (!input) throw new Error("Hook sync expected a JSON event on stdin.");
+  return JSON.parse(input) as Record<string, unknown>;
 }
 
 const program = new Command();
@@ -604,6 +630,157 @@ program
       process.stdout.write(`${formatContextEfficiencyBenchmark(benchmark)}\n`);
     } catch (err: any) {
       return fail("HISTORY_ERROR", err);
+    }
+  });
+
+const memoryCommand = program
+  .command("memory")
+  .description("Maintain named project task state across coding agents");
+
+memoryCommand
+  .command("start")
+  .argument("<name>", "Stable project memory name")
+  .option("--goal <text>", "Optional original goal")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print machine-readable memory metadata")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Create and activate a named project memory")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const manifest = await startMemory(
+        projectPath,
+        name,
+        options.goal,
+        options.gitignore
+      );
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green(`Project memory '${manifest.name}' is active.`));
+      console.log(`Project: ${manifest.projectPath}`);
+      console.log(`Next: hamma memory sync`);
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("list")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable memory list")
+  .description("List named project memories")
+  .action(async (options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const memories = await listMemories(projectPath);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify({ schemaVersion: 1, projectPath, memories }, null, 2)}\n`);
+        return;
+      }
+      process.stdout.write(`${formatMemoryList(memories)}\n`);
+    } catch (err: any) {
+      return fail("HISTORY_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("show")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print machine-readable memory state")
+  .description("Show latest state, drift, and readiness for a project memory")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const inspection = await inspectMemory(projectPath, name);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(inspection, null, 2)}\n`);
+        return;
+      }
+      process.stdout.write(`${formatMemoryInspection(inspection)}\n`);
+    } catch (err: any) {
+      return fail("HISTORY_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("sync")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .option("--source <target>", "Exact source session, for example codex:current or claude:<id>")
+  .option("--hook-agent <agent>", "Read a native hook event from stdin: codex | claude | grok")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable sync result")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Create an immutable memory revision from a project session")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      let source = options.source as string | undefined;
+      if (options.hookAgent) {
+        const agent = parseContinuationAgent(options.hookAgent);
+        const event = await readJsonStdin();
+        const sessionId = event.session_id ?? event.sessionId;
+        if (typeof sessionId !== "string" || !sessionId.trim()) {
+          throw new Error("Hook event did not provide a session identifier.");
+        }
+        source = `${agent}:${sessionId}`;
+      }
+      const result = await syncMemory(projectPath, name, {
+        source,
+        useGitignore: options.gitignore,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      if (options.hookAgent) return;
+      console.log(pc.bold(`Project memory: ${result.memory}`));
+      console.log(result.updated ? pc.green(`Revision created: ${result.revision?.id}`) : pc.yellow("No new revision created."));
+      if (result.reason) console.log(`Reason: ${result.reason}`);
+      for (const line of result.selection.explanation) console.log(`- ${line}`);
+      if (result.warnings.length > 0) {
+        console.log("Warnings:");
+        for (const warning of result.warnings) console.log(`- ${warning}`);
+      }
+    } catch (err: any) {
+      if (
+        options.hookAgent &&
+        String(err.message).includes("No active project memory")
+      ) {
+        if (options.json) {
+          process.stdout.write(`${JSON.stringify({ schemaVersion: 1, updated: false, skipped: true, reason: err.message }, null, 2)}\n`);
+        }
+        return;
+      }
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("resume")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .requiredOption("--to <agent>", "Target CLI: codex | claude | grok")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable resume contract")
+  .description("Create an exact continuation command for a named memory")
+  .action(async (name, options) => {
+    try {
+      const targetCli = parseContinuationAgent(options.to);
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await resumeMemory(projectPath, name, targetCli);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.bold(`Resume project memory '${result.memory}' in ${result.targetCli}`));
+      console.log(`Readiness: ${result.readiness.level}`);
+      console.log(`Repository drift: ${result.drift.detected ? result.drift.categories.join(", ") : "none"}`);
+      console.log("");
+      console.log(result.suggestedCommand);
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
     }
   });
 

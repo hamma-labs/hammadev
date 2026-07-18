@@ -134,7 +134,7 @@ function firstParagraph(text: string, max: number): string {
   return truncate(block, max);
 }
 
-function computeRepoState(projectPath?: string): HammaRepoState {
+export function computeRepoState(projectPath?: string): HammaRepoState {
   const warnings: string[] = [];
   if (!projectPath) {
     warnings.push("No project path available in session metadata.");
@@ -169,7 +169,7 @@ function computeRepoState(projectPath?: string): HammaRepoState {
   return { gitStatusShort, gitDiffStat, warnings };
 }
 
-async function ensureGitignore(projectPath: string): Promise<void> {
+export async function ensureGitignore(projectPath: string): Promise<void> {
   const gitignorePath = path.join(projectPath, ".gitignore");
   const entry = "\n# Hamma local agent handoff artifacts\n.hamma/\n";
 
@@ -659,7 +659,7 @@ function toCompactState(state: HammaTaskState): HammaTaskState {
   };
 }
 
-function renderHandoffWithSizeGuard(state: HammaTaskState): string {
+export function renderHandoffWithSizeGuard(state: HammaTaskState): string {
   let md = renderHandoffMarkdown(state, { compact: false });
   if (Buffer.byteLength(md, "utf8") <= HANDOFF_TARGET_BYTES) return md;
 
@@ -674,6 +674,20 @@ function renderHandoffWithSizeGuard(state: HammaTaskState): string {
   if (buf.byteLength <= cap) return md;
   const truncated = buf.slice(0, cap).toString("utf8");
   return truncated + "\n\n> Content truncated to respect handoff size limit. See timeline.md and state.json for the full picture.\n";
+}
+
+export function renderToolHistoryJsonl(session: HammaSession): string {
+  return session.shellCommands
+    .map((cmd) =>
+      JSON.stringify({
+        timestamp: cmd.startedAt,
+        type: "shell_command",
+        command: cmd.command,
+        output: cmd.output,
+        exitCode: cmd.exitCode,
+      })
+    )
+    .join("\n");
 }
 
 export interface HandoffResult {
@@ -799,17 +813,7 @@ export async function createHandoff(
     // Consuming agents should load this as previous tool history / cache
     await fs.writeFile(
       path.join(tempDir, "tool_history.jsonl"),
-      session.shellCommands
-        .map((cmd) =>
-          JSON.stringify({
-            timestamp: cmd.startedAt,
-            type: "shell_command",
-            command: cmd.command,
-            output: cmd.output,
-            exitCode: cmd.exitCode,
-          })
-        )
-        .join("\n"),
+      renderToolHistoryJsonl(session),
       "utf8"
     );
 
