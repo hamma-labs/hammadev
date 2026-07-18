@@ -1,8 +1,8 @@
 import { ArrowRight } from 'lucide-react';
 
 const roadmapItems = [
-  ['Now', 'Richer task-ledger extraction', 'Fewer parser warnings and better deduplication.'],
-  ['Next', 'More agent adapters', 'Gemini CLI, opencode, and Antigravity.'],
+  ['Now', 'Deeper extraction evidence', 'More precise task ledgers and verification outcomes.'],
+  ['Next', 'More agent adapters', 'Broaden support only where local session formats are dependable.'],
   ['Later', 'Team continuity', 'Optional encrypted sync and shared handoff memory.'],
 ];
 

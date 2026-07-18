@@ -4,12 +4,12 @@ export default function TerminalDemo() {
   return (
     <section className="demo-section" aria-labelledby="demo-heading">
       <div className="demo-copy">
-        <div className="section-kicker light">One command, clear next step</div>
-        <h2 id="demo-heading">A handoff you can actually inspect.</h2>
-        <p>Plain Markdown and JSON. No opaque sync layer, no account, no new dashboard to maintain.</p>
+        <div className="section-kicker light">Named memory, clear next step</div>
+        <h2 id="demo-heading">One project thread. Any supported agent.</h2>
+        <p>Resume a trusted project memory with plain Markdown and JSON—no opaque sync layer or hosted dashboard.</p>
         <div className="demo-stat">
-          <strong>~15 KB</strong>
-          <span>target size for a focused handoff brief</span>
+          <strong>READY</strong>
+          <span>explainable readiness from evidence and live Git state</span>
         </div>
       </div>
 
@@ -20,17 +20,17 @@ export default function TerminalDemo() {
           <Copy size={14} />
         </div>
         <div className="terminal-body">
-          <div className="terminal-command"><span>$</span><code>hamma handoff codex:last --to claude</code></div>
-          <div className="terminal-log muted">Reading latest Codex session…</div>
-          <div className="terminal-log"><CheckCircle2 size={14} /> Session matched to ~/project</div>
-          <div className="terminal-log"><CheckCircle2 size={14} /> Secrets redacted (best-effort)</div>
+          <div className="terminal-command"><span>$</span><code>hamma memory resume build-week --to claude</code></div>
+          <div className="terminal-log muted">Loading memory:build-week…</div>
+          <div className="terminal-log"><CheckCircle2 size={14} /> Repository drift: none detected</div>
+          <div className="terminal-log"><CheckCircle2 size={14} /> Handoff readiness: READY</div>
           <div className="terminal-result">
-            <span>Created handoff</span>
-            <strong>.hamma/tasks/…-codex-to-claude/</strong>
+            <span>Latest trusted revision</span>
+            <strong>.hamma/memories/build-week/revisions/…/</strong>
           </div>
           <div className="terminal-next">
             <CornerDownRight size={15} />
-            <div><span>Next</span><code>claude “Read handoff.md and continue.”</code></div>
+            <div><span>Next</span><code>claude “Read handoff.md, reconcile the repository, and continue.”</code></div>
           </div>
           <span className="terminal-cursor" aria-hidden="true" />
         </div>

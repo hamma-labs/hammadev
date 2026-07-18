@@ -4,17 +4,17 @@ const steps = [
   {
     icon: ScanText,
     title: 'Read local agent sessions',
-    copy: 'Hamma discovers the latest relevant Codex or Claude Code session without modifying its source files.',
+    copy: 'Hamma discovers the strongest project-related Codex, Claude Code, or Grok session without modifying its source files.',
   },
   {
     icon: FileCheck2,
     title: 'Create clean task memory',
-    copy: 'It extracts the goal, current repo state, completed work, next actions, verification, and known risks.',
+    copy: 'It reconstructs the goal, completed work, evidence, Git state, next action, and known risks.',
   },
   {
     icon: Bot,
     title: 'Continue in another agent',
-    copy: 'The target agent reads a compact handoff and continues from the recorded next action.',
+    copy: 'The target agent gets a compact handoff, drift warning, readiness assessment, and exact resume command.',
   },
 ];
 

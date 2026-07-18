@@ -16,11 +16,13 @@ test('presents the current product and supported agents accurately', async ({ pa
     }),
   ).toBeVisible();
 
-  await expect(page.getByText('Codex ↔ Claude', { exact: true })).toBeVisible();
+  await expect(page.getByText('Codex · Claude · Grok', { exact: true })).toBeVisible();
   await expect(page.getByText('hamma quickstart', { exact: true }).first()).toBeVisible();
   await expect(
-    page.getByText('hamma handoff codex:last --to claude', { exact: true }),
+    page.getByText('hamma memory resume build-week --to claude', { exact: true }),
   ).toBeVisible();
+  await expect(page.getByText('v0.1 alpha.4', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Handoff readiness: READY', { exact: true })).toBeVisible();
 
   await expect(page.getByText(/hamma save/i)).toHaveCount(0);
   await expect(page.getByText(/hamma load/i)).toHaveCount(0);

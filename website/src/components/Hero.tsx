@@ -9,7 +9,8 @@ export default function Hero() {
           Switch AI coding agents <span>without losing context.</span>
         </h1>
         <p>
-          HammaDev turns local Codex and Claude Code sessions into compact, structured task memory—so the next agent starts where the last one stopped.
+          HammaDev turns local Codex, Claude Code, and Grok sessions into compact,
+          evidence-backed project memory—so the next agent starts where the last one stopped.
         </p>
 
         <div className="hero-actions">
@@ -37,7 +38,7 @@ export default function Hero() {
         <div className="hero-proof">
           <span><ShieldCheck size={15} /> Local-only</span>
           <span><Check size={15} /> No account</span>
-          <span className="agent-pill">Codex ↔ Claude</span>
+          <span className="agent-pill">Codex · Claude · Grok</span>
         </div>
       </div>
 
@@ -51,14 +52,14 @@ export default function Hero() {
         </div>
         <div className="transfer-path" aria-hidden="true"><span className="transfer-dot" /></div>
         <div className="handoff-card">
-          <div className="handoff-topline"><FileText size={16} /> handoff.md <span>12.4 KB</span></div>
+          <div className="handoff-topline"><FileText size={16} /> memory:build-week <span>READY</span></div>
           <div className="document-lines">
             <span className="w-2/3" /><span className="w-full" /><span className="w-5/6" />
           </div>
-          <div className="task-row"><Check size={14} /> Current state captured</div>
-          <div className="task-row"><Check size={14} /> Next action recorded</div>
+          <div className="task-row"><Check size={14} /> Evidence-backed state</div>
+          <div className="task-row"><Check size={14} /> Repository reconciled</div>
           <div className="artifact-stack">
-            <span>state.json</span><span>timeline.md</span><span>+3</span>
+            <span>handoff.md</span><span>state.json</span><span>history</span>
           </div>
         </div>
         <div className="agent-card claude-card">

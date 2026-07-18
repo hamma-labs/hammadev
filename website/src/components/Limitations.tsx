@@ -1,9 +1,10 @@
 import { AlertTriangle } from 'lucide-react';
 
 const limitations = [
-  'Codex and Claude Code only',
-  'Claude parser is conservative',
-  'Local machine scope',
+  'Three source adapters today',
+  'Conservative, heuristic extraction',
+  'Explicit memory sync without a trusted hook',
+  'Local-machine scope',
   'Best-effort secret redaction',
 ];
 

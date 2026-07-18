@@ -1,36 +1,36 @@
-import { ArrowUpRight, BadgeCheck, FolderArchive, ScanSearch, Sparkles } from 'lucide-react';
+import { ArrowUpRight, BadgeCheck, GitCompareArrows, History, Sparkles } from 'lucide-react';
 
 const updates = [
   {
+    icon: History,
+    label: 'Named project memory',
+    title: 'Sessions change. The project thread persists.',
+    copy: 'Create a stable name once, then append immutable revisions as work moves between supported coding agents.',
+    command: 'hamma memory start build-week',
+  },
+  {
+    icon: GitCompareArrows,
+    label: 'Repository awareness',
+    title: 'Detect drift before another agent edits.',
+    copy: 'Recorded Git metadata and relevant-file digests expose branch, HEAD, working-tree, and task-file differences.',
+    command: 'hamma show latest --check-drift',
+  },
+  {
     icon: BadgeCheck,
-    label: 'Agent skill',
-    title: 'Ask Codex to continue from Claude',
-    copy: 'Install the bundled handoff skill once, then use natural language to select, validate, and resume the right project session.',
-    command: 'hamma skill install',
-  },
-  {
-    icon: ScanSearch,
-    label: 'Smarter selection',
-    title: 'Project-scoped session matching',
-    copy: 'Hamma ranks Claude sessions by resumability and skips trivial or failed sessions before creating a handoff.',
-    command: 'claude:project → codex',
-  },
-  {
-    icon: FolderArchive,
-    label: 'Better memory',
-    title: 'Six focused local artifacts',
-    copy: 'Every handoff includes a concise brief, structured state, timeline, command summary, session archive, and redaction report.',
-    command: '.hamma/tasks/<handoff>/',
+    label: 'Explainable readiness',
+    title: 'Know when a handoff needs review.',
+    copy: 'Observable evidence, verification outcomes, task clarity, and repository consistency produce signals—not false certainty.',
+    command: 'hamma show latest --readiness',
   },
 ];
 
 export default function Updates() {
   return (
     <section id="updates" className="section-shell" aria-labelledby="updates-heading">
-      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.3</div>
+      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.4</div>
       <div className="section-heading-row">
-        <h2 id="updates-heading" className="section-title">The handoff layer is getting smarter.</h2>
-        <p>Recent releases move beyond file conversion into reliable project-aware continuation.</p>
+        <h2 id="updates-heading" className="section-title">Continuity you can inspect and trust.</h2>
+        <p>Alpha.4 turns one-off handoffs into durable, Git-aware project memory with explainable readiness.</p>
       </div>
       <div className="update-list">
         {updates.map(({ icon: Icon, label, title, copy, command }, index) => (

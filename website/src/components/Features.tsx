@@ -1,12 +1,12 @@
-import { FileClock, Fingerprint, History, Network, ShieldCheck, TerminalSquare } from 'lucide-react';
+import { BadgeCheck, FileClock, Fingerprint, GitCompareArrows, History, Network } from 'lucide-react';
 
 const features = [
-  { icon: Network, title: 'Two-way handoffs', desc: 'Move live work from Codex to Claude Code—or back again.', tone: 'violet', size: 'wide' },
-  { icon: Fingerprint, title: 'Project-aware', desc: 'Matches resumable sessions to the repository you are actually in.', tone: 'coral', size: '' },
-  { icon: FileClock, title: 'Focused memory', desc: 'Captures decisions and next actions without forcing the next agent through a raw transcript.', tone: 'blue', size: '' },
-  { icon: TerminalSquare, title: 'CLI-native', desc: 'Fits the terminal workflow you already use. No web account or hosted workspace.', tone: 'ink', size: '' },
-  { icon: ShieldCheck, title: 'Local by default', desc: 'Reads local sessions, writes local artifacts, and makes no network calls.', tone: 'green', size: 'wide' },
-  { icon: History, title: 'Inspectable history', desc: 'Review previous handoffs with status, log, and show.', tone: 'amber', size: '' },
+  { icon: Network, title: 'Cross-agent continuation', desc: 'Move live work among Codex, Claude Code, and Grok with one project-aware workflow.', tone: 'violet', size: 'wide' },
+  { icon: Fingerprint, title: 'Named project memory', desc: 'Keep one stable development thread across many underlying agent sessions.', tone: 'coral', size: '' },
+  { icon: FileClock, title: 'Evidence-backed state', desc: 'Separate agent claims from commands, repository signals, tools, and user confirmation.', tone: 'blue', size: '' },
+  { icon: GitCompareArrows, title: 'Git drift detection', desc: 'Compare the handoff snapshot with the live branch, HEAD, working tree, and relevant files.', tone: 'ink', size: '' },
+  { icon: BadgeCheck, title: 'Readiness assessment', desc: 'Surface strong signals, warnings, and blockers before the receiving agent continues.', tone: 'green', size: 'wide' },
+  { icon: History, title: 'Inspectable history', desc: 'Review immutable memory revisions and local handoffs without uploading a transcript.', tone: 'amber', size: '' },
 ];
 
 export default function Features() {

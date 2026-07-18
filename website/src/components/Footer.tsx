@@ -23,7 +23,7 @@ export default function Footer() {
           <a href="https://github.com/xayrullonematov/hammadev#readme" target="_blank" rel="noopener noreferrer">Docs <ArrowUpRight size={14} /></a>
         </nav>
       </div>
-      <div className="footer-meta"><span>HammaDev v0.1 alpha.3</span><span>ISC License</span><span>Built for Codex ↔ Claude Code</span></div>
+      <div className="footer-meta"><span>HammaDev v0.1 alpha.4</span><span>ISC License</span><span>Codex · Claude Code · Grok</span></div>
     </footer>
   );
 }
