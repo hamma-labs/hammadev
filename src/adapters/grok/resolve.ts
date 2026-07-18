@@ -3,6 +3,12 @@ import path from "node:path";
 import { discoverGrokSessions, GrokSessionRef } from "./discover.js";
 import { filterSessionsByProject } from "../../core/project-match.js";
 import { defaultGrokHome } from "./paths.js";
+import { parseGrokSession } from "./parse.js";
+import {
+  rankSessions,
+  SessionCandidate,
+  SessionRef,
+} from "../../core/quality.js";
 
 export interface ResolveGrokOptions {
   grokHome?: string;
@@ -10,6 +16,25 @@ export interface ResolveGrokOptions {
 }
 
 const GROK_PREFIX = "grok:";
+
+function toSessionRef(session: GrokSessionRef): SessionRef {
+  return {
+    sourceCli: "grok",
+    sessionId: session.sessionId,
+    path: session.sessionDir,
+    projectPathHint: session.projectPathHint,
+    lastUpdatedAt: session.lastUpdatedAt,
+    sizeBytes: session.sizeBytes,
+  };
+}
+
+async function rankGrokSessions(
+  sessions: GrokSessionRef[]
+): Promise<SessionCandidate[]> {
+  return rankSessions(sessions.map(toSessionRef), (reference) =>
+    parseGrokSession(reference.path)
+  );
+}
 
 export async function resolveGrokTarget(
   target: string,
@@ -44,8 +69,22 @@ export async function resolveGrokTarget(
     if (matches.length === 0) {
       throw new Error(`No Grok session found for project '${options.projectPath}'.`);
     }
-    // matches are sorted newest first by discover
-    return matches[0].sessionId;
+    if (rest === "current") return matches[0].sessionId;
+
+    const eligible = rest === "previous" ? matches.slice(1) : matches;
+    if (eligible.length === 0) {
+      throw new Error(
+        `No previous Grok session found for project '${options.projectPath}' (only the current session exists).`
+      );
+    }
+    const candidates = await rankGrokSessions(eligible);
+    const selected = candidates.find((candidate) => candidate.resumable);
+    if (!selected?.sessionId) {
+      throw new Error(
+        `No resumable Grok session found for project '${options.projectPath}'.`
+      );
+    }
+    return selected.sessionId;
   }
 
   // direct id (exact or prefix match)
@@ -61,11 +100,14 @@ export async function resolveGrokTarget(
 export async function listGrokProjectCandidates(
   projectPath: string,
   grokHome?: string
-): Promise<{ projectPath: string; candidates: GrokSessionRef[] }> {
+): Promise<{ projectPath: string; candidates: SessionCandidate[] }> {
   const sessions = await discoverGrokSessions(grokHome);
   const { requestedProject, matches } = await filterSessionsByProject(
     sessions,
     projectPath
   );
-  return { projectPath: requestedProject, candidates: matches };
+  return {
+    projectPath: requestedProject,
+    candidates: await rankGrokSessions(matches),
+  };
 }

@@ -18,6 +18,11 @@ import { loadSession, resolveSessionTarget } from "./session-loader.js";
 import { runQuickstart } from "./core/quickstart.js";
 import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
 import { AsyncStructuredLogger } from "./core/logger.js";
+import {
+  decideContinuation,
+  loadContinuationSession,
+  parseContinuationAgent,
+} from "./continuation.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -413,6 +418,67 @@ program
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       }
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+program
+  .command("continue")
+  .requiredOption("--to <agent>", "Target CLI (codex | claude | grok)")
+  .option("--project <path>", "Project whose sessions should be considered")
+  .option("--dry-run", "Explain the selection without creating a handoff")
+  .option("--explain", "Show the ranked selection decision without creating a handoff")
+  .option("--include-target-source", "Allow sessions from the destination agent")
+  .option("--json", "Print only a machine-readable decision/result")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Select the best cross-agent project session and create a continuation handoff")
+  .action(async (options) => {
+    try {
+      const targetCli = parseContinuationAgent(options.to);
+      const projectPath = path.resolve(options.project ?? process.cwd());
+      const decision = await decideContinuation(projectPath, targetCli, {
+        includeTargetSource: Boolean(options.includeTargetSource),
+      });
+      const dryRun = Boolean(options.dryRun || options.explain);
+
+      if (dryRun) {
+        if (options.json) {
+          process.stdout.write(`${JSON.stringify(decision, null, 2)}\n`);
+          return;
+        }
+        console.log(pc.bold("Continuation selection (dry run)"));
+        console.log(`Project: ${decision.projectPath}`);
+        console.log(`Target: ${decision.targetCli}`);
+        console.log(
+          `Selected: ${decision.selected.sourceCli}:${decision.selected.sessionId ?? "unknown"}`
+        );
+        console.log(
+          `Confidence: ${decision.selected.confidence}  Score: ${decision.selected.score}`
+        );
+        for (const line of decision.explanation) console.log(`- ${line}`);
+        console.log("");
+        console.log(pc.dim("No handoff was created."));
+        return;
+      }
+
+      const session = await loadContinuationSession(decision.selected);
+      session.meta.projectPath = decision.projectPath;
+      const handoff = await createHandoff(
+        session,
+        targetCli,
+        options.gitignore,
+        { quiet: Boolean(options.json) }
+      );
+      if (options.json) {
+        process.stdout.write(
+          `${JSON.stringify({ schemaVersion: 1, selection: decision, handoff }, null, 2)}\n`
+        );
+        return;
+      }
+      console.log("");
+      console.log(pc.bold("Why this session:"));
+      for (const line of decision.explanation) console.log(`- ${line}`);
     } catch (err: any) {
       return fail("HANDOFF_ERROR", err);
     }
