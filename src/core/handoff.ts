@@ -263,6 +263,7 @@ export function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRender
     current,
     tasks,
     verification,
+    evidence = [],
     risks,
     repoState,
     filesMentioned = [],
@@ -353,6 +354,20 @@ export function renderHandoffMarkdown(state: HammaTaskState, opts: HandoffRender
     ? verificationList.map((v) => `- ${v}`).join("\n")
     : "(no explicit verification signals extracted)";
   sections.push(`## Verification\n${verificationBlock}`);
+
+  const evidenceCounts = new Map<string, number>();
+  for (const item of evidence) {
+    evidenceCounts.set(item.source, (evidenceCounts.get(item.source) ?? 0) + 1);
+  }
+  const evidenceSummary = evidenceCounts.size > 0
+    ? Array.from(evidenceCounts.entries())
+        .map(([source, count]) => `- ${source.replace(/_/g, " ")}: ${count}`)
+        .join("\n")
+    : "(no provenance-tagged evidence extracted)";
+  sections.push(
+    `## Evidence provenance\n${evidenceSummary}\n\n` +
+    `Claims are not equivalent to command, repository, tool, or user-confirmed evidence.`
+  );
 
   // Use normalized filesMentioned from state (normalized at source in extractTaskState);
   // slice only for compact to respect size guards. No duplicate filter here.
@@ -619,6 +634,7 @@ function toCompactState(state: HammaTaskState): HammaTaskState {
     ...state,
     tasks: state.tasks.map(trimTask),
     verification: state.verification.slice(0, 6),
+    evidence: state.evidence.slice(0, 20),
     risks: state.risks.slice(0, 6),
     filesMentioned: state.filesMentioned.slice(0, 10),
   };
@@ -696,6 +712,7 @@ export async function createHandoff(
   }
 
   const repoState = computeRepoState(projectPath);
+  repoState.snapshot = captureGitRepositorySnapshot(projectPath);
   const state = extractTaskState(session, { targetCli, repoState });
   repoState.snapshot = captureGitRepositorySnapshot(
     projectPath,

@@ -43,6 +43,17 @@ users still had to know whether to run `claude:project`, `codex:project`, or
   commit, switch branches, or edit task-relevant files before the receiving
   agent loads it. The live repository remains authoritative.
 
+### Day 1 — evidence provenance
+
+- Added additive provenance-tagged evidence to `state.json`, distinguishing
+  source-agent claims, verification commands, repository snapshots, other tool
+  observations, and narrow user confirmations.
+- Explicit command exit codes produce passed/failed evidence. Commands without
+  an outcome remain observed, and assistant prose is never promoted above
+  claimed evidence.
+- Added a compact provenance summary to `handoff.md` while retaining the
+  existing verification strings for schema-v1 consumers.
+
 ## Architectural decisions
 
 - Reuse `scoreSession` and `rankCandidates`; do not introduce a competing
@@ -65,6 +76,8 @@ users still had to know whether to run `claude:project`, `codex:project`, or
   and focused unit/CLI tests.
 - Git snapshot data model, deterministic comparison, drift rendering, tolerant
   old-handoff reads, synthetic Git repositories, and CLI integration tests.
+- Evidence taxonomy, conservative command-outcome extraction, repository/tool/
+  user evidence handling, compatibility-preserving rendering, and focused tests.
 
 ## Verification log
 
@@ -78,6 +91,9 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - Git snapshot milestone: targeted drift tests passed (32 tests across 4 files),
   full typecheck passed, the full suite passed (210 tests across 33 files), build
   passed, compiled CLI smoke passed, and `git diff --check` passed.
+- Evidence provenance milestone: 31 targeted tests across 3 files passed, full
+  typecheck passed, the full suite passed (215 tests across 34 files), build and
+  compiled CLI smoke passed, and `git diff --check` passed.
 - `graphify update .` was attempted after the code change, but the `graphify`
   executable is not installed in this environment and no graph output exists.
 

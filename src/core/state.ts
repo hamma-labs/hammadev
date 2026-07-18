@@ -27,6 +27,30 @@ export interface HammaRepoState {
   warnings: string[];
 }
 
+export type HammaEvidenceSource =
+  | "agent_claim"
+  | "command"
+  | "repository"
+  | "tool"
+  | "user_confirmation";
+
+export type HammaEvidenceStatus =
+  | "claimed"
+  | "observed"
+  | "passed"
+  | "failed"
+  | "confirmed";
+
+export interface HammaEvidenceItem {
+  source: HammaEvidenceSource;
+  kind: string;
+  status: HammaEvidenceStatus;
+  summary: string;
+  command?: string;
+  exitCode?: number;
+  timestamp?: string;
+}
+
 export interface HammaTaskState {
   schemaVersion: typeof HANDOFF_SCHEMA_VERSION;
   outcome: HammaHandoffOutcome;
@@ -48,6 +72,7 @@ export interface HammaTaskState {
   };
   tasks: HammaTaskLedgerItem[];
   verification: string[];
+  evidence: HammaEvidenceItem[];
   risks: string[];
   filesMentioned: string[];
   repoState: HammaRepoState;
@@ -150,6 +175,69 @@ const RISK_NEGATION_SIGNALS: RegExp[] = [
   /\bnow (?:fixed|resolved|cleared|clean)\b/i,
   /added [^\n]*?(?:test|regression|coverage)/i,
 ];
+
+const USER_CONFIRMATION =
+  /^(?:approved|confirmed|looks good|works for me|that works|this works|tests pass(?:ed)?|verified)(?:[.!\s].*)?$/i;
+
+interface CommandClassification {
+  kind: string;
+  verification: boolean;
+}
+
+function classifyEvidenceCommand(command: string): CommandClassification {
+  const normalized = command.toLowerCase();
+  if (
+    /\b(?:vitest|pytest|jest|cargo\s+test|go\s+test)\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?test\b/.test(
+      normalized
+    )
+  ) {
+    return { kind: "tests", verification: true };
+  }
+  if (/\btypecheck\b|\btsc\b(?:\s+--noemit)?/.test(normalized)) {
+    return { kind: "typecheck", verification: true };
+  }
+  if (
+    /\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?build\b|\bcargo\s+build\b/.test(
+      normalized
+    )
+  ) {
+    return { kind: "build", verification: true };
+  }
+  if (
+    /\b(?:eslint|biome|ruff|clippy)\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?lint\b/.test(
+      normalized
+    )
+  ) {
+    return { kind: "lint", verification: true };
+  }
+  return { kind: "tool_execution", verification: false };
+}
+
+function commandExitCode(
+  exitCode: number | undefined,
+  output: string | undefined
+): number | undefined {
+  if (typeof exitCode === "number") return exitCode;
+  if (!output) return undefined;
+  const match = output.match(
+    /(?:"exit_code"\s*:\s*|\bexit code\s+|\bprocess exited with code\s+)(-?\d+)/i
+  );
+  return match ? Number(match[1]) : undefined;
+}
+
+function evidenceKey(item: HammaEvidenceItem): string {
+  return `${item.source}\0${item.kind}\0${item.status}\0${item.summary}`;
+}
+
+function dedupEvidence(items: HammaEvidenceItem[]): HammaEvidenceItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = evidenceKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 export function isImportantUserMessage(content: string): boolean {
   return IMPORTANT_USER_WORDS.test(content);
@@ -400,6 +488,7 @@ export function extractTaskState(
 
   const riskRaw: string[] = [];
   const fileSet = new Set<string>();
+  const evidenceRaw: HammaEvidenceItem[] = [];
 
   // title candidate accumulation inside the single pass (eliminates full post-pass buildTitleRegistry content re-scan)
   const titleCandidates = new Map<string, TitleCandidate[]>();
@@ -431,6 +520,15 @@ export function extractTaskState(
       users.push(msg);
       if (isImportantUserMessage(msg.content)) {
         importantUsers.push(msg);
+      }
+      if (USER_CONFIRMATION.test(msg.content.trim())) {
+        evidenceRaw.push({
+          source: "user_confirmation",
+          kind: "task_status",
+          status: "confirmed",
+          summary: truncate(msg.content, 200),
+          timestamp: msg.timestamp,
+        });
       }
       const trimmed = msg.content.trim();
       if ((isImportantUserMessage(msg.content) && trimmed.length >= 20) || trimmed.length > 60) {
@@ -503,6 +601,13 @@ export function extractTaskState(
           const cat = VERIFICATION_CATEGORIES[i];
           if (cat.patterns.some((p) => p.test(line))) {
             buckets[i].count += 1;
+            evidenceRaw.push({
+              source: "agent_claim",
+              kind: cat.name.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+              status: "claimed",
+              summary: truncate(line, 220),
+              timestamp: msg.timestamp,
+            });
             if (cat.name === "Tests") {
               const nm = line.match(/(\d+)\/(\d+)/);
               if (nm) buckets[i].lastNumericSample = `${nm[1]}/${nm[2]}`;
@@ -519,6 +624,37 @@ export function extractTaskState(
         }
       }
     }
+  }
+
+  for (const shell of session.shellCommands.slice(-20)) {
+    const classification = classifyEvidenceCommand(shell.command);
+    const exitCode = commandExitCode(shell.exitCode, shell.output);
+    const status: HammaEvidenceStatus =
+      exitCode === undefined ? "observed" : exitCode === 0 ? "passed" : "failed";
+    evidenceRaw.push({
+      source: classification.verification ? "command" : "tool",
+      kind: classification.kind,
+      status,
+      summary: classification.verification
+        ? `${classification.kind} command ${status}`
+        : `Tool command ${status}`,
+      command: truncate(shell.command, 200),
+      exitCode,
+      timestamp: shell.endedAt ?? shell.startedAt,
+    });
+  }
+
+  if (repoState.snapshot?.available) {
+    const snapshot = repoState.snapshot;
+    evidenceRaw.push({
+      source: "repository",
+      kind: "git_snapshot",
+      status: "observed",
+      summary:
+        `Git ${snapshot.head?.slice(0, 12) ?? "unborn"} on ` +
+        `${snapshot.detachedHead ? "detached HEAD" : snapshot.branch ?? "unknown branch"}; ` +
+        `${snapshot.changedFiles.length} changed file entr${snapshot.changedFiles.length === 1 ? "y" : "ies"}.`,
+    });
   }
 
   if (!latestStatusAssistant && assistants.length > 0) {
@@ -590,10 +726,20 @@ export function extractTaskState(
   for (const b of buckets) {
     if (b.count === 0) continue;
     if (b.name === "Tests" && b.lastNumericSample) {
-      verification.push(`Tests: ${b.lastNumericSample} pass (${b.count} confirmation${b.count === 1 ? "" : "s"})`);
+      verification.push(`Tests: ${b.lastNumericSample} pass (${b.count} agent claim${b.count === 1 ? "" : "s"})`);
     } else {
-      verification.push(`${b.name}: ${b.verb} (${b.count} confirmation${b.count === 1 ? "" : "s"})`);
+      verification.push(`${b.name}: ${b.verb} (${b.count} agent claim${b.count === 1 ? "" : "s"})`);
     }
+  }
+  const evidence = dedupEvidence(evidenceRaw);
+  for (const item of evidence) {
+    if (item.source !== "command") continue;
+    const outcome = item.exitCode === undefined
+      ? "outcome not recorded"
+      : `exit ${item.exitCode}`;
+    verification.push(
+      `${item.kind}: command ${item.status} (${outcome})`
+    );
   }
 
   const risksAgg = dedupRisks(riskRaw);
@@ -672,6 +818,7 @@ export function extractTaskState(
     },
     tasks,
     verification,
+    evidence,
     risks: risksAgg,
     filesMentioned: filesAgg,
     repoState,
