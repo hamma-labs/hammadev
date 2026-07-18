@@ -54,6 +54,27 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - Added a compact provenance summary to `handoff.md` while retaining the
   existing verification strings for schema-v1 consumers.
 
+### Day 2 — explainable handoff readiness
+
+- Added deterministic readiness levels: `ready`, `review_recommended`, and
+  `not_ready`. No numeric score is used because the available signals support
+  categorical safety decisions more honestly than probability-like precision.
+- Readiness evaluates actionability, evidence quality, verification outcomes,
+  repository snapshot and live drift, risk/blocker clarity, and context
+  completeness. Failed verification, blocked work, and ambiguous or missing
+  continuation state are critical overrides.
+- Added `hamma show <task-id> --readiness [--json]`. New handoff results and
+  `state.json` also include an additive readiness-at-creation result; live
+  `show` assessments are recomputed against the current repository.
+- Evidence provenance made readiness possible: assistant claims can now be
+  treated differently from passed commands, repository observations, tool
+  evidence, and user confirmation.
+
+Readiness is a deterministic heuristic to help a developer decide whether to
+continue or review a handoff. It is not a probability, a guarantee of agent
+success, or a substitute for inspecting the repository. Older handoffs without
+provenance or snapshots are assessed conservatively rather than rejected.
+
 ## Architectural decisions
 
 - Reuse `scoreSession` and `rankCandidates`; do not introduce a competing
@@ -67,6 +88,9 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - Build the fingerprint from safe, sorted Git metadata and file digests. It is
   a deterministic comparison aid, not cryptographic proof of repository
   identity or history.
+- Allow readiness blockers to override otherwise strong signals. Repository
+  drift produces explainable review warnings instead of being hidden inside a
+  combined score.
 
 ## Codex contributions
 
@@ -78,6 +102,8 @@ users still had to know whether to run `claude:project`, `codex:project`, or
   old-handoff reads, synthetic Git repositories, and CLI integration tests.
 - Evidence taxonomy, conservative command-outcome extraction, repository/tool/
   user evidence handling, compatibility-preserving rendering, and focused tests.
+- Readiness dimensions, categorical override rules, live drift integration,
+  old-handoff tolerance, stable JSON output, and deterministic test coverage.
 
 ## Verification log
 
@@ -94,6 +120,9 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - Evidence provenance milestone: 31 targeted tests across 3 files passed, full
   typecheck passed, the full suite passed (215 tests across 34 files), build and
   compiled CLI smoke passed, and `git diff --check` passed.
+- Readiness milestone: 44 targeted tests across 4 files passed, full typecheck
+  passed, the full suite passed (232 tests across 35 files), build and compiled
+  CLI smoke passed, and `git diff --check` passed.
 - `graphify update .` was attempted after the code change, but the `graphify`
   executable is not installed in this environment and no graph output exists.
 
@@ -102,6 +131,7 @@ users still had to know whether to run `claude:project`, `codex:project`, or
 - `cd58f0a` — `feat: add intelligent cross-agent continuation`
 - `97b8079` — `feat: detect repository drift in handoffs`
 - `bf62f75` — `feat: add evidence provenance to handoffs`
+- `2364711` — `feat: assess handoff readiness`
 
 ## Demo flow (target)
 
@@ -111,6 +141,8 @@ hamma continue --to codex --explain
 hamma continue --to codex
 hamma show latest --check-drift
 hamma show latest --check-drift --json
+hamma show latest --readiness
+hamma show latest --check-drift --readiness --json
 ```
 
 The first command should show the winning source session and selection signals
