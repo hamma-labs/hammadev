@@ -80,13 +80,18 @@ provenance or snapshots are assessed conservatively rather than rejected.
 - Added `hamma benchmark <task-id|latest> [--json]` to compare normalized
   source-session content with the exact artifact bytes the receiving-agent
   contract asks an agent to load.
-- Defined **effective continuation context** as `handoff.md`, `state.json`, and
-  `tool_history.jsonl`. These are the compact brief, structured task state, and
-  high-fidelity tool cache used by the execution contract.
-- Reported `session.json`, `timeline.md`, `commands.md`, and
-  `redaction-report.md` separately as archive-only local artifacts. They remain
-  useful for inspection and debugging but are excluded from the main
-  continuation total.
+- Defined **effective continuation context** as only `handoff.md`: the bounded
+  file the receiving-agent contract asks an agent to load initially.
+- Reports `state.json` separately as optional supporting context. It is
+  available for structured inspection but is not preloaded by the default
+  continuation command.
+- Reports `session.json`, `timeline.md`, `commands.md`,
+  `redaction-report.md`, and `tool_history.jsonl` separately as archive-only
+  local artifacts. They remain useful for inspection and debugging but are
+  excluded from the initial-context total.
+- Bumped only the benchmark report schema to version 2 because moving artifacts
+  between initial, supporting, and archive categories changes the meaning of
+  its machine-readable totals. Handoff and task-state schemas remain version 1.
 - Added deterministic estimated-token metrics using `ceil(UTF-8 bytes / 4)`.
   These are explicitly cross-agent size estimates, not OpenAI, Claude, Grok, or
   any other provider's exact tokenizer result.
@@ -96,6 +101,30 @@ normalized shell command and output content. It intentionally excludes JSON
 formatting and session metadata, avoiding an artificially favorable comparison.
 If the continuation artifacts are larger than a small source session, HammaDev
 reports a negative reduction and labels the package larger.
+
+### Context-amplification correction
+
+- A real local continuation test showed that the prior execution contract
+  incorrectly required an agent to preload `tool_history.jsonl`. The observed
+  file was 8.67 MB and represented 99.74% of the instructed continuation
+  bytes; approximately 6.01 MB was embedded base64 image data. The generated
+  continuation was larger than the normalized source and the target agent
+  spent 7m 8s reconciling a task that was already complete. These are local
+  artifact and elapsed-time measurements, not claims about provider billing or
+  exact tokenizer usage.
+- Changed the default contract, suggested commands, named-memory resumes, and
+  packaged skills to load only `handoff.md` initially. `state.json` is
+  supporting context on demand, and raw tool history is never described as
+  restored native tool state or a provider cache.
+- Added a deterministic 8 KiB hard ceiling for initial continuation context,
+  with a 6 KiB target. Machine-readable handoff and memory-resume results expose
+  the measured initial-context budget.
+- Retained `tool_history.jsonl` only for backward-compatible local diagnostics.
+  New archives omit base64/data URLs and control bytes, cap commands at 1 KiB,
+  cap outputs at 2 KiB, cap the whole archive at 32 KiB, preserve the newest
+  records, and record omissions in a metadata line.
+- Quickstart now recommends `hamma continue --to <agent> --explain` so source
+  selection is inspected before a handoff is created.
 
 ### Day 3 — persistent named project memory
 
@@ -199,13 +228,21 @@ not a stable cross-agent project-thread identity.
 - Named-memory milestone: 11 focused storage, merge, hook, and end-to-end CLI
   tests passed; full typecheck passed, the full suite passed (255 tests across
   39 files), build and compiled CLI smoke passed, and `git diff --check` passed.
-- A representative synthetic generated handoff measured 187,073 bytes
-  (182.7 KiB, ~46,769 estimated tokens) of normalized source content and 51,922
-  bytes (50.7 KiB, ~12,981 estimated tokens) of effective continuation context:
-  a 72.25% byte reduction. Its 188.9 KiB `session.json`, 32.5 KiB timeline, and
-  other archive-only artifacts were reported separately and excluded. A tiny
-  safe fixture also produced a negative reduction, verifying that the benchmark
-  does not hide continuation overhead.
+- Context-amplification correction: 46 focused handoff, benchmark, memory,
+  quickstart, and state tests passed. Full typecheck passed, all 259 tests
+  across 39 files passed, build and compiled CLI smoke passed, all three
+  packaged skills validated, and `git diff --check` passed.
+- Reclassifying the captured local diagnostic case under the corrected contract
+  measures 8,576,648 bytes of normalized source content and 5,400 bytes of
+  initial continuation context: a 99.94% byte reduction. Its 17,062-byte
+  `state.json` is reported as optional supporting context, while the legacy
+  8.67 MB tool-history artifact is reported honestly as archive-only. Newly
+  generated tool-history archives cannot exceed 32 KiB. This measurement does
+  not model provider billing, prompt caching, or exact tokenization.
+- Re-rendering that session through the new archival policy produced 31,549
+  bytes, retained the newest 27 of 405 records, and contained neither data URLs
+  nor base64-like runs of 256 characters. This archive remains excluded from
+  initial continuation context.
 - `graphify update .` was attempted after the code change, but the `graphify`
   executable is not installed in this environment and no graph output exists.
 
@@ -218,6 +255,7 @@ not a stable cross-agent project-thread identity.
 - `cc3b828` — `feat: benchmark handoff context efficiency`
 - `1439b2e` — `feat: add persistent named project memory`
 - `dab3fcc` — `fix: activate named memory on resume`
+- `08dc30e` — `fix: bound continuation context`
 
 ## Demo flow (target)
 
@@ -267,6 +305,8 @@ and an immutable update history.
 - Artifact byte counts are exact on-disk sizes; token counts are estimates.
 - The estimate does not model provider-specific tokenization, system prompts,
   caching, compression, billing, latency, or model context-window behavior.
-- Repeated information across the three required artifacts is counted honestly.
+- Optional supporting and archive artifacts are reported honestly but excluded
+  from the initial-context reduction because the receiving agent is not asked
+  to preload them.
 - Older handoffs without a compatible normalized `session.json` remain readable,
   but source reductions are reported as unavailable.
