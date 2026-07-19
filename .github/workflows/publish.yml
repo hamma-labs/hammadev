@@ -1,0 +1,106 @@
+name: Publish npm package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing release tag to publish (for example v0.1.0-alpha.6)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish with npm OIDC
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node and npm registry
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Install OIDC-capable npm CLI
+        run: npm install --global npm@11.18.0
+
+      - name: Validate immutable release identity
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          version="$(node -p "require('./package.json').version")"
+          if [[ "v$version" != "$RELEASE_TAG" ]]; then
+            echo "package.json version $version does not match $RELEASE_TAG" >&2
+            exit 1
+          fi
+          tag_commit="$(git rev-list -n 1 "$RELEASE_TAG")"
+          head_commit="$(git rev-parse HEAD)"
+          if [[ "$tag_commit" != "$head_commit" ]]; then
+            echo "$RELEASE_TAG does not resolve to checked-out HEAD" >&2
+            exit 1
+          fi
+          if [[ "$version" == *-* ]]; then
+            dist_tag="alpha"
+          else
+            dist_tag="latest"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test packed artifact
+        run: pnpm smoke:package
+
+      - name: Refuse an existing registry version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "hammadev@${{ steps.release.outputs.version }}" version >/dev/null 2>&1; then
+            echo "hammadev@${{ steps.release.outputs.version }} is already published" >&2
+            exit 1
+          fi
+
+      - name: Publish to npm with trusted publishing
+        run: npm publish --access public --tag "${{ steps.release.outputs.dist_tag }}"
+
+      - name: Record release summary
+        run: |
+          echo "### npm publish" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Package: \`hammadev@${{ steps.release.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Distribution tag: \`${{ steps.release.outputs.dist_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Authentication: npm Trusted Publishing (GitHub OIDC)" >> "$GITHUB_STEP_SUMMARY"
