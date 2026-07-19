@@ -1,21 +1,21 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { HammaSession } from "./schema.js";
+import {
+  ARCHIVE_ONLY_ARTIFACTS as POLICY_ARCHIVE_ONLY_ARTIFACTS,
+  INITIAL_CONTEXT_ARTIFACTS,
+  INITIAL_CONTEXT_MAX_BYTES,
+  SUPPORTING_CONTEXT_ARTIFACTS as POLICY_SUPPORTING_CONTEXT_ARTIFACTS,
+} from "./artifact-policy.js";
 
 const BYTES_PER_ESTIMATED_TOKEN = 4;
 
-export const EFFECTIVE_CONTINUATION_ARTIFACTS = [
-  "handoff.md",
-  "state.json",
-  "tool_history.jsonl",
-] as const;
+export const EFFECTIVE_CONTINUATION_ARTIFACTS = INITIAL_CONTEXT_ARTIFACTS;
 
-export const ARCHIVE_ONLY_ARTIFACTS = [
-  "session.json",
-  "timeline.md",
-  "commands.md",
-  "redaction-report.md",
-] as const;
+export const SUPPORTING_CONTEXT_ARTIFACTS =
+  POLICY_SUPPORTING_CONTEXT_ARTIFACTS;
+
+export const ARCHIVE_ONLY_ARTIFACTS = POLICY_ARCHIVE_ONLY_ARTIFACTS;
 
 export interface BenchmarkArtifact {
   name: string;
@@ -54,10 +54,11 @@ export interface BenchmarkReductions {
 }
 
 export interface ContextEfficiencyBenchmark {
-  schemaVersion: 1;
+  schemaVersion: 2;
   taskId: string;
   source: BenchmarkSource;
   effectiveContinuation: BenchmarkArtifactGroup;
+  supportingContext: BenchmarkArtifactGroup;
   archiveOnly: BenchmarkArtifactGroup;
   reductions: BenchmarkReductions;
   estimationMethod: {
@@ -188,11 +189,13 @@ export async function benchmarkHandoff(
   taskPath: string,
   taskId = path.basename(taskPath)
 ): Promise<ContextEfficiencyBenchmark> {
-  const [source, effectiveContinuation, archiveOnly] = await Promise.all([
-    readSource(taskPath),
-    artifactGroup(taskPath, EFFECTIVE_CONTINUATION_ARTIFACTS),
-    artifactGroup(taskPath, ARCHIVE_ONLY_ARTIFACTS),
-  ]);
+  const [source, effectiveContinuation, supportingContext, archiveOnly] =
+    await Promise.all([
+      readSource(taskPath),
+      artifactGroup(taskPath, EFFECTIVE_CONTINUATION_ARTIFACTS),
+      artifactGroup(taskPath, SUPPORTING_CONTEXT_ARTIFACTS),
+      artifactGroup(taskPath, ARCHIVE_ONLY_ARTIFACTS),
+    ]);
   const warnings: string[] = [];
   if (!source.available) {
     warnings.push(
@@ -202,6 +205,16 @@ export async function benchmarkHandoff(
   if (effectiveContinuation.missingArtifacts.length > 0) {
     warnings.push(
       `Effective continuation artifacts are missing: ${effectiveContinuation.missingArtifacts.join(", ")}.`
+    );
+  }
+  if (supportingContext.missingArtifacts.length > 0) {
+    warnings.push(
+      `Optional supporting context artifacts are missing: ${supportingContext.missingArtifacts.join(", ")}.`
+    );
+  }
+  if (effectiveContinuation.totalBytes > INITIAL_CONTEXT_MAX_BYTES) {
+    warnings.push(
+      `Initial continuation context exceeds the ${INITIAL_CONTEXT_MAX_BYTES}-byte budget.`
     );
   }
 
@@ -221,13 +234,19 @@ export async function benchmarkHandoff(
     );
     reductions.continuationLargerThanSource =
       effectiveContinuation.totalBytes > source.utf8Bytes;
+    if (reductions.continuationLargerThanSource) {
+      warnings.push(
+        "Effective continuation context is larger than the normalized source content."
+      );
+    }
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     taskId,
     source,
     effectiveContinuation,
+    supportingContext,
     archiveOnly,
     reductions,
     estimationMethod: {
@@ -287,6 +306,16 @@ export function formatContextEfficiencyBenchmark(
     `Total: ${formatBytes(benchmark.effectiveContinuation.totalBytes)}`,
     `Estimated tokens: ~${benchmark.effectiveContinuation.estimatedTokens}`,
     "",
+    "On-demand supporting context"
+  );
+  for (const artifact of benchmark.supportingContext.artifacts) {
+    lines.push(
+      `${artifact.name}: ${artifact.present ? formatBytes(artifact.bytes) : "missing"}`
+    );
+  }
+  lines.push(
+    `Total: ${formatBytes(benchmark.supportingContext.totalBytes)}`,
+    "",
     "Reduction"
   );
   if (benchmark.reductions.bytesPercent === undefined) {
@@ -311,6 +340,8 @@ export function formatContextEfficiencyBenchmark(
     "",
     "Note:",
     "Source size is normalized message content plus shell command/output content.",
+    "Effective continuation is the initial context the receiving-agent contract asks an agent to load.",
+    "Supporting context is available on demand and excluded from the initial-context total.",
     "Archive-only artifacts are excluded from the effective continuation total.",
     benchmark.estimationMethod.note
   );

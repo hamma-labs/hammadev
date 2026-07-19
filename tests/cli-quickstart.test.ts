@@ -88,6 +88,6 @@ describe("quickstart CLI command", () => {
 
     expect(output).toContain("What is missing:");
     expect(output).toContain("Run next:");
-    expect(output).toMatch(/hamma handoff claude:project --to codex|npm install -g/);
+    expect(output).toMatch(/hamma continue --to codex .* --explain|npm install -g/);
   });
 });

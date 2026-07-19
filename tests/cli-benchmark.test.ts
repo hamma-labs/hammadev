@@ -43,6 +43,7 @@ describe("benchmark CLI", () => {
     });
     expect(result.stdout).toContain("Context efficiency");
     expect(result.stdout).toContain("Effective continuation context");
+    expect(result.stdout).toContain("On-demand supporting context");
     expect(result.stdout).toContain("Archive-only local artifacts");
     expect(result.stdout).toContain("not an exact provider-specific tokenizer count");
   });
@@ -55,13 +56,21 @@ describe("benchmark CLI", () => {
     );
     const output = JSON.parse(result.stdout);
     expect(output).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       taskId: TASK_ID,
       source: { available: true, messageCount: 1 },
       estimationMethod: { exactTokenizer: false },
     });
     expect(output.effectiveContinuation.totalBytes).toBe(
-      Buffer.byteLength("handoff contextstate contexttool context")
+      Buffer.byteLength("handoff context")
+    );
+    expect(output.supportingContext.totalBytes).toBe(
+      Buffer.byteLength("state context")
+    );
+    expect(output.archiveOnly.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "tool_history.jsonl" }),
+      ])
     );
   });
 });

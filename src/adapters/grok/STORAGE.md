@@ -37,7 +37,7 @@ Inspection of `~/.grok` (via `find *.db *.sqlite`, `sqlite3` schema queries, and
 ## Notes for Precision
 - No public source repo equivalent to the claude-code / codex clones was present in /home/hamma/hdev or elsewhere on the system (confirmed via exhaustive targeted searches). The runtime data + docs + binary artifacts provide the canonical behavior.
 - `grok.db` (and better-sqlite3 messages table) was an incorrect prior assumption; the real format is file-per-session JSONL + summary.
-- Tool calls for handoff/tool_history.jsonl are best extracted from assistant tool_calls + tool_result pairing (id match) + terminal logs.
+- Tool calls for the bounded archive-only `tool_history.jsonl` are best extracted from assistant tool_calls + tool_result pairing (id match) + terminal logs.
 - Project scoping uses `info.cwd` / `git_root_dir` from summary + the shared `filterSessionsByProject`.
 - Discover/parse deliberately use plain fs + glob + readline (no sqlite dependency) so they work even when the search index is absent or stale. This mirrors the approach in the claude and codex adapters.
 

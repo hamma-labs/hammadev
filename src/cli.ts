@@ -617,7 +617,7 @@ program
   .argument("<task-id>", "Handoff task id or 'latest'")
   .option("--project <path>", "Project whose local handoff should be benchmarked")
   .option("--json", "Print a machine-readable benchmark")
-  .description("Compare normalized source context with continuation artifact sizes")
+  .description("Compare normalized source context with bounded initial context")
   .action(async (taskId, options) => {
     try {
       const projectPath = path.resolve(options.project ?? process.cwd());
@@ -777,6 +777,14 @@ memoryCommand
       console.log(pc.bold(`Resume project memory '${result.memory}' in ${result.targetCli}`));
       console.log(`Readiness: ${result.readiness.level}`);
       console.log(`Repository drift: ${result.drift.detected ? result.drift.categories.join(", ") : "none"}`);
+      console.log(
+        `Initial context: ${result.contextBudget.bytes}/${result.contextBudget.maxBytes} bytes`
+      );
+      if (!result.contextBudget.withinBudget) {
+        console.log(
+          pc.yellow("Warning: this older memory revision exceeds the current initial-context budget; inspect it before loading.")
+        );
+      }
       console.log("");
       console.log(result.suggestedCommand);
     } catch (err: any) {

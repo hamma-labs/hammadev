@@ -125,6 +125,11 @@ describe("memory CLI", () => {
       selection: { mode: "explicit", sourceCli: "claude" },
     });
     expect(first.revision.parentRevision).toBeUndefined();
+    expect(first.contextBudget).toMatchObject({
+      initialArtifacts: ["handoff.md"],
+      maxBytes: 8192,
+      withinBudget: true,
+    });
     expect(await fs.readdir(first.revisionPath)).toEqual(
       expect.arrayContaining(["handoff.md", "revision.json", "state.json", "tool_history.jsonl"])
     );
@@ -168,6 +173,13 @@ describe("memory CLI", () => {
       revision: second.revision.id,
     });
     expect(resumed.suggestedCommand).toContain("Resume Hamma project memory 'build-week'");
+    expect(resumed.suggestedCommand).toContain("Read only");
+    expect(resumed.suggestedCommand).not.toContain("tool_history.jsonl");
+    expect(resumed.contextBudget).toMatchObject({
+      initialArtifacts: ["handoff.md"],
+      maxBytes: 8192,
+      withinBudget: true,
+    });
 
     const hookNoOp = JSON.parse(await runWithInput(
       ["memory", "sync", "--hook-agent", "claude", "--json", "--no-gitignore"],

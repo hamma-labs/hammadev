@@ -32,6 +32,10 @@ import {
   HammaTaskLedgerItem,
   HammaTaskState,
 } from "./state.js";
+import {
+  INITIAL_CONTEXT_MAX_BYTES,
+  measureNormalizedSourceBytes,
+} from "./artifact-policy.js";
 
 const MEMORY_SCHEMA_VERSION = 1 as const;
 const MEMORY_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -99,6 +103,14 @@ export interface MemorySyncResult {
   statePath?: string;
   handoffPath?: string;
   toolHistoryPath?: string;
+  contextBudget?: {
+    initialArtifacts: ["handoff.md"];
+    bytes: number;
+    maxBytes: number;
+    withinBudget: true;
+    sourceBytes: number;
+    continuationLargerThanSource: boolean;
+  };
   selection: {
     mode: "explicit" | "automatic";
     sourceCli?: string;
@@ -120,6 +132,12 @@ export interface MemoryResumeResult {
   toolHistoryPath: string;
   drift: RepositoryDriftResult;
   readiness: HandoffReadinessResult;
+  contextBudget: {
+    initialArtifacts: ["handoff.md"];
+    bytes: number;
+    maxBytes: number;
+    withinBudget: boolean;
+  };
   suggestedCommand: string;
 }
 
@@ -551,7 +569,7 @@ function renderMemoryHandoff(
   state: HammaTaskState,
   memoryName: string
 ): string {
-  return renderHandoffWithSizeGuard(state)
+  const rendered = renderHandoffWithSizeGuard(state)
     .replace("# Hamma Handoff", `# Hamma Project Memory: ${memoryName}`)
     .replace(
       "See timeline.md and state.json for the full picture.",
@@ -565,13 +583,21 @@ function renderMemoryHandoff(
       /## References\n[\s\S]*$/,
       [
         "## References",
-        "- Structured memory state: state.json",
-        "- Tool execution cache: tool_history.jsonl",
-        "- Revision metadata: revision.json",
+        "- Initial continuation context: handoff.md (this file)",
+        "- Supporting structured memory state (load only when needed): state.json",
+        "- Archive-only bounded tool diagnostics: tool_history.jsonl",
+        "- Archive-only revision metadata: revision.json",
         "- Full native or normalized transcripts are not copied into memory revisions.",
         "",
       ].join("\n")
     );
+  const bytes = Buffer.byteLength(rendered, "utf8");
+  if (bytes > INITIAL_CONTEXT_MAX_BYTES) {
+    throw new Error(
+      `Memory continuation context exceeds the ${INITIAL_CONTEXT_MAX_BYTES}-byte limit (${bytes} bytes).`
+    );
+  }
+  return rendered;
 }
 
 async function acquireLock(directory: string): Promise<string> {
@@ -674,13 +700,16 @@ export async function syncMemory(
     extracted.references = {
       fullSession: "(not stored in memory revisions)",
       timeline: "(not stored in memory revisions)",
-      commands: "tool_history.jsonl",
+      commands: "tool_history.jsonl (archive only)",
       redactionReport: "(not stored in memory revisions)",
     };
     extracted.readiness = assessHandoffReadiness(
       extracted,
       compareRepositorySnapshots(repoState.snapshot, repoState.snapshot)
     );
+    const memoryHandoff = renderMemoryHandoff(extracted, name);
+    const initialContextBytes = Buffer.byteLength(memoryHandoff, "utf8");
+    const sourceContextBytes = measureNormalizedSourceBytes(session);
 
     const revisionNumber = manifest.revisionCount + 1;
     const timestamp = new Date().toISOString();
@@ -690,6 +719,11 @@ export async function syncMemory(
     const temporaryRevisionPath = path.join(revisionsRoot, `.tmp-${revisionId}`);
     await fs.mkdir(temporaryRevisionPath);
     const warnings = [...candidate.reasons, ...merged.warnings];
+    if (initialContextBytes > sourceContextBytes) {
+      warnings.push(
+        `Initial continuation context (${initialContextBytes} bytes) is larger than the normalized source content (${sourceContextBytes} bytes).`
+      );
+    }
     if (parentDrift?.detected) {
       warnings.push(
         `Repository differences from the parent revision were recorded: ${parentDrift.categories.join(", ")}.`
@@ -712,7 +746,7 @@ export async function syncMemory(
         writeJsonAtomic(path.join(temporaryRevisionPath, "revision.json"), revision),
         fs.writeFile(
           path.join(temporaryRevisionPath, "handoff.md"),
-          renderMemoryHandoff(extracted, name),
+          memoryHandoff,
           "utf8"
         ),
         fs.writeFile(
@@ -747,6 +781,14 @@ export async function syncMemory(
       statePath: path.join(finalRevisionPath, "state.json"),
       handoffPath: path.join(finalRevisionPath, "handoff.md"),
       toolHistoryPath: path.join(finalRevisionPath, "tool_history.jsonl"),
+      contextBudget: {
+        initialArtifacts: ["handoff.md"],
+        bytes: initialContextBytes,
+        maxBytes: INITIAL_CONTEXT_MAX_BYTES,
+        withinBudget: true,
+        sourceBytes: sourceContextBytes,
+        continuationLargerThanSource: initialContextBytes > sourceContextBytes,
+      },
       selection: {
         mode: selectionMode,
         sourceCli: session.meta.sourceCli,
@@ -783,6 +825,7 @@ export async function resumeMemory(
     inspection.latest.revisionPath,
     "tool_history.jsonl"
   );
+  const initialContextBytes = (await fs.stat(handoffPath)).size;
   return {
     schemaVersion: 1,
     memory: inspection.manifest.name,
@@ -794,10 +837,16 @@ export async function resumeMemory(
     toolHistoryPath,
     drift: inspection.latest.drift,
     readiness: inspection.latest.readiness,
+    contextBudget: {
+      initialArtifacts: ["handoff.md"],
+      bytes: initialContextBytes,
+      maxBytes: INITIAL_CONTEXT_MAX_BYTES,
+      withinBudget: initialContextBytes <= INITIAL_CONTEXT_MAX_BYTES,
+    },
     suggestedCommand:
       `${targetCli} "Resume Hamma project memory '${inspection.manifest.name}'. ` +
-      `Read ${relativeRevision}/state.json, ${relativeRevision}/tool_history.jsonl, and ` +
-      `${relativeRevision}/handoff.md. Reconcile with live Git state; the repository wins on conflict."`,
+      `Read only ${relativeRevision}/handoff.md as initial context; do not preload supporting or archive files. ` +
+      `Reconcile with live Git state; the repository wins on conflict."`,
   };
 }
 

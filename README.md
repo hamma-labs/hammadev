@@ -124,7 +124,7 @@ One-off handoffs are written atomically under the source project:
 .hamma/tasks/<timestamp>-<source>-to-<target>/
 ├── handoff.md            # compact agent execution contract
 ├── state.json            # versioned HammaTaskState
-├── tool_history.jsonl    # shell/tool execution cache
+├── tool_history.jsonl    # bounded archive-only tool diagnostics
 ├── session.json          # normalized local archive
 ├── timeline.md           # importance-filtered chronology
 ├── commands.md           # command summary
@@ -141,11 +141,13 @@ Named memories store smaller immutable revisions:
     └── revisions/<revision-id>/
         ├── state.json
         ├── handoff.md
-        ├── tool_history.jsonl
+        ├── tool_history.jsonl    # bounded archive-only diagnostics
         └── revision.json
 ```
 
-Full transcripts are not copied into named-memory revisions.
+Full transcripts are not copied into named-memory revisions. Receiving agents
+load only `handoff.md` initially; `state.json` is optional supporting context,
+and diagnostic/archive artifacts are not preloaded.
 
 ## Inspect before continuing
 
@@ -156,7 +158,7 @@ hamma show latest --check-drift
 # Explain whether another agent has enough trustworthy state to continue.
 hamma show latest --check-drift --readiness
 
-# Compare source context with the effective continuation package.
+# Compare source context with the bounded initial continuation context.
 hamma benchmark latest
 ```
 

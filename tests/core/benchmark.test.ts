@@ -8,6 +8,7 @@ import {
   EFFECTIVE_CONTINUATION_ARTIFACTS,
   estimateTokens,
   formatContextEfficiencyBenchmark,
+  SUPPORTING_CONTEXT_ARTIFACTS,
 } from "../../src/core/benchmark.js";
 import { HammaSession } from "../../src/core/schema.js";
 
@@ -66,6 +67,7 @@ describe("context-efficiency benchmark", () => {
 
     const result = await benchmarkHandoff(taskPath, "benchmark-task");
 
+    expect(result.schemaVersion).toBe(2);
     const sourceValues = [
       ...source.messages.map((message) => message.content),
       ...source.shellCommands.flatMap((command) => [command.command, command.output ?? ""]),
@@ -86,7 +88,11 @@ describe("context-efficiency benchmark", () => {
     expect(result.effectiveContinuation.artifacts.map(({ name }) => name)).toEqual(
       EFFECTIVE_CONTINUATION_ARTIFACTS
     );
-    expect(result.effectiveContinuation.totalBytes).toBe(70);
+    expect(result.supportingContext.artifacts.map(({ name }) => name)).toEqual(
+      SUPPORTING_CONTEXT_ARTIFACTS
+    );
+    expect(result.effectiveContinuation.totalBytes).toBe(40);
+    expect(result.supportingContext.totalBytes).toBe(20);
     expect(result.estimationMethod.exactTokenizer).toBe(false);
   });
 
@@ -114,6 +120,9 @@ describe("context-efficiency benchmark", () => {
     expect(result.reductions.bytes).toBeLessThan(0);
     expect(result.reductions.bytesPercent).toBeLessThan(0);
     expect(result.reductions.continuationLargerThanSource).toBe(true);
+    expect(result.warnings).toContain(
+      "Effective continuation context is larger than the normalized source content."
+    );
     expect(formatContextEfficiencyBenchmark(result)).toContain(
       "continuation context is larger"
     );
@@ -128,7 +137,13 @@ describe("context-efficiency benchmark", () => {
       ARCHIVE_ONLY_ARTIFACTS
     );
     expect(result.archiveOnly.totalBytes).toBeGreaterThan(50_000);
-    expect(result.effectiveContinuation.totalBytes).toBe(70);
+    expect(result.effectiveContinuation.totalBytes).toBe(40);
+    expect(result.supportingContext.totalBytes).toBe(20);
+    expect(result.archiveOnly.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "tool_history.jsonl", bytes: 10 }),
+      ])
+    );
   });
 
   it("reports a missing optional archive artifact without changing effective context", async () => {
@@ -147,10 +162,8 @@ describe("context-efficiency benchmark", () => {
 
     expect(result.source.available).toBe(false);
     expect(result.reductions).toEqual({});
-    expect(result.effectiveContinuation.missingArtifacts).toEqual([
-      "state.json",
-      "tool_history.jsonl",
-    ]);
+    expect(result.effectiveContinuation.missingArtifacts).toEqual([]);
+    expect(result.supportingContext.missingArtifacts).toEqual(["state.json"]);
     expect(result.warnings).toHaveLength(2);
   });
 
@@ -176,7 +189,7 @@ describe("context-efficiency benchmark", () => {
 
     expect(result.source.utf8Bytes).toBe(0);
     expect(result.source.estimatedTokens).toBe(0);
-    expect(result.reductions.bytes).toBe(-70);
+    expect(result.reductions.bytes).toBe(-40);
     expect(result.reductions.bytesPercent).toBeUndefined();
     expect(result.reductions.continuationLargerThanSource).toBe(true);
   });
@@ -197,7 +210,7 @@ describe("context-efficiency benchmark", () => {
     expect(second).toEqual(first);
     expect(first.reductions.bytesPercent).toBe(
       Number((
-        ((first.source.utf8Bytes! - 300) / first.source.utf8Bytes!) * 100
+        ((first.source.utf8Bytes! - 100) / first.source.utf8Bytes!) * 100
       ).toFixed(2))
     );
   });

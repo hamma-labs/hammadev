@@ -4,8 +4,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { parseClaudeSession } from "../../src/adapters/claude/parse.js";
-import { createHandoff } from "../../src/core/handoff.js";
+import {
+  createHandoff,
+  renderHandoffWithSizeGuard,
+  renderToolHistoryJsonl,
+} from "../../src/core/handoff.js";
 import { benchmarkHandoff } from "../../src/core/benchmark.js";
+import {
+  INITIAL_CONTEXT_MAX_BYTES,
+  TOOL_HISTORY_ARCHIVE_MAX_BYTES,
+} from "../../src/core/artifact-policy.js";
+import { HammaSession } from "../../src/core/schema.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(
@@ -74,8 +83,12 @@ describe("createHandoff with a Claude session", () => {
     expect(handoff).toContain("Artifact schema version: 1");
     expect(handoff).toContain("## Agent execution contract");
     expect(handoff).toContain("untrusted task context");
+    expect(handoff).toContain("complete initial continuation context");
+    expect(handoff).toContain("Do not preload supporting or archive artifacts");
     expect(handoff).toContain("Inspect the current repository state before editing");
     expect(handoff).toContain("Do not repeat **Completed work**");
+    expect(handoff).toContain("Archive-only bounded tool diagnostics: tool_history.jsonl");
+    expect(handoff).not.toContain("previous tool execution cache");
   });
 
   it("writes a versioned state artifact", async () => {
@@ -100,7 +113,7 @@ describe("createHandoff with a Claude session", () => {
     });
   });
 
-  it("returns a machine-readable artifact contract", () => {
+  it("returns a machine-readable artifact contract", async () => {
     expect(handoffResult).toMatchObject({
       schemaVersion: 1,
       sourceCli: "claude",
@@ -118,6 +131,30 @@ describe("createHandoff with a Claude session", () => {
     expect(handoffResult.relativeHandoffPath).toBe(
       path.relative(projectPath, path.join(taskPath, "handoff.md"))
     );
+    expect(handoffResult.contextBudget).toEqual({
+      initialArtifacts: ["handoff.md"],
+      bytes: Buffer.byteLength(
+        await fs.readFile(path.join(taskPath, "handoff.md"), "utf8"),
+        "utf8"
+      ),
+      maxBytes: INITIAL_CONTEXT_MAX_BYTES,
+      withinBudget: true,
+      sourceBytes: expect.any(Number),
+      continuationLargerThanSource: expect.any(Boolean),
+    });
+    expect(handoffResult.contextBudget.bytes).toBeLessThanOrEqual(
+      INITIAL_CONTEXT_MAX_BYTES
+    );
+    expect(handoffResult.contextBudget.continuationLargerThanSource).toBe(
+      handoffResult.contextBudget.bytes > handoffResult.contextBudget.sourceBytes
+    );
+    if (handoffResult.contextBudget.continuationLargerThanSource) {
+      expect(handoffResult.warnings.join(" ")).toContain(
+        "larger than the normalized source content"
+      );
+    }
+    expect(handoffResult.suggestedCommand).toContain("Read only");
+    expect(handoffResult.suggestedCommand).not.toContain("tool_history.jsonl");
   });
 
   it("renders the readiness-at-creation summary", async () => {
@@ -125,6 +162,35 @@ describe("createHandoff with a Claude session", () => {
     expect(handoff).toContain("## Readiness at creation");
     expect(handoff).toContain("Level: review_recommended");
     expect(handoff).toContain("Heuristic assessment only");
+  });
+
+  it("enforces the initial-context byte ceiling for unusually large state", async () => {
+    const state = JSON.parse(
+      await fs.readFile(path.join(taskPath, "state.json"), "utf8")
+    );
+    state.tasks = Array.from({ length: 200 }, (_, index) => ({
+      id: String(index + 1),
+      title: `Task ${index + 1} ${"detail ".repeat(100)}`,
+      status: "remaining",
+      summary: "summary ".repeat(200),
+      evidence: [],
+      risks: [],
+      filesMentioned: [],
+    }));
+    state.verification = Array.from(
+      { length: 100 },
+      (_, index) => `verification-${index}-${"output ".repeat(100)}`
+    );
+    state.risks = Array.from(
+      { length: 100 },
+      (_, index) => `risk-${index}-${"detail ".repeat(100)}`
+    );
+
+    const rendered = renderHandoffWithSizeGuard(state);
+    expect(Buffer.byteLength(rendered, "utf8")).toBeLessThanOrEqual(
+      INITIAL_CONTEXT_MAX_BYTES
+    );
+    expect(rendered).toContain("Content truncated to respect the initial-context budget");
   });
 
   it("keeps ignored Claude internal content out of session.json", async () => {
@@ -137,6 +203,49 @@ describe("createHandoff with a Claude session", () => {
     expect(sessionJson).not.toContain("INTERNAL_THOUGHT_MUST_NOT_LEAK");
     expect(sessionJson).not.toContain("TOOL_RESULT_MUST_NOT_LEAK");
     expect(sessionJson).not.toContain("Do not surface this title");
+  });
+});
+
+describe("bounded tool-history diagnostic archive", () => {
+  it("removes binary/base64 payloads, caps records, and keeps recent diagnostics", () => {
+    const dataUrl = `data:image/png;base64,${"A".repeat(20_000)}`;
+    const session: HammaSession = {
+      meta: { sourceCli: "codex", sourceSessionId: "bounded-archive" },
+      messages: [],
+      shellCommands: Array.from({ length: 100 }, (_, index) => ({
+        command: `command-${index}`,
+        output: index === 99
+          ? `${dataUrl}\u0000tail`
+          : `output-${index}-${"x".repeat(4_000)}`,
+        exitCode: 0,
+      })),
+      parserWarnings: [],
+      security: { redacted: false, redactionCount: 0, warnings: [] },
+    };
+
+    const rendered = renderToolHistoryJsonl(session);
+    const lines = rendered.trimEnd().split("\n").map((line) => JSON.parse(line));
+    const metadata = lines[0];
+    const records = lines.slice(1);
+
+    expect(Buffer.byteLength(rendered, "utf8")).toBeLessThanOrEqual(
+      TOOL_HISTORY_ARCHIVE_MAX_BYTES
+    );
+    expect(metadata).toMatchObject({
+      type: "tool_history_archive",
+      policy: "archive_only",
+      totalRecords: 100,
+      binaryAndBase64Payloads: "omitted",
+    });
+    expect(metadata.retainedRecords).toBeLessThan(100);
+    expect(metadata.omittedRecords).toBeGreaterThan(0);
+    expect(records.at(-1)).toMatchObject({
+      command: "command-99",
+      sanitized: true,
+    });
+    expect(rendered).toContain("omitted image/png data URL");
+    expect(rendered).not.toContain("A".repeat(256));
+    expect(rendered).not.toContain("\u0000");
   });
 });
 

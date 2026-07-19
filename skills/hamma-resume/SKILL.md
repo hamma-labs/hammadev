@@ -1,14 +1,14 @@
 ---
 name: hamma-resume
-description: Resume your own previous session in a fresh chat using a compact HammaDev handoff. Use after long sessions or context limits in the *same* agent.
+description: Resume your own previous session in a fresh chat using a bounded HammaDev handoff. Use after long sessions or context limits in the *same* agent.
 ---
 
 # Hamma Resume Skill
 
-**Purpose**: Pick up exactly where you left off in a new chat, using a token-efficient cache instead of the full transcript.
+**Purpose**: Pick up where you left off from a bounded continuation brief instead of preloading the full transcript or diagnostic archives.
 
 **Core Rules**:
-- Load the cache first.
+- Load only `handoff.md` as initial context.
 - Continue from the recorded next action.
 - Reconcile with current git/files.
 
@@ -27,9 +27,9 @@ description: Resume your own previous session in a fresh chat using a compact Ha
    hamma memory resume <name> --to THIS --project "<root>" --json
    ```
    Validate the returned revision and paths under `.hamma/memories/<name>/`,
-   load `state.json`, `tool_history.jsonl`, then `handoff.md`, report drift and
-   readiness, and continue from the recorded next action. Do not rename or
-   modify the native agent session.
+   load only `handoff.md` as initial context, report drift and readiness, and
+   continue from the recorded next action. Load `state.json` only if structured
+   detail is needed. Do not rename or modify the native agent session.
    While working in a named memory, checkpoint after meaningful verified
    milestones and before ending when no native hook is configured:
    ```bash
@@ -50,11 +50,10 @@ description: Resume your own previous session in a fresh chat using a compact Ha
 
 7. **Quality gate**: If low confidence or warnings → list candidates with `hamma list THIS:project --json` and ask user to pick explicit id.
 
-8. Load context efficiently:
-   - `state.json` → tasks + nextAction
-   - `tool_history.jsonl` → **your previous tool cache**. Use this as execution history to avoid re-running commands.
-   - `handoff.md` → narrative + risks
-   - Only full `session.json` on explicit debug request.
+8. Read only `handoff.md` as initial context. Load `state.json` only when
+   structured detail is necessary. `tool_history.jsonl` and `session.json` are
+   archive-only diagnostics, not restored tool state; read them only for
+   explicit debugging.
 
 9. Check current git status/diff. Current state wins.
 
@@ -64,7 +63,7 @@ description: Resume your own previous session in a fresh chat using a compact Ha
 
 **Output format on load**:
 ```json
-{"resumed": true, "next_action": "...", "from_cache": ["state.json", "tool_history.jsonl"]}
+{"resumed": true, "next_action": "...", "initial_context": ["handoff.md"]}
 ```
 
 **Safety**:
@@ -72,7 +71,7 @@ description: Resume your own previous session in a fresh chat using a compact Ha
 - Never edit the old session files.
 
 **Example**:
-"Loaded tool cache from previous session. Last verified: tests passing. Next: implement the endpoint. Current dir is clean. Proceeding..."
+"Loaded the bounded handoff. Last recorded verification: tests passing. Next: implement the endpoint. Current Git state matches. Proceeding..."
 
 ## Target-specific notes
 - For Grok: `THIS` can be `grok`; Grok supports `grok:current` / `grok:previous` for self-resume.

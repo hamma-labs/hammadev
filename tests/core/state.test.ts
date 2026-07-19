@@ -237,8 +237,8 @@ describe("universal output shape from different sources (sweet-spot hybrid)", ()
     expect(state.project.targetCli).toBe("grok");
     const md = renderHandoffMarkdown(state, { compact: false });
     expect(md).toContain("## Agent execution contract");
-    expect(md).toContain("tool_history.jsonl");
-    // no source parsing details leak (tool_history.jsonl is universal and expected)
+    expect(md).toContain("Archive-only bounded tool diagnostics: tool_history.jsonl");
+    // No native source parsing details leak; universal archives are clearly optional.
     expect(md).not.toMatch(/chat_history\.jsonl|updates\.jsonl/i);
   });
 
@@ -268,7 +268,7 @@ describe("universal output shape from different sources (sweet-spot hybrid)", ()
     expect(state.tasks.some((t: any) => (t.summary || '').includes('SpecialGrokTask #123 logo verification phase succeeded the check.'))).toBe(true);
     const md = renderHandoffMarkdown(state, { compact: false });
     expect(md).toContain("## Safety notes");
-    expect(md).toContain("tool_history.jsonl");
+    expect(md).toContain("Archive-only bounded tool diagnostics: tool_history.jsonl");
   });
 
 });

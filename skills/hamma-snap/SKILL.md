@@ -1,11 +1,11 @@
 ---
 name: hamma-snap
-description: Snapshot the current long session into a compact HammaDev handoff + tool cache. Use before context limits or switching agents so the next chat can resume efficiently.
+description: Snapshot the current long session into a bounded HammaDev continuation brief. Use before context limits or switching agents so the next chat can resume without preloading diagnostic archives.
 ---
 
 # Hamma Snap Skill
 
-**Purpose**: Freeze your current work into a portable, token-efficient package (handoff + tool cache) that another chat or agent can load.
+**Purpose**: Freeze current work into a portable, bounded handoff that another chat or agent can load as its initial context.
 
 **When to use**:
 - Session is getting long.
@@ -42,18 +42,19 @@ description: Snapshot the current long session into a compact HammaDev handoff +
 7. **Stop here**. Do not continue the work in this chat.
 
 **What gets created** (under .hamma/tasks/):
-- handoff.md + state.json (contract)
-- tool_history.jsonl (your tool calls as cache — much better than text summary)
-- Other supporting files
+- `handoff.md` (the bounded initial continuation context)
+- `state.json` (optional structured supporting context)
+- `tool_history.jsonl` (bounded archive-only diagnostics)
+- Other local archive files
 
 **Safety**:
 - Does not modify your current session files.
-- The cache is for the *next* chat only.
+- The next chat should load only `handoff.md` initially.
 - Skill invocation is advisory/model-driven. Native hooks or explicit
   `hamma memory sync` are required when a deterministic checkpoint is needed.
 
 **Example response**:
-"Created compact handoff with tool cache. In a new chat run the suggested command to resume exactly where we are."
+"Created a bounded handoff. In a new chat, run the suggested command to load only the continuation brief."
 
 ## Target-specific notes
 - Grok users can snapshot with `hamma handoff grok:current --to grok ...` and resume via the generated command or by loading files in a new Grok session.

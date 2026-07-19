@@ -63,10 +63,16 @@ function nextCommands(
 ): string[] {
   const project = JSON.stringify(status.projectPath);
   if (status.codexProjectSessionCount > 0 && claudeInstalled) {
-    return [`hamma handoff codex:project --to claude --project ${project}`];
+    return [
+      `hamma continue --to claude --project ${project} --explain`,
+      `# If the selection is correct: hamma continue --to claude --project ${project}`,
+    ];
   }
   if (status.claudeProjectSessionCount > 0 && codexInstalled) {
-    return [`hamma handoff claude:project --to codex --project ${project}`];
+    return [
+      `hamma continue --to codex --project ${project} --explain`,
+      `# If the selection is correct: hamma continue --to codex --project ${project}`,
+    ];
   }
 
   const commands: string[] = [];
@@ -119,7 +125,7 @@ export async function runQuickstart(projectDir: string): Promise<void> {
   console.log(`  ${pc.green("•")} Existing handoffs: ${status.handoffCount}\n`);
 
   console.log("What is missing:");
-  if (missing.length === 0) console.log("  Nothing required. This project is ready for a handoff.");
+  if (missing.length === 0) console.log("  Nothing required. This project is ready for a continuation preflight.");
   else for (const item of missing) console.log(`  - ${item}`);
 
   console.log("\nRun next:");
