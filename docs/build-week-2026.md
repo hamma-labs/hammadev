@@ -251,6 +251,16 @@ reports a negative reduction and labels the package larger.
   flow retained a 3,166-byte initial context.
 - Feature commits: `202536b` (`feat: retain redacted Claude command evidence`)
   and `2028232` (`fix: preflight same-agent resumes`).
+- Released the correction as `hammadev@0.1.0-alpha.8` from release commit
+  `e077144` and annotated tag `v0.1.0-alpha.8`. [CI run
+  29696922600](https://github.com/xayrullonematov/hammadev/actions/runs/29696922600)
+  passed the Node 22.12 and Node 24 matrices, including packed-package and
+  website browser tests. [Trusted publish run
+  29696996022](https://github.com/xayrullonematov/hammadev/actions/runs/29696996022)
+  passed immutable identity validation, the collision guard, and npm OIDC
+  publishing. Registry verification showed `alpha` at `0.1.0-alpha.8`, exposed
+  an SLSA provenance attestation, and a clean temporary-cache execution printed
+  `0.1.0-alpha.8`. The locally packed release artifact measured 1,950,185 bytes.
 - Added `.github/workflows/publish.yml` for npm Trusted Publishing. Matching
   version tags now trigger a fail-closed Node 24 job that re-verifies the
   release and packed artifact, refuses existing registry versions, and publishes
@@ -373,6 +383,11 @@ not a stable cross-agent project-thread identity.
   quickstart, and state tests passed. Full typecheck passed, all 259 tests
   across 39 files passed, build and compiled CLI smoke passed, all three
   packaged skills validated, and `git diff --check` passed.
+- Same-agent resume release: full typecheck and build passed, all 277 tests
+  across 39 files passed, the isolated alpha.8 package smoke passed, the
+  website production build passed, all 9 Chromium end-to-end tests passed, and
+  `git diff --check` passed. GitHub CI repeated the full matrix on Node 22.12
+  and Node 24 before the release tag was created.
 - Reclassifying the captured local diagnostic case under the corrected contract
   measures 8,576,648 bytes of normalized source content and 5,400 bytes of
   initial continuation context: a 99.94% byte reduction. Its 17,062-byte
@@ -407,6 +422,7 @@ not a stable cross-agent project-thread identity.
 - `5568857` — `chore: prepare 0.1.0-alpha.7`
 - `202536b` — `feat: retain redacted Claude command evidence`
 - `2028232` — `fix: preflight same-agent resumes`
+- `e077144` — `chore: prepare 0.1.0-alpha.8`
 
 ## Demo flow (target)
 
