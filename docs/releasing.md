@@ -28,8 +28,8 @@ until a publish is attempted.
 3. Create and push an annotated matching tag, for example:
 
    ```bash
-   git tag -a v0.1.0-alpha.7 -m "HammaDev 0.1.0-alpha.7"
-   git push origin v0.1.0-alpha.7
+   git tag -a v0.1.0-alpha.8 -m "HammaDev 0.1.0-alpha.8"
+   git push origin v0.1.0-alpha.8
    ```
 
 The tag starts `.github/workflows/publish.yml`. The job:

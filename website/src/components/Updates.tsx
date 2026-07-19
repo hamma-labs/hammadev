@@ -2,35 +2,35 @@ import { ArrowUpRight, BadgeCheck, FileText, ListRestart, Sparkles } from 'lucid
 
 const updates = [
   {
-    icon: FileText,
-    label: 'Bounded initial context',
-    title: 'Load the brief, not the archive.',
-    copy: 'The receiving agent starts with handoff.md alone. Structured state and bounded diagnostics stay available only when needed.',
-    command: 'hamma benchmark latest',
-  },
-  {
-    icon: ListRestart,
-    label: 'Current task epoch',
-    title: 'Resume the current objective—not old session noise.',
-    copy: 'Task reconstruction scopes goals, evidence, risks, and next actions to the latest substantive development objective.',
+    icon: BadgeCheck,
+    label: 'Accurate completion',
+    title: 'Finished work stays finished.',
+    copy: 'Explicit implemented, automated, configured, fixed, resolved, and verified outcomes now stop continuation before another artifact is created.',
     command: 'hamma continue --to codex --explain',
   },
   {
-    icon: BadgeCheck,
-    label: 'No-op preflight',
-    title: 'Finished work does not launch another agent.',
-    copy: 'Completed, blocked, ambiguous, or unsafe state returns an explainable recommendation before any continuation artifact is written.',
-    command: 'hamma continue --to codex',
+    icon: FileText,
+    label: 'Compact skill response',
+    title: 'Decide with less context.',
+    copy: 'Agent skills receive a one-line, transcript-free selection and preflight contract while the full JSON API remains backward compatible.',
+    command: 'hamma continue --to codex --compact-json',
+  },
+  {
+    icon: ListRestart,
+    label: 'Black-box verified',
+    title: 'Reality drives the release.',
+    copy: 'A real Claude Code handoff exposed stale actionability and oversized command responses; alpha.7 corrects both paths with replay coverage.',
+    command: 'hamma skill install --force',
   },
 ];
 
 export default function Updates() {
   return (
     <section id="updates" className="section-shell" aria-labelledby="updates-heading">
-      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.6</div>
+      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.7</div>
       <div className="section-heading-row">
         <h2 id="updates-heading" className="section-title">Continuity you can inspect and trust.</h2>
-        <p>Alpha.6 makes continuation smaller and more honest: bounded context, current-task reconstruction, and no-op preflight.</p>
+        <p>Alpha.7 turns real handoff evidence into a faster, more accurate continuation path.</p>
       </div>
       <div className="update-list">
         {updates.map(({ icon: Icon, label, title, copy, command }, index) => (
