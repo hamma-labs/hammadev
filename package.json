@@ -30,6 +30,7 @@
     "build": "tsc -p tsconfig.build.json",
     "postbuild": "node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
     "smoke:cli": "pnpm build && node dist/cli.js --help",
+    "smoke:package": "pnpm build && tsx src/scripts/package-smoke.ts",
     "typecheck": "tsc --noEmit",
     "quality:report": "tsx src/scripts/handoff-quality-guard.ts",
     "test": "vitest run",

@@ -40,6 +40,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Packed npm artifact smoke
+        run: pnpm smoke:package
+
       - name: Website typecheck
         run: pnpm website:typecheck
 

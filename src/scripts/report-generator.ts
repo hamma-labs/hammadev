@@ -172,6 +172,7 @@ export function getVerificationSteps(
   const steps: string[] = [
     "Run `pnpm test` to confirm all unit tests pass.",
     "Run `pnpm smoke:cli` to verify compiled CLI binary.",
+    "Run `pnpm smoke:package` to verify an isolated packed-package continuation.",
   ];
 
   const names = new Set(components.map((c) => c.name));

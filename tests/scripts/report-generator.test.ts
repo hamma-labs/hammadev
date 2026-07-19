@@ -170,6 +170,7 @@ describe("getVerificationSteps", () => {
     expect(steps.length).toBeGreaterThanOrEqual(2);
     expect(steps.some((s) => s.includes("pnpm test"))).toBe(true);
     expect(steps.some((s) => s.includes("smoke:cli"))).toBe(true);
+    expect(steps.some((s) => s.includes("smoke:package"))).toBe(true);
   });
 
   it("adds handoff verification for adapter changes", () => {
