@@ -109,6 +109,48 @@ describe("handoff outcome extraction", () => {
     ]);
   });
 
+  it("recognizes automation reported as implemented and verified as terminal completion", () => {
+    const state = extract([
+      {
+        role: "user",
+        content: "Actually, can we automate npm publishing with GitHub Actions?",
+      },
+      {
+        role: "assistant",
+        content: "The trusted publishing workflow is configured, but registry verification still needs to run.",
+      },
+      { role: "user", content: "done" },
+      {
+        role: "assistant",
+        content:
+          "npm publishing is now fully automated and verified. The trusted release completed successfully.",
+      },
+    ]);
+
+    expect(state.outcome).toBe("completed");
+    expect(state.nextAction).toBeUndefined();
+    expect(state.tasks).toEqual([
+      expect.objectContaining({
+        status: "completed",
+        summary: "Actually, can we automate npm publishing with GitHub Actions?",
+      }),
+    ]);
+  });
+
+  it("keeps explicit unresolved work actionable despite completion wording", () => {
+    const state = extract([
+      { role: "user", content: "Automate npm publishing with GitHub Actions." },
+      {
+        role: "assistant",
+        content:
+          "The publishing workflow is now fully automated and verified, but the next step is to fix the failing package smoke test.",
+      },
+    ]);
+
+    expect(state.outcome).toBe("actionable");
+    expect(state.nextAction).toBe("Automate npm publishing with GitHub Actions.");
+  });
+
   it("does not interpret negated remaining-work language as unresolved work", () => {
     const state = extract([
       { role: "user", content: "Implement the release and verify the package." },

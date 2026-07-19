@@ -118,7 +118,7 @@ const BARE_CONTINUATION_INSTRUCTION =
   /^(?:please\s+)?(?:resume|continue|proceed|keep going)(?:\s+(?:the\s+)?(?:task|work))?[.!]?$/i;
 
 const TERMINAL_COMPLETION_STATUS =
-  /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes)|(?:is|are) now (?:fully )?(?:live|published|released|deployed|complete)|(?:published|released|deployed|shipped) successfully)\b/i;
+  /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes)|(?:is|are) now (?:fully )?(?:live|published|released|deployed|complete)|(?:published|released|deployed|shipped) successfully|(?:work|implementation|task|feature|fix|workflow|automation|publishing|release|configuration) (?:is|are|has been|have been) (?:now )?(?:fully )?(?:implemented|automated|configured|fixed|resolved|verified)(?: and (?:implemented|automated|configured|fixed|resolved|verified))?)\b/i;
 
 const UNRESOLVED_STATUS =
   /\b(?:remaining|next (?:step|task|action)|todo|still need|needs? to|failed|failing|cannot proceed)\b/i;
