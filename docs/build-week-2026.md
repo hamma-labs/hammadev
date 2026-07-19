@@ -177,6 +177,14 @@ reports a negative reduction and labels the package larger.
   `NPM_TOKEN` is stored. Prereleases intentionally update `alpha`; stable
   versions update `latest`, because npm OIDC does not authorize a separate
   `npm dist-tag` command. Automation commit: `dbd110c`.
+- Configured the one-time npm trust relationship and exercised the recovery
+  dispatch for the already-created `v0.1.0-alpha.6` tag. [GitHub Actions run
+  29693448521](https://github.com/xayrullonematov/hammadev/actions/runs/29693448521)
+  completed the OIDC release in 51 seconds with every validation and publish
+  step passing. Registry verification showed `alpha` at `0.1.0-alpha.6`, a
+  clean registry-backed CLI execution printed `0.1.0-alpha.6`, and npm exposed
+  an SLSA provenance attestation. `latest` intentionally remains alpha.5 under
+  the documented prerelease distribution-tag policy.
 
 ### Day 3 — persistent named project memory
 
@@ -311,6 +319,8 @@ not a stable cross-agent project-thread identity.
 - `5a06ccc` — `fix: scope handoffs to current task epoch`
 - `3847362` — `test: add installed package continuation smoke`
 - `dbd110c` — `ci: automate npm publishing with OIDC`
+- `9748d10` — `chore: prepare 0.1.0-alpha.6`
+- `0104f44` — `docs: document trusted npm releases`
 
 ## Demo flow (target)
 
