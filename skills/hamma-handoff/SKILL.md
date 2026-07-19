@@ -24,7 +24,7 @@ description: Continue work from another local AI coding agent using a compact, v
 
 3. Preflight automatic source selection (THIS is your own CLI name):
    ```bash
-   hamma continue --to THIS --project "<root>" --explain --json
+   hamma continue --to THIS --project "<root>" --explain --compact-json
    ```
 
 4. Parse `preflight` before creating anything:
@@ -35,9 +35,14 @@ description: Continue work from another local AI coding agent using a compact, v
    - `actionable` → continue only when the selected session is correct.
 
 5. **Check quality first**:
-   - If confidence == "low" or signals includes "hamma-meta" or warnings non-empty → stop and show user the list from `hamma list <other>:project --json`. Ask them to pick a specific session.
+   - Inspect `selection.confidence`, `selection.signals`, and
+     `selection.warnings`, plus `preflight.readiness.warnings`. If confidence
+     is `low`, signals includes `hamma-meta`, or either warning list is
+     non-empty → stop and show the user the list from
+     `hamma list <other>:project --json`. Ask them to pick a specific session.
 
-6. Create the handoff with `hamma continue --to THIS --project "<root>" --json`.
+6. Create the handoff with
+   `hamma continue --to THIS --project "<root>" --compact-json`.
    Validate `schemaVersion == 1`, `handoff` is non-null, and its paths remain
    under `.hamma/tasks/`.
 

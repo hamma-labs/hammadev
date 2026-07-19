@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -15,7 +15,7 @@ let fixtureRoot = "";
 let projectPath = "";
 let fakeHome = "";
 
-beforeAll(async () => {
+beforeEach(async () => {
   fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-continue-"));
   projectPath = path.join(fixtureRoot, "project");
   fakeHome = path.join(fixtureRoot, "home");
@@ -56,7 +56,7 @@ beforeAll(async () => {
   );
 });
 
-afterAll(async () => {
+afterEach(async () => {
   if (fixtureRoot) await fs.rm(fixtureRoot, { recursive: true, force: true });
 });
 
@@ -102,6 +102,94 @@ describe("continue CLI command", () => {
     });
   });
 
+  it("emits a bounded one-line preflight contract for agent skills", async () => {
+    const result = await execFileAsync(
+      TSX,
+      [
+        CLI,
+        "continue",
+        "--to",
+        "codex",
+        "--project",
+        projectPath,
+        "--explain",
+        "--compact-json",
+      ],
+      { cwd: projectPath, env: { ...process.env, HOME: fakeHome } }
+    );
+    const output = JSON.parse(result.stdout);
+
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(Buffer.byteLength(result.stdout, "utf8")).toBeLessThan(4096);
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      mode: "preflight",
+      projectPath,
+      targetCli: "codex",
+      selection: {
+        sourceCli: "claude",
+        sessionId: "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa",
+        confidence: "high",
+        resumable: true,
+        candidateCount: 1,
+        excludedSources: ["codex"],
+      },
+      preflight: {
+        outcome: "actionable",
+        shouldCreateHandoff: true,
+        readiness: {
+          level: expect.any(String),
+          warningCount: expect.any(Number),
+          blockerCount: expect.any(Number),
+        },
+      },
+      handoff: null,
+    });
+    expect(output).not.toHaveProperty("candidates");
+    expect(output.preflight.readiness).not.toHaveProperty("dimensions");
+    await expect(fs.stat(path.join(projectPath, ".hamma"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("creates a handoff through the compact skill contract", async () => {
+    const result = await execFileAsync(
+      TSX,
+      [
+        CLI,
+        "continue",
+        "--to",
+        "codex",
+        "--project",
+        projectPath,
+        "--compact-json",
+        "--no-gitignore",
+      ],
+      { cwd: projectPath, env: { ...process.env, HOME: fakeHome } }
+    );
+    const output = JSON.parse(result.stdout);
+
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(Buffer.byteLength(result.stdout, "utf8")).toBeLessThan(4096);
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      mode: "result",
+      preflight: {
+        outcome: "actionable",
+        shouldCreateHandoff: true,
+      },
+      handoff: {
+        outcome: "actionable",
+        readinessLevel: expect.any(String),
+        initialContextBytes: expect.any(Number),
+      },
+    });
+    expect(output.handoff.handoffPath).toContain(
+      `${path.sep}.hamma${path.sep}tasks${path.sep}`
+    );
+    await expect(fs.stat(output.handoff.handoffPath)).resolves.toBeDefined();
+  });
+
   it("withholds handoff creation when the latest task epoch is complete", async () => {
     const id = "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa";
     const sessionPath = path.join(
@@ -119,7 +207,7 @@ describe("continue CLI command", () => {
         timestamp: "2026-07-18T10:02:00Z",
         message: {
           role: "assistant",
-          content: "The continuation workflow is now fully complete. All tests passed.",
+          content: "npm publishing is now fully automated and verified. All tests passed.",
         },
       })}\n`,
       "utf8"

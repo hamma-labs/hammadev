@@ -7,7 +7,10 @@ import {
   SessionCandidate,
 } from "./core/quality.js";
 import { HammaSession, SourceCli } from "./core/schema.js";
-import { reconstructHandoffState } from "./core/handoff.js";
+import {
+  reconstructHandoffState,
+  type HandoffResult,
+} from "./core/handoff.js";
 import type { HandoffReadinessResult } from "./core/readiness.js";
 import type { HammaTaskState } from "./core/state.js";
 
@@ -45,6 +48,126 @@ export interface ContinuationPreflight {
 export interface ContinuationPreflightEvaluation {
   state: HammaTaskState;
   preflight: ContinuationPreflight;
+}
+
+export interface CompactContinuationResponse {
+  schemaVersion: 1;
+  mode: "preflight" | "result";
+  projectPath: string;
+  targetCli: ContinuationAgent;
+  selection: {
+    sourceCli: SourceCli;
+    sessionId?: string;
+    lastUpdatedAt: string;
+    score: number;
+    confidence: SessionCandidate["confidence"];
+    resumable: boolean;
+    signals: string[];
+    warnings: string[];
+    reason: string;
+    candidateCount: number;
+    excludedSources: ContinuationAgent[];
+  };
+  preflight: {
+    outcome: ContinuationPreflight["outcome"];
+    shouldCreateHandoff: boolean;
+    requiresForce: boolean;
+    nextAction?: string;
+    readiness: {
+      level: HandoffReadinessResult["level"];
+      warnings: string[];
+      warningCount: number;
+      blockers: string[];
+      blockerCount: number;
+    };
+    recommendation: string;
+  };
+  handoff: null | {
+    taskId: string;
+    outcome: HandoffResult["outcome"];
+    handoffPath: string;
+    statePath: string;
+    relativeHandoffPath: string;
+    readinessLevel: HandoffReadinessResult["level"];
+    initialContextBytes: number;
+    warnings: string[];
+    warningCount: number;
+    suggestedCommand: string;
+  };
+}
+
+const COMPACT_LIST_LIMIT = 4;
+const COMPACT_TEXT_LIMIT = 320;
+
+function compactText(value: string, max = COMPACT_TEXT_LIMIT): string {
+  return value.length <= max ? value : `${value.slice(0, max - 3)}...`;
+}
+
+function compactList(values: string[]): string[] {
+  return values
+    .slice(0, COMPACT_LIST_LIMIT)
+    .map((value) => compactText(value));
+}
+
+/**
+ * Build the bounded, transcript-free JSON contract consumed by agent skills.
+ * The default --json response remains unchanged for existing integrations.
+ */
+export function compactContinuationResponse(
+  decision: ContinuationDecision,
+  preflight: ContinuationPreflight,
+  handoff: HandoffResult | null,
+  mode: CompactContinuationResponse["mode"]
+): CompactContinuationResponse {
+  return {
+    schemaVersion: 1,
+    mode,
+    projectPath: decision.projectPath,
+    targetCli: decision.targetCli,
+    selection: {
+      sourceCli: decision.selected.sourceCli,
+      sessionId: decision.selected.sessionId,
+      lastUpdatedAt: decision.selected.lastUpdatedAt,
+      score: decision.selected.score,
+      confidence: decision.selected.confidence,
+      resumable: decision.selected.resumable,
+      signals: compactList(decision.selected.signals),
+      warnings: compactList(decision.selected.reasons),
+      reason: compactText(decision.explanation[0] ?? "Selected the strongest resumable project session."),
+      candidateCount: decision.candidates.length,
+      excludedSources: decision.excludedSources,
+    },
+    preflight: {
+      outcome: preflight.outcome,
+      shouldCreateHandoff: preflight.shouldCreateHandoff,
+      requiresForce: preflight.requiresForce,
+      nextAction: preflight.nextAction
+        ? compactText(preflight.nextAction, 500)
+        : undefined,
+      readiness: {
+        level: preflight.readiness.level,
+        warnings: compactList(preflight.readiness.warnings),
+        warningCount: preflight.readiness.warnings.length,
+        blockers: compactList(preflight.readiness.blockers),
+        blockerCount: preflight.readiness.blockers.length,
+      },
+      recommendation: compactText(preflight.recommendation),
+    },
+    handoff: handoff
+      ? {
+          taskId: handoff.taskId,
+          outcome: handoff.outcome,
+          handoffPath: handoff.handoffPath,
+          statePath: handoff.statePath,
+          relativeHandoffPath: handoff.relativeHandoffPath,
+          readinessLevel: handoff.readiness.level,
+          initialContextBytes: handoff.contextBudget.bytes,
+          warnings: compactList(handoff.warnings),
+          warningCount: handoff.warnings.length,
+          suggestedCommand: compactText(handoff.suggestedCommand, 500),
+        }
+      : null,
+  };
 }
 
 const SUPPORTED_AGENTS = new Set<ContinuationAgent>([

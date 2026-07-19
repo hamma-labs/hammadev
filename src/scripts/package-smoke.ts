@@ -60,7 +60,7 @@ async function writeClaudeSession(
       timestamp: "2026-07-19T10:00:00.000Z",
       message: {
         role: "user",
-        content: "Implement the synthetic package-smoke feature and verify it.",
+        content: "Automate synthetic npm publishing and verify it.",
       },
     },
     {
@@ -70,7 +70,7 @@ async function writeClaudeSession(
       message: {
         role: "assistant",
         content: completed
-          ? "The synthetic package-smoke feature is now fully complete. All tests passed."
+          ? "npm publishing is now fully automated and verified. All tests passed."
           : "Implementation is in progress. Next action: add the remaining verification coverage.",
       },
     },
@@ -194,22 +194,29 @@ async function main(): Promise<void> {
     await fs.mkdir(path.dirname(sessionPath), { recursive: true });
 
     await writeClaudeSession(sessionPath, projectPath, true);
-    const completed = JSON.parse(
-      await runInstalled(
-        executable,
-        [
-          "continue",
-          "--to",
-          "codex",
-          "--project",
-          projectPath,
-          "--json",
-          "--no-gitignore",
-        ],
+    const completedOutput = await runInstalled(
+      executable,
+      [
+        "continue",
+        "--to",
+        "codex",
+        "--project",
         projectPath,
-        fakeHome
-      )
-    ) as ContinueResult;
+        "--compact-json",
+        "--no-gitignore",
+      ],
+      projectPath,
+      fakeHome
+    );
+    const completed = JSON.parse(completedOutput) as ContinueResult;
+    assert(
+      Buffer.byteLength(completedOutput, "utf8") < 4096,
+      "Compact continuation response exceeded 4 KiB."
+    );
+    assert(
+      completedOutput.trim().split("\n").length === 1,
+      "Compact continuation response was not one line."
+    );
     assert(completed.preflight.outcome === "completed", "Completed session was not recognized.");
     assert(!completed.preflight.shouldCreateHandoff, "Completed session was marked resumable.");
     assert(completed.handoff === null, "Completed session created a handoff artifact.");

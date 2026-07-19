@@ -34,9 +34,17 @@ describe("skill install CLI command", () => {
     expect(names).toEqual(["hamma-handoff", "hamma-resume", "hamma-snap"]);
     for (const install of output.installs) {
       expect(install).toMatchObject({ agent: "codex", replaced: false, restartRequired: true });
-      await expect(
-        fs.readFile(path.join(install.destination, "SKILL.md"), "utf8")
-      ).resolves.toContain(`name: ${install.skillName}`);
+      const skill = await fs.readFile(
+        path.join(install.destination, "SKILL.md"),
+        "utf8"
+      );
+      expect(skill).toContain(`name: ${install.skillName}`);
+      if (install.skillName === "hamma-handoff") {
+        expect(skill).toContain("--explain --compact-json");
+        expect(skill).toContain("--project \"<root>\" --compact-json");
+        expect(skill).toContain("preflight.readiness.warnings");
+        expect(skill).not.toContain("--explain --json");
+      }
     }
   });
 

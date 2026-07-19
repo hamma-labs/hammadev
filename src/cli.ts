@@ -24,6 +24,7 @@ import { runQuickstart } from "./core/quickstart.js";
 import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
 import { AsyncStructuredLogger } from "./core/logger.js";
 import {
+  compactContinuationResponse,
   decideContinuation,
   evaluateContinuationPreflight,
   loadContinuationSession,
@@ -478,6 +479,7 @@ program
   .option("--include-target-source", "Allow sessions from the destination agent")
   .option("--force", "Create an inspection handoff even when preflight withholds automatic continuation")
   .option("--json", "Print only a machine-readable decision/result")
+  .option("--compact-json", "Print a bounded one-line JSON result for agent skills")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Select the best cross-agent project session and create a continuation handoff")
   .action(async (options) => {
@@ -495,8 +497,16 @@ program
         targetCli,
         decision.projectPath
       );
+      const compactJson = Boolean(options.compactJson);
+      const jsonOutput = Boolean(options.json || compactJson);
 
       if (dryRun) {
+        if (compactJson) {
+          process.stdout.write(
+            `${JSON.stringify(compactContinuationResponse(decision, preflight, null, "preflight"))}\n`
+          );
+          return;
+        }
         if (options.json) {
           process.stdout.write(
             `${JSON.stringify({ ...decision, preflight }, null, 2)}\n`
@@ -522,6 +532,12 @@ program
       }
 
       if (!preflight.shouldCreateHandoff && !options.force) {
+        if (compactJson) {
+          process.stdout.write(
+            `${JSON.stringify(compactContinuationResponse(decision, preflight, null, "result"))}\n`
+          );
+          return;
+        }
         if (options.json) {
           process.stdout.write(
             `${JSON.stringify({
@@ -547,8 +563,14 @@ program
         session,
         targetCli,
         options.gitignore,
-        { quiet: Boolean(options.json) }
+        { quiet: jsonOutput }
       );
+      if (compactJson) {
+        process.stdout.write(
+          `${JSON.stringify(compactContinuationResponse(decision, preflight, handoff, "result"))}\n`
+        );
+        return;
+      }
       if (options.json) {
         process.stdout.write(
           `${JSON.stringify({ schemaVersion: 1, selection: decision, preflight, handoff }, null, 2)}\n`
