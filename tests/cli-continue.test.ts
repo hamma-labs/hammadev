@@ -89,6 +89,67 @@ describe("continue CLI command", () => {
       },
     });
     expect(output.explanation.join(" ")).toContain("Quality ranks before recency");
+    expect(output.preflight).toMatchObject({
+      schemaVersion: 1,
+      outcome: "actionable",
+      taskEpoch: {
+        startMessageIndex: 0,
+        basis: "latest_substantive_user",
+      },
+    });
+    await expect(fs.stat(path.join(projectPath, ".hamma"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("withholds handoff creation when the latest task epoch is complete", async () => {
+    const id = "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa";
+    const sessionPath = path.join(
+      fakeHome,
+      ".claude",
+      "projects",
+      id,
+      `${id}.jsonl`
+    );
+    await fs.appendFile(
+      sessionPath,
+      `${JSON.stringify({
+        type: "assistant",
+        sessionId: id,
+        timestamp: "2026-07-18T10:02:00Z",
+        message: {
+          role: "assistant",
+          content: "The continuation workflow is now fully complete. All tests passed.",
+        },
+      })}\n`,
+      "utf8"
+    );
+
+    const result = await execFileAsync(
+      TSX,
+      [
+        CLI,
+        "continue",
+        "--to",
+        "codex",
+        "--project",
+        projectPath,
+        "--json",
+      ],
+      { cwd: projectPath, env: { ...process.env, HOME: fakeHome } }
+    );
+    const output = JSON.parse(result.stdout);
+
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      preflight: {
+        outcome: "completed",
+        shouldCreateHandoff: false,
+        requiresForce: true,
+        recommendation: expect.stringContaining("No continuation required"),
+      },
+      handoff: null,
+    });
     await expect(fs.stat(path.join(projectPath, ".hamma"))).rejects.toMatchObject({
       code: "ENOENT",
     });

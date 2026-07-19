@@ -25,6 +25,7 @@ import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
 import { AsyncStructuredLogger } from "./core/logger.js";
 import {
   decideContinuation,
+  evaluateContinuationPreflight,
   loadContinuationSession,
   parseContinuationAgent,
 } from "./continuation.js";
@@ -475,6 +476,7 @@ program
   .option("--dry-run", "Explain the selection without creating a handoff")
   .option("--explain", "Show the ranked selection decision without creating a handoff")
   .option("--include-target-source", "Allow sessions from the destination agent")
+  .option("--force", "Create an inspection handoff even when preflight withholds automatic continuation")
   .option("--json", "Print only a machine-readable decision/result")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Select the best cross-agent project session and create a continuation handoff")
@@ -486,10 +488,19 @@ program
         includeTargetSource: Boolean(options.includeTargetSource),
       });
       const dryRun = Boolean(options.dryRun || options.explain);
+      const session = await loadContinuationSession(decision.selected);
+      session.meta.projectPath = decision.projectPath;
+      const { preflight } = evaluateContinuationPreflight(
+        session,
+        targetCli,
+        decision.projectPath
+      );
 
       if (dryRun) {
         if (options.json) {
-          process.stdout.write(`${JSON.stringify(decision, null, 2)}\n`);
+          process.stdout.write(
+            `${JSON.stringify({ ...decision, preflight }, null, 2)}\n`
+          );
           return;
         }
         console.log(pc.bold("Continuation selection (dry run)"));
@@ -501,14 +512,37 @@ program
         console.log(
           `Confidence: ${decision.selected.confidence}  Score: ${decision.selected.score}`
         );
+        console.log(`Current outcome: ${preflight.outcome}`);
+        console.log(`Handoff readiness: ${preflight.readiness.level}`);
         for (const line of decision.explanation) console.log(`- ${line}`);
         console.log("");
+        console.log(preflight.recommendation);
         console.log(pc.dim("No handoff was created."));
         return;
       }
 
-      const session = await loadContinuationSession(decision.selected);
-      session.meta.projectPath = decision.projectPath;
+      if (!preflight.shouldCreateHandoff && !options.force) {
+        if (options.json) {
+          process.stdout.write(
+            `${JSON.stringify({
+              schemaVersion: 1,
+              selection: decision,
+              preflight,
+              handoff: null,
+            }, null, 2)}\n`
+          );
+          return;
+        }
+        console.log(pc.bold("Continuation preflight"));
+        console.log(`Selected: ${decision.selected.sourceCli}:${decision.selected.sessionId ?? "unknown"}`);
+        console.log(`Current outcome: ${preflight.outcome}`);
+        console.log(`Handoff readiness: ${preflight.readiness.level}`);
+        console.log("");
+        console.log(preflight.recommendation);
+        console.log(pc.dim("No handoff was created. Use --force to create an inspection artifact."));
+        return;
+      }
+
       const handoff = await createHandoff(
         session,
         targetCli,
@@ -517,7 +551,7 @@ program
       );
       if (options.json) {
         process.stdout.write(
-          `${JSON.stringify({ schemaVersion: 1, selection: decision, handoff }, null, 2)}\n`
+          `${JSON.stringify({ schemaVersion: 1, selection: decision, preflight, handoff }, null, 2)}\n`
         );
         return;
       }
@@ -776,6 +810,7 @@ memoryCommand
       }
       console.log(pc.bold(`Resume project memory '${result.memory}' in ${result.targetCli}`));
       console.log(`Readiness: ${result.readiness.level}`);
+      console.log(`Automatic resume: ${result.resumeAllowed ? "allowed" : "withheld"}`);
       console.log(`Repository drift: ${result.drift.detected ? result.drift.categories.join(", ") : "none"}`);
       console.log(
         `Initial context: ${result.contextBudget.bytes}/${result.contextBudget.maxBytes} bytes`

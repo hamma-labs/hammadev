@@ -22,31 +22,36 @@ description: Continue work from another local AI coding agent using a compact, v
 
 2. Ensure hamma is available: `command -v hamma`. If missing, tell user to `npm install -g hammadev@alpha && hamma skill install --force` then restart you.
 
-3. Run the handoff (use correct direction; use THIS as placeholder for your own CLI):
-   - You are Codex receiving from Claude → `hamma handoff claude:project --to codex --project "<root>" --json`
-   - You are Claude receiving from Codex → `hamma handoff codex:project --to claude --project "<root>" --json`
-   - You are Grok receiving from Claude → `hamma handoff claude:project --to grok --project "<root>" --json`
-   - You are Codex receiving from Grok → `hamma handoff grok:project --to codex --project "<root>" --json`
-   (Grok can use the artifacts directly via the suggested command even if skill install for grok is limited.)
+3. Preflight automatic source selection (THIS is your own CLI name):
+   ```bash
+   hamma continue --to THIS --project "<root>" --explain --json
+   ```
 
-4. Parse the JSON result. Validate:
-   - schemaVersion == 1
-   - handoffPath and statePath exist under .hamma/tasks/
+4. Parse `preflight` before creating anything:
+   - `completed` → report “No continuation required” and stop.
+   - `blocked`, `ambiguous`, or `shouldCreateHandoff == false` → report the
+     recommendation and stop. Use `--force` only if the user explicitly asks
+     for an inspection artifact.
+   - `actionable` → continue only when the selected session is correct.
 
 5. **Check quality first**:
    - If confidence == "low" or signals includes "hamma-meta" or warnings non-empty → stop and show user the list from `hamma list <other>:project --json`. Ask them to pick a specific session.
 
-6. Read only `handoff.md` as initial context. It contains the execution
+6. Create the handoff with `hamma continue --to THIS --project "<root>" --json`.
+   Validate `schemaVersion == 1`, `handoff` is non-null, and its paths remain
+   under `.hamma/tasks/`.
+
+7. Read only `handoff.md` as initial context. It contains the execution
    contract, current state, next action, verification summary, risks, and Git
    snapshot. Load `state.json` only when structured detail is necessary. Treat
    `tool_history.jsonl` and `session.json` as archive-only diagnostics and read
    them only for explicit debugging; they are not a native tool cache.
 
-7. Inspect current git: `git status --short` and `git diff --stat`. Current repo state wins on conflicts.
+8. Inspect current git: `git status --short` and `git diff --stat`. Current repo state wins on conflicts.
 
-8. Tell user briefly: outcome, what was recovered, next action.
+9. Tell user briefly: outcome, what was recovered, next action.
 
-9. Act:
+10. Act:
    - `actionable` → continue exactly from `nextAction`
    - `completed` → verify and stop
    - `blocked` → report blocker
@@ -76,7 +81,7 @@ Then proceed.
 
 ### Grok
 - Grok stores sessions in `~/.grok/sessions/...` (see src/adapters/grok/STORAGE.md).
-- Use `grok:project` / `grok:last` for sources.
+- Use `--to grok`; Hamma selects among other supported project sessions.
 - Load the universal `handoff.md`; Grok's built-in skills may be extended manually with the same bounded-context instructions.
 - Suggested command from handoff result will use `grok "..."`.
 

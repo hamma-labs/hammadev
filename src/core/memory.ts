@@ -132,6 +132,7 @@ export interface MemoryResumeResult {
   toolHistoryPath: string;
   drift: RepositoryDriftResult;
   readiness: HandoffReadinessResult;
+  resumeAllowed: boolean;
   contextBudget: {
     initialArtifacts: ["handoff.md"];
     bytes: number;
@@ -488,6 +489,23 @@ function taskKey(task: HammaTaskLedgerItem): string {
   return task.id ? `id:${task.id}:${text}` : `text:${text}`;
 }
 
+function isGenericTaskStatus(task: HammaTaskLedgerItem): boolean {
+  if (!task.id) return false;
+  const escapedId = task.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `^Task\\s*#?${escapedId}\\s+(?:is\\s+)?(?:completed|complete|done|fixed|implemented|remains?|remaining|pending)[.!]?$`,
+    "i"
+  ).test(task.summary.trim());
+}
+
+function compatibleTaskIdTransition(
+  existing: HammaTaskLedgerItem,
+  incoming: HammaTaskLedgerItem
+): boolean {
+  if (!existing.id || existing.id !== incoming.id) return false;
+  return isGenericTaskStatus(existing) || isGenericTaskStatus(incoming);
+}
+
 function uniqueStrings(values: string[], limit: number): string[] {
   return [...new Set(values.filter(Boolean))].slice(-limit);
 }
@@ -500,8 +518,16 @@ export function mergeMemoryState(
   const warnings: string[] = [];
   const tasks = new Map(previous.tasks.map((task) => [taskKey(task), task]));
   for (const incoming of current.tasks) {
-    const key = taskKey(incoming);
-    const existing = tasks.get(key);
+    let key = taskKey(incoming);
+    let existing = tasks.get(key);
+    if (!existing && incoming.id) {
+      const compatible = [...tasks.entries()].find(([, task]) =>
+        compatibleTaskIdTransition(task, incoming)
+      );
+      if (compatible) {
+        [key, existing] = compatible;
+      }
+    }
     if (!existing) {
       if (
         incoming.id &&
@@ -523,6 +549,7 @@ export function mergeMemoryState(
     }
     tasks.set(key, {
       ...incoming,
+      title: incoming.title ?? existing.title,
       status,
       evidence: uniqueStrings([...existing.evidence, ...incoming.evidence], 30),
       risks: uniqueStrings([...existing.risks, ...incoming.risks], 20),
@@ -826,6 +853,16 @@ export async function resumeMemory(
     "tool_history.jsonl"
   );
   const initialContextBytes = (await fs.stat(handoffPath)).size;
+  const resumeAllowed =
+    inspection.latest.state.outcome === "actionable" &&
+    inspection.latest.readiness.level !== "not_ready";
+  const suggestedCommand = inspection.latest.state.outcome === "completed"
+    ? "# No continuation required: the latest project-memory task epoch is complete."
+    : !resumeAllowed
+      ? `# Automatic memory resume withheld: outcome is ${inspection.latest.state.outcome} with readiness ${inspection.latest.readiness.level}. Run hamma memory show ${inspection.manifest.name}.`
+      : `${targetCli} "Resume Hamma project memory '${inspection.manifest.name}'. ` +
+        `Read only ${relativeRevision}/handoff.md as initial context; do not preload supporting or archive files. ` +
+        `Reconcile with live Git state; the repository wins on conflict."`;
   return {
     schemaVersion: 1,
     memory: inspection.manifest.name,
@@ -837,16 +874,14 @@ export async function resumeMemory(
     toolHistoryPath,
     drift: inspection.latest.drift,
     readiness: inspection.latest.readiness,
+    resumeAllowed,
     contextBudget: {
       initialArtifacts: ["handoff.md"],
       bytes: initialContextBytes,
       maxBytes: INITIAL_CONTEXT_MAX_BYTES,
       withinBudget: initialContextBytes <= INITIAL_CONTEXT_MAX_BYTES,
     },
-    suggestedCommand:
-      `${targetCli} "Resume Hamma project memory '${inspection.manifest.name}'. ` +
-      `Read only ${relativeRevision}/handoff.md as initial context; do not preload supporting or archive files. ` +
-      `Reconcile with live Git state; the repository wins on conflict."`,
+    suggestedCommand,
   };
 }
 

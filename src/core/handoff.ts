@@ -800,6 +800,7 @@ export interface HandoffResult {
   sourceCli: string;
   sourceSessionId: string;
   targetCli: string;
+  outcome: HammaTaskState["outcome"];
   projectPath: string;
   taskPath: string;
   handoffPath: string;
@@ -831,6 +832,25 @@ export interface CreateHandoffOptions {
   quiet?: boolean;
 }
 
+export function reconstructHandoffState(
+  session: HammaSession,
+  targetCli: string,
+  projectPath: string
+): HammaTaskState {
+  const repoState = computeRepoState(projectPath);
+  repoState.snapshot = captureGitRepositorySnapshot(projectPath);
+  const state = extractTaskState(session, { targetCli, repoState });
+  repoState.snapshot = captureGitRepositorySnapshot(
+    projectPath,
+    state.filesMentioned
+  );
+  state.readiness = assessHandoffReadiness(
+    state,
+    compareRepositorySnapshots(repoState.snapshot, repoState.snapshot)
+  );
+  return state;
+}
+
 export async function createHandoff(
   session: HammaSession,
   targetCli: string,
@@ -857,17 +877,7 @@ export async function createHandoff(
     await ensureGitignore(projectPath);
   }
 
-  const repoState = computeRepoState(projectPath);
-  repoState.snapshot = captureGitRepositorySnapshot(projectPath);
-  const state = extractTaskState(session, { targetCli, repoState });
-  repoState.snapshot = captureGitRepositorySnapshot(
-    projectPath,
-    state.filesMentioned
-  );
-  state.readiness = assessHandoffReadiness(
-    state,
-    compareRepositorySnapshots(repoState.snapshot, repoState.snapshot)
-  );
+  const state = reconstructHandoffState(session, targetCli, projectPath);
   const handoffMarkdown = renderHandoffWithSizeGuard(state);
   const initialContextBytes = Buffer.byteLength(handoffMarkdown, "utf8");
   const sourceContextBytes = measureNormalizedSourceBytes(session);
@@ -954,7 +964,11 @@ export async function createHandoff(
   const statePath = path.join(finalDir, "state.json");
   const relativeHandoffPath = path.relative(projectPath, handoffPath);
   const relTaskDir = path.dirname(relativeHandoffPath);
-  const suggestedCommand = `${targetCli} "Read only ${relTaskDir}/handoff.md as the initial continuation context and follow its contract. Do not preload archive files. Reconcile git and continue from the next action."`;
+  const suggestedCommand = state.outcome === "completed"
+    ? "# No continuation required: the latest task epoch is complete."
+    : state.outcome !== "actionable" || state.readiness?.level === "not_ready"
+      ? `# Automatic continuation withheld: handoff outcome is ${state.outcome} with readiness ${state.readiness?.level ?? "unknown"}. Inspect ${relativeHandoffPath}.`
+      : `${targetCli} "Read only ${relTaskDir}/handoff.md as the initial continuation context and follow its contract. Do not preload archive files. Reconcile git and continue from the next action."`;
 
   const quality = scoreSession(session, {
     sourceCli: session.meta.sourceCli,
@@ -976,6 +990,7 @@ export async function createHandoff(
     sourceCli: session.meta.sourceCli,
     sourceSessionId: session.meta.sourceSessionId,
     targetCli,
+    outcome: state.outcome,
     projectPath,
     taskPath: finalDir,
     handoffPath,
@@ -986,7 +1001,7 @@ export async function createHandoff(
     score: quality.score,
     signals: quality.signals,
     warnings: [...quality.reasons, ...contextWarnings],
-    readiness: state.readiness,
+    readiness: state.readiness!,
     contextBudget: {
       initialArtifacts: ["handoff.md"],
       bytes: initialContextBytes,

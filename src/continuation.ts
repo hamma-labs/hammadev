@@ -7,6 +7,9 @@ import {
   SessionCandidate,
 } from "./core/quality.js";
 import { HammaSession, SourceCli } from "./core/schema.js";
+import { reconstructHandoffState } from "./core/handoff.js";
+import type { HandoffReadinessResult } from "./core/readiness.js";
+import type { HammaTaskState } from "./core/state.js";
 
 export type ContinuationAgent = "codex" | "claude" | "grok";
 
@@ -25,6 +28,23 @@ export interface ContinuationOptions {
   claudeHomes?: string[];
   grokHome?: string;
   includeTargetSource?: boolean;
+}
+
+export interface ContinuationPreflight {
+  schemaVersion: 1;
+  outcome: HammaTaskState["outcome"];
+  shouldCreateHandoff: boolean;
+  requiresForce: boolean;
+  nextAction?: string;
+  taskCount: number;
+  readiness: HandoffReadinessResult;
+  recommendation: string;
+  taskEpoch?: HammaTaskState["current"]["taskEpoch"];
+}
+
+export interface ContinuationPreflightEvaluation {
+  state: HammaTaskState;
+  preflight: ContinuationPreflight;
 }
 
 const SUPPORTED_AGENTS = new Set<ContinuationAgent>([
@@ -106,4 +126,48 @@ export async function loadContinuationSession(
   if (source === "claude") return ClaudeAdapter.inspect(candidate.path);
   if (source === "grok") return GrokAdapter.inspect(candidate.path, grokHome);
   throw new Error(`Unsupported continuation source '${source}'.`);
+}
+
+export function evaluateContinuationPreflight(
+  session: HammaSession,
+  targetCli: ContinuationAgent,
+  projectPath: string
+): ContinuationPreflightEvaluation {
+  const state = reconstructHandoffState(session, targetCli, projectPath);
+  const readiness = state.readiness!;
+  const shouldCreateHandoff =
+    state.outcome === "actionable" && readiness.level !== "not_ready";
+  let recommendation: string;
+  if (state.outcome === "completed") {
+    recommendation =
+      "No continuation required. The latest task epoch is already complete.";
+  } else if (state.outcome === "blocked") {
+    recommendation =
+      "Resolve the recorded blocker before launching another coding agent.";
+  } else if (state.outcome === "ambiguous") {
+    recommendation =
+      "Clarify the next action before creating a continuation handoff.";
+  } else if (readiness.level === "not_ready") {
+    recommendation =
+      "Review the reconstructed state before continuing; critical readiness blockers were detected.";
+  } else if (readiness.level === "review_recommended") {
+    recommendation =
+      "The task is actionable, but review the reported warnings before continuing.";
+  } else {
+    recommendation = "The task is actionable and ready for handoff creation.";
+  }
+  return {
+    state,
+    preflight: {
+      schemaVersion: 1,
+      outcome: state.outcome,
+      shouldCreateHandoff,
+      requiresForce: !shouldCreateHandoff,
+      nextAction: state.nextAction,
+      taskCount: state.tasks.length,
+      readiness,
+      recommendation,
+      taskEpoch: state.current.taskEpoch,
+    },
+  };
 }

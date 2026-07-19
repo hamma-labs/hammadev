@@ -27,6 +27,8 @@ description: Resume your own previous session in a fresh chat using a bounded Ha
    hamma memory resume <name> --to THIS --project "<root>" --json
    ```
    Validate the returned revision and paths under `.hamma/memories/<name>/`,
+   check `resumeAllowed`, and stop when it is false. A completed memory needs no
+   continuation; blocked, ambiguous, or not-ready state needs review. Otherwise,
    load only `handoff.md` as initial context, report drift and readiness, and
    continue from the recorded next action. Load `state.json` only if structured
    detail is needed. Do not rename or modify the native agent session.
@@ -46,7 +48,9 @@ description: Resume your own previous session in a fresh chat using a bounded Ha
    ```
    (THIS = your CLI, e.g. claude, codex or grok)
 
-6. Parse JSON. Validate schemaVersion=1 and paths under .hamma/tasks/.
+6. Parse JSON. Validate schemaVersion=1 and paths under `.hamma/tasks/`. If
+   `outcome` is `completed` or `suggestedCommand` withholds continuation, report
+   that result and stop.
 
 7. **Quality gate**: If low confidence or warnings → list candidates with `hamma list THIS:project --json` and ask user to pick explicit id.
 

@@ -171,9 +171,9 @@ describe("memory CLI", () => {
       memory: "build-week",
       targetCli: "codex",
       revision: second.revision.id,
+      resumeAllowed: false,
     });
-    expect(resumed.suggestedCommand).toContain("Resume Hamma project memory 'build-week'");
-    expect(resumed.suggestedCommand).toContain("Read only");
+    expect(resumed.suggestedCommand).toContain("No continuation required");
     expect(resumed.suggestedCommand).not.toContain("tool_history.jsonl");
     expect(resumed.contextBudget).toMatchObject({
       initialArtifacts: ["handoff.md"],

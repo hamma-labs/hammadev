@@ -380,7 +380,10 @@ describe("handoff outcome rendering", () => {
       const state = JSON.parse(await fs.readFile(result.statePath, "utf8"));
 
       expect(state.outcome).toBe("completed");
+      expect(result.outcome).toBe("completed");
       expect(state.nextAction).toBeUndefined();
+      expect(result.suggestedCommand).toContain("No continuation required");
+      expect(result.suggestedCommand).not.toContain("codex \"");
       expect(handoff).toContain(
         "## Continue from here\nNo remaining action. Verification is recorded below."
       );

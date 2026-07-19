@@ -70,6 +70,12 @@ export interface HammaTaskState {
     latestUserInstruction?: string;
     latestAssistantStatus?: string;
     nextRecommendedTask?: string;
+    taskEpoch?: {
+      startMessageIndex: number;
+      messageCount: number;
+      startedAt?: string;
+      basis: "latest_substantive_user" | "full_session_fallback";
+    };
   };
   tasks: HammaTaskLedgerItem[];
   verification: string[];
@@ -87,7 +93,7 @@ export interface HammaTaskState {
 }
 
 const IMPORTANT_USER_WORDS =
-  /\b(audit|assess|fix|build|implement|proceed|resume|continue|task|verify|use mcp|minimize|do not)\b/i;
+  /\b(audit|assess|commit|deploy|fix|build|implement|proceed|publish|push|release|resume|continue|task|test|update|verify|use mcp|minimize|do not)\b/i;
 
 const COMPLETED_PATTERNS: RegExp[] = [
   /Task #?(\d+)\s+completed/gi,
@@ -108,14 +114,11 @@ const REMAINING_PATTERNS: RegExp[] = [
 const EXPLICIT_NEXT_ACTION =
   /\b(?:next action|next step)\s*:\s*([^\n]+)/i;
 
-const LATEST_STATUS_MARKER =
-  /\b(?:task #?\d+ (?:completed|fixed)|fixed finding #?\d+|completed|passes|remaining|next is task)\b/i;
-
 const BARE_CONTINUATION_INSTRUCTION =
   /^(?:please\s+)?(?:resume|continue|proceed|keep going)(?:\s+(?:the\s+)?(?:task|work))?[.!]?$/i;
 
 const TERMINAL_COMPLETION_STATUS =
-  /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes))\b/i;
+  /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes)|(?:is|are) now (?:fully )?(?:live|published|released|deployed|complete)|(?:published|released|deployed|shipped) successfully)\b/i;
 
 const UNRESOLVED_STATUS =
   /\b(?:remaining|next (?:step|task|action)|todo|still need|needs? to|failed|failing|cannot proceed)\b/i;
@@ -160,7 +163,7 @@ const VERIFICATION_CATEGORIES: Array<{
 ];
 
 const RISK_SIGNALS: RegExp[] = [
-  /\bpre-existing\b/i,
+  /\bpre-existing\b[^\n]*(?:failure|issue|risk|error|dirty|modified|change)\b/i,
   /\bstill\s+(?:has|have|failing|failing?)\b/i,
   /\bfailed\b/i,
   /\bblocked\b/i,
@@ -178,11 +181,13 @@ const RISK_NEGATION_SIGNALS: RegExp[] = [
   /\bno more\b/i,
   /\bno longer\b/i,
   /\bnow (?:fixed|resolved|cleared|clean)\b/i,
+  /\b(?:is|are) now (?:fully )?(?:live|published|released|deployed)\b/i,
+  /\b(?:published|released|deployed|shipped) successfully\b/i,
   /added [^\n]*?(?:test|regression|coverage)/i,
 ];
 
 const USER_CONFIRMATION =
-  /^(?:approved|confirmed|looks good|works for me|that works|this works|tests pass(?:ed)?|verified)(?:[.!\s].*)?$/i;
+  /^(?:approved|confirmed|done|looks good|works for me|that works|this works|tests pass(?:ed)?|verified)(?:[.!\s].*)?$/i;
 
 interface CommandClassification {
   kind: string;
@@ -252,8 +257,53 @@ function isBareContinuationInstruction(content: string): boolean {
   return BARE_CONTINUATION_INSTRUCTION.test(content.trim());
 }
 
+function isSubstantiveTaskInstruction(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed || isBareContinuationInstruction(trimmed)) return false;
+  if (USER_CONFIRMATION.test(trimmed)) return false;
+  return (
+    (trimmed.length >= 12 && isImportantUserMessage(trimmed)) ||
+    trimmed.length > 60
+  );
+}
+
+function taskEpoch(messages: HammaMessage[]): {
+  messages: HammaMessage[];
+  startMessageIndex: number;
+  basis: "latest_substantive_user" | "full_session_fallback";
+} {
+  let startMessageIndex = -1;
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (
+      message.role === "user" &&
+      isSubstantiveTaskInstruction(message.content)
+    ) {
+      startMessageIndex = index;
+    }
+  }
+  if (startMessageIndex < 0) {
+    return {
+      messages,
+      startMessageIndex: 0,
+      basis: "full_session_fallback",
+    };
+  }
+  return {
+    messages: messages.slice(startMessageIndex),
+    startMessageIndex,
+    basis: "latest_substantive_user",
+  };
+}
+
 function isTerminalCompletionStatus(content: string): boolean {
-  return TERMINAL_COMPLETION_STATUS.test(content) && !UNRESOLVED_STATUS.test(content);
+  const unresolvedContent = content
+    .replace(/\bno (?:remaining|further) (?:implementation )?(?:work|tasks?|changes)\b/gi, "")
+    .replace(/\bnothing (?:remains|is left)\b/gi, "");
+  return (
+    TERMINAL_COMPLETION_STATUS.test(content) &&
+    !UNRESOLVED_STATUS.test(unresolvedContent)
+  );
 }
 
 function isBlockedStatus(content: string): boolean {
@@ -360,12 +410,36 @@ function cleanTitle(raw: string): string {
 
 function extractPlanItems(text: string): PlanItem[] {
   const items: PlanItem[] = [];
-  const re = /(?:^|\n)\s{0,4}(\d+)\.\s+(.{5,400}?)(?=\n\s{0,4}\d+\.\s|\n\s*\n|$)/gs;
-  for (const m of text.matchAll(re)) {
-    const id = m[1];
-    const title = cleanTitle(m[2]);
-    if (title.length >= 5 && title.length <= 220) {
-      items.push({ id, title });
+  const lines = text.split(/\r?\n/);
+  let inExplicitPlan = false;
+  let sawPlanItem = false;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (
+      /^(?:#{1,6}\s*)?(?:(?:implementation|execution|work)\s+)?(?:plan|tasks?|todo|remaining work)(?:\s+for\s+[^:]+)?\s*:?\s*$/i.test(
+        line
+      ) ||
+      /^(?:here(?:'s| is)\s+)?(?:the\s+)?(?:plan|task list)\s*:?\s*$/i.test(
+        line
+      )
+    ) {
+      inExplicitPlan = true;
+      sawPlanItem = false;
+      continue;
+    }
+    if (!inExplicitPlan) continue;
+    const match = line.match(/^(\d+)\.\s+(.{5,400})$/);
+    if (match) {
+      const title = cleanTitle(match[2]);
+      if (title.length >= 5 && title.length <= 220) {
+        items.push({ id: match[1], title });
+        sawPlanItem = true;
+      }
+      continue;
+    }
+    if (!line) continue;
+    if (sawPlanItem || /^#{1,6}\s+/.test(line)) {
+      inExplicitPlan = false;
     }
   }
   return items;
@@ -437,6 +511,27 @@ function isActionableRisk(clause: string): boolean {
   if (!hasRisk) return false;
   const negated = RISK_NEGATION_SIGNALS.some((p) => p.test(clause));
   return !negated;
+}
+
+function removeResolvedRisks(risks: string[], resolution: string): void {
+  const resolutionTokens = tokenizeForSimilarity(resolution);
+  const resolvesRelease =
+    /\b(?:live|published|released|deployed|shipped)\b/i.test(resolution);
+  for (let index = risks.length - 1; index >= 0; index -= 1) {
+    const riskTokens = tokenizeForSimilarity(risks[index]);
+    const shared = [...resolutionTokens].filter((token) => riskTokens.has(token));
+    const smaller = Math.min(resolutionTokens.size, riskTokens.size);
+    const releaseRisk =
+      resolvesRelease &&
+      /\b(?:publish|publishing|release|deploy|registry|npm)\b/i.test(risks[index]);
+    if (
+      releaseRisk ||
+      shared.length >= 2 ||
+      (smaller > 0 && shared.length / smaller >= 0.5)
+    ) {
+      risks.splice(index, 1);
+    }
+  }
 }
 
 function tokenizeForSimilarity(s: string): Set<string> {
@@ -511,7 +606,9 @@ export function extractTaskState(
   const completedPats = extendPatterns(COMPLETED_PATTERNS, heurs?.completedPatterns);
   const remainingPats = extendPatterns(REMAINING_PATTERNS, heurs?.remainingPatterns);
 
-  const messages = session.messages.filter((m) => m.role !== "system");
+  const allMessages = session.messages.filter((m) => m.role !== "system");
+  const epoch = taskEpoch(allMessages);
+  const messages = epoch.messages;
 
   // Single forward pass over messages to accumulate tasks, verification, risks, files, users, status
   const users: HammaMessage[] = [];
@@ -579,15 +676,16 @@ export function extractTaskState(
         });
       }
       const trimmed = msg.content.trim();
-      if ((isImportantUserMessage(msg.content) && trimmed.length >= 20) || trimmed.length > 60) {
+      if (isSubstantiveTaskInstruction(trimmed)) {
         latestImportantUser = msg;
+      }
+      for (const item of extractPlanItems(msg.content)) {
+        addTitle(item.id, item.title, 1);
       }
       for (const p of extractFilePaths(msg.content)) fileSet.add(p);
     } else if (msg.role === "assistant") {
       assistants.push(msg);
-      if (LATEST_STATUS_MARKER.test(msg.content)) {
-        latestStatusAssistant = msg;
-      }
+      latestStatusAssistant = msg;
 
       // Compute files once per assistant (avoid redundant extractFilePaths per pattern match)
       const files = extractFilePaths(msg.content);
@@ -664,14 +762,28 @@ export function extractTaskState(
 
       // risks in pass
       for (const clause of splitClauses(msg.content)) {
-        if (isActionableRisk(clause)) {
+        if (RISK_NEGATION_SIGNALS.some((pattern) => pattern.test(clause))) {
+          removeResolvedRisks(riskRaw, clause);
+        } else if (isActionableRisk(clause)) {
           riskRaw.push(truncate(clause, 240));
         }
       }
     }
   }
 
-  for (const shell of session.shellCommands.slice(-20)) {
+  const epochStartedAt = messages[0]?.timestamp;
+  const epochStartedAtMs = epochStartedAt
+    ? new Date(epochStartedAt).getTime()
+    : Number.NaN;
+  const epochCommands = Number.isFinite(epochStartedAtMs)
+    ? session.shellCommands.filter((shell) => {
+        const timestamp = shell.startedAt ?? shell.endedAt;
+        if (!timestamp) return true;
+        const commandTime = new Date(timestamp).getTime();
+        return !Number.isFinite(commandTime) || commandTime >= epochStartedAtMs;
+      })
+    : session.shellCommands;
+  for (const shell of epochCommands.slice(-20)) {
     const classification = classifyEvidenceCommand(shell.command);
     const exitCode = commandExitCode(shell.exitCode, shell.output);
     const status: HammaEvidenceStatus =
@@ -700,11 +812,6 @@ export function extractTaskState(
         `${snapshot.detachedHead ? "detached HEAD" : snapshot.branch ?? "unknown branch"}; ` +
         `${snapshot.changedFiles.length} changed file entr${snapshot.changedFiles.length === 1 ? "y" : "ies"}.`,
     });
-  }
-
-  if (!latestStatusAssistant && assistants.length > 0) {
-    // preserve original fallback: last assistant if no explicit status marker matched
-    latestStatusAssistant = assistants[assistants.length - 1];
   }
 
   const firstUser = users[0];
@@ -790,10 +897,10 @@ export function extractTaskState(
   const risksAgg = dedupRisks(riskRaw);
   const filesAgg = normalizeFilesMentioned(Array.from(fileSet));
 
-  const remainingTasks = tasks.filter((t) => t.status === "remaining");
-  const blockedTasks = tasks.filter((t) => t.status === "blocked");
   const messagesForIndex = messages; // already filtered
-  const latestUserIndex = latestImportantUser ? messagesForIndex.lastIndexOf(latestImportantUser) : -1;
+  const latestUserIndex = lastUser
+    ? messagesForIndex.lastIndexOf(lastUser)
+    : -1;
   const latestStatusIndex = latestStatusAssistant ? messagesForIndex.lastIndexOf(latestStatusAssistant) : -1;
   const statusFollowsLatestUser = latestStatusIndex > latestUserIndex;
   const lastUserForBare = users[users.length - 1];
@@ -808,6 +915,26 @@ export function extractTaskState(
       statusFollowsLatestUser &&
       isTerminalCompletionStatus(latestStatusAssistant.content)
   );
+  if (latestStatusIsComplete) {
+    tasks = tasks.map((task) =>
+      task.status === "completed"
+        ? task
+        : {
+            ...task,
+            status: "completed",
+            evidence: mergeUnique(
+              task.evidence,
+              latestStatusAssistant?.timestamp
+                ? [latestStatusAssistant.timestamp]
+                : []
+            ),
+          }
+    );
+  }
+  const remainingTasks = tasks.filter(
+    (task) => task.status === "remaining" || task.status === "in_progress"
+  );
+  const blockedTasks = tasks.filter((task) => task.status === "blocked");
 
   let outcome: HammaHandoffOutcome;
   if (blockedTasks.length > 0 || latestStatusIsBlocked) {
@@ -831,7 +958,7 @@ export function extractTaskState(
     : undefined;
   if (outcome === "blocked" && latestStatusAssistant) {
     nextRecommended = `Resolve blocker: ${firstParagraph(latestStatusAssistant.content, 200)}`;
-  } else if (statedNextAction) {
+  } else if (outcome !== "completed" && statedNextAction) {
     nextRecommended = statedNextAction;
   } else if (remainingTasks.length > 0) {
     const t = remainingTasks[0];
@@ -865,6 +992,12 @@ export function extractTaskState(
         ? truncate(latestStatusAssistant.content, 900)
         : undefined,
       nextRecommendedTask: nextRecommended,
+      taskEpoch: {
+        startMessageIndex: epoch.startMessageIndex,
+        messageCount: messages.length,
+        startedAt: messages[0]?.timestamp,
+        basis: epoch.basis,
+      },
     },
     tasks,
     verification,

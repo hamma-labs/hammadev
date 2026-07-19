@@ -36,8 +36,10 @@ description: Snapshot the current long session into a bounded HammaDev continuat
 5. Parse the JSON. Confirm `handoffPath` and `statePath`.
 
 6. Tell the user:
-   "Snapshot created. Open a fresh chat and run:
-   `<suggestedCommand from JSON>`"
+   - When `suggestedCommand` begins with a continuation command: "Snapshot
+     created. Open a fresh chat and run: `<suggestedCommand from JSON>`"
+   - When it reports no continuation is required: report that the final state
+     was archived and do not recommend opening another agent.
 
 7. **Stop here**. Do not continue the work in this chat.
 

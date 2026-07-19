@@ -210,4 +210,41 @@ describe("memory state merge", () => {
     expect(merged.state.tasks.filter((task) => task.id === "1")).toHaveLength(2);
     expect(merged.warnings.join(" ")).toContain("reused with different text");
   });
+
+  it("accepts a generic completion update without duplicating an older named task", () => {
+    const previous = state({
+      tasks: [{
+        id: "1",
+        title: "Implement immutable memory revisions",
+        status: "remaining",
+        summary: "Task #1 remains: implement immutable memory revisions.",
+        evidence: [],
+        risks: [],
+        filesMentioned: ["src/core/memory.ts"],
+      }],
+    });
+    const current = state({
+      outcome: "completed",
+      nextAction: undefined,
+      current: {},
+      tasks: [{
+        id: "1",
+        status: "completed",
+        summary: "Task #1 completed.",
+        evidence: ["All tests passed."],
+        risks: [],
+        filesMentioned: [],
+      }],
+    });
+
+    const merged = mergeMemoryState(previous, current);
+
+    expect(merged.state.tasks).toHaveLength(1);
+    expect(merged.state.tasks[0]).toMatchObject({
+      id: "1",
+      title: "Implement immutable memory revisions",
+      status: "completed",
+    });
+    expect(merged.state.outcome).toBe("completed");
+  });
 });

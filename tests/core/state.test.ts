@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -14,6 +15,11 @@ const CODEX_FIXTURE = path.join(
   "codex",
   "fixtures",
   "rollout-2026-06-15T12-00-00-fixture-abc-123.jsonl"
+);
+const COMPLETED_PUBLISH_FIXTURE = path.join(
+  HERE,
+  "fixtures",
+  "completed-publish-session.json"
 );
 
 function session(messages: HammaMessage[]): HammaSession {
@@ -86,6 +92,147 @@ describe("handoff outcome extraction", () => {
     expect(state.outcome).toBe("blocked");
     expect(state.nextAction).toContain("Resolve blocker:");
   });
+
+  it("recognizes a release reported as fully live as terminal completion", () => {
+    const state = extract([
+      { role: "user", content: "Publish the release and verify installation." },
+      {
+        role: "assistant",
+        content: "The release is now fully live. Both installation checks passed.",
+      },
+    ]);
+
+    expect(state.outcome).toBe("completed");
+    expect(state.nextAction).toBeUndefined();
+    expect(state.tasks).toEqual([
+      expect.objectContaining({ status: "completed" }),
+    ]);
+  });
+
+  it("does not interpret negated remaining-work language as unresolved work", () => {
+    const state = extract([
+      { role: "user", content: "Implement the release and verify the package." },
+      {
+        role: "assistant",
+        content: "Task #1 completed. All tests passed. No remaining implementation work.",
+      },
+    ]);
+
+    expect(state.outcome).toBe("completed");
+    expect(state.nextAction).toBeUndefined();
+    expect(state.tasks).toHaveLength(1);
+    expect(state.tasks[0]?.status).toBe("completed");
+  });
+});
+
+describe("current task epoch reconstruction", () => {
+  it("reconstructs only the latest completed publishing task from a long session", async () => {
+    const fixture = JSON.parse(
+      await fs.readFile(COMPLETED_PUBLISH_FIXTURE, "utf8")
+    ) as HammaSession;
+    const state = extractTaskState(fixture, {
+      targetCli: "claude",
+      repoState: { warnings: [] },
+    });
+
+    expect(state.goal).toBe("proceed with update and publishing");
+    expect(state.outcome).toBe("completed");
+    expect(state.nextAction).toBeUndefined();
+    expect(state.current.latestAssistantStatus).toContain("now fully live");
+    expect(state.current.latestAssistantStatus).not.toContain(
+      "confirm publication completed"
+    );
+    expect(state.current.taskEpoch).toMatchObject({
+      startMessageIndex: 3,
+      messageCount: 4,
+      basis: "latest_substantive_user",
+    });
+    expect(state.tasks).toHaveLength(1);
+    expect(state.tasks[0]).toMatchObject({
+      status: "completed",
+      summary: "proceed with update and publishing",
+    });
+    expect(state.tasks.some((task) => task.id !== undefined)).toBe(false);
+    expect(state.risks).toEqual([]);
+    expect(state.filesMentioned).not.toContain("website/src/App.tsx");
+    expect(state.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "command",
+          command: "pnpm test",
+          status: "passed",
+        }),
+        expect.objectContaining({
+          source: "user_confirmation",
+          summary: "done",
+        }),
+      ])
+    );
+    expect(
+      state.evidence.some((item) => item.command === "pnpm typecheck")
+    ).toBe(false);
+  });
+
+  it("does not promote an ordinary numbered report into task ledger items", () => {
+    const state = extract([
+      { role: "user", content: "Review the release evidence and summarize it." },
+      {
+        role: "assistant",
+        content: "Release report\n1. Package metadata\n2. Verification\n3. Commits",
+      },
+    ]);
+
+    expect(state.tasks).toHaveLength(1);
+    expect(state.tasks[0].id).toBeUndefined();
+  });
+
+  it("retains numbered items under an explicit plan heading", () => {
+    const state = extract([
+      { role: "user", content: "Implement the parser reliability update." },
+      {
+        role: "assistant",
+        content: "Plan:\n1. Inspect the parser\n2. Add regression coverage",
+      },
+    ]);
+
+    expect(state.tasks).toEqual([
+      expect.objectContaining({ id: "1", title: "Inspect the parser", status: "remaining" }),
+      expect.objectContaining({ id: "2", title: "Add regression coverage", status: "remaining" }),
+    ]);
+  });
+
+  it("removes a risk that is explicitly resolved later in the current epoch", () => {
+    const state = extract([
+      { role: "user", content: "Fix and verify the production build." },
+      {
+        role: "assistant",
+        content: "The production build failed because generated types were stale.",
+      },
+      {
+        role: "assistant",
+        content: "The production build failure is now resolved and the build passes.",
+      },
+    ]);
+
+    expect(state.risks).toEqual([]);
+  });
+
+  it("clears a publishing blocker after an explicit live-release result", () => {
+    const state = extract([
+      { role: "user", content: "Publish the package and verify the registry release." },
+      {
+        role: "assistant",
+        content: "Publishing is blocked because the npm registry login is unavailable.",
+      },
+      {
+        role: "assistant",
+        content: "The package is now fully live on npm. AGENTS.md remains untouched.",
+      },
+    ]);
+
+    expect(state.outcome).toBe("completed");
+    expect(state.risks).toEqual([]);
+  });
 });
 
 describe("goal selection, completed varied phrasing, files context and non-empty tasks", () => {
@@ -134,7 +281,7 @@ describe("goal selection, completed varied phrasing, files context and non-empty
     expect(state.filesMentioned.some((f: string) => f.includes("foo.ts"))).toBe(true);
   });
 
-  it("correctly extracts titles + completed/remaining across multi-assistant sequence (stresses inlined task+title logic)", () => {
+  it("scopes task state to the latest substantive user objective", () => {
     const state = extract([
       { role: "user", content: "Start work on the release tasks." },
       { role: "assistant", content: "I am proceeding with task #3: Harden the session loader paths.\n1. Fix traversal\n2. Add size guard" },
@@ -145,8 +292,16 @@ describe("goal selection, completed varied phrasing, files context and non-empty
     const completed = state.tasks.filter((t: any) => t.status === "completed");
     const remaining = state.tasks.filter((t: any) => t.status === "remaining");
     expect(completed.length).toBeGreaterThan(0);
-    // title from plan or intro should be present
-    expect(state.tasks.some((t: any) => (t.title || t.summary || "").toLowerCase().includes("harden") || (t.title || "").includes("3"))).toBe(true);
+    expect(state.tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "4", status: "completed" }),
+      ])
+    );
+    expect(state.tasks.some((task: any) => task.id === "3")).toBe(false);
+    expect(state.current.taskEpoch).toMatchObject({
+      startMessageIndex: 3,
+      basis: "latest_substantive_user",
+    });
     expect(remaining.length + completed.length).toBeGreaterThan(0);
     expect(["actionable", "completed"]).toContain(state.outcome);
   });
