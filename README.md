@@ -274,10 +274,13 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm smoke:cli
+pnpm smoke:package
 ```
 
 The CLI is strict TypeScript and ESM. Tests use synthetic sessions and temporary
-Git repositories. CI validates Node 22.12 and Node 24.
+Git repositories. `smoke:package` packs and installs the actual npm tarball in a
+temporary environment, then checks completed/no-op and actionable/bounded
+continuation paths. CI validates Node 22.12 and Node 24.
 
 The optional project-level Kiro quality hook runs `pnpm quality:report` after
 TypeScript source saves and records a local, content-safe validation report. See

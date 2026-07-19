@@ -157,6 +157,19 @@ reports a negative reduction and labels the package larger.
 - Verification: 39 test files and 268 tests passed; TypeScript typecheck, build,
   packaged CLI smoke, skill validation, and `git diff --check` passed. Feature
   commit: `5a06ccc` (`fix: scope handoffs to current task epoch`).
+- Added an installed-package release gate after the correction. It runs
+  `npm pack`, installs that tarball and its declared runtime dependencies in an
+  isolated temporary prefix, then drives the installed `hamma` binary against
+  synthetic Claude session data and a temporary Git repository. It also checks
+  that workspace-only source, tests, `AGENTS.md`, and local diagnostic evidence
+  are absent from the publish allowlist.
+- The representative package smoke measured a 1,944,181-byte tarball. Its
+  completed flow created no `.hamma` directory; its actionable flow produced a
+  3,190-byte `handoff.md`, remained within the 8 KiB hard ceiling, kept bounded
+  tool history archive-only, and emitted a command that loads only the handoff.
+  These are artifact-size measurements, not provider-token or latency claims.
+  Release-gate commit: `3847362` (`test: add installed package continuation
+  smoke`).
 
 ### Day 3 — persistent named project memory
 
@@ -289,6 +302,7 @@ not a stable cross-agent project-thread identity.
 - `dab3fcc` — `fix: activate named memory on resume`
 - `08dc30e` — `fix: bound continuation context`
 - `5a06ccc` — `fix: scope handoffs to current task epoch`
+- `3847362` — `test: add installed package continuation smoke`
 
 ## Demo flow (target)
 
