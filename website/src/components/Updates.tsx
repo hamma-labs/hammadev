@@ -1,36 +1,36 @@
-import { ArrowUpRight, BadgeCheck, FileText, ListRestart, Sparkles } from 'lucide-react';
+import { ArrowUpRight, BadgeCheck, FileTerminal, Sparkles } from 'lucide-react';
 
 const updates = [
   {
     icon: BadgeCheck,
-    label: 'Accurate completion',
-    title: 'Finished work stays finished.',
-    copy: 'Explicit implemented, automated, configured, fixed, resolved, and verified outcomes now stop continuation before another artifact is created.',
-    command: 'hamma continue --to codex --explain',
+    label: 'Resume preflight',
+    title: 'Finished sessions stop before handoff.',
+    copy: 'Resume skills can inspect an explicit prior session through a compact, read-only preflight and avoid creating an unnecessary artifact.',
+    command: 'hamma handoff claude:previous --to claude --preflight',
   },
   {
-    icon: FileText,
-    label: 'Compact skill response',
-    title: 'Decide with less context.',
-    copy: 'Agent skills receive a one-line, transcript-free selection and preflight contract while the full JSON API remains backward compatible.',
+    icon: BadgeCheck,
+    label: 'Installation completion',
+    title: 'Installed means complete.',
+    copy: 'Successful installed and available outcomes are recognized as completion while unresolved failures still override optimistic claims.',
+    command: '/hamma-resume',
+  },
+  {
+    icon: FileTerminal,
+    label: 'Claude command evidence',
+    title: 'Evidence without tool-output leakage.',
+    copy: 'Claude sessions retain redacted, capped Bash command metadata while tool outputs, thinking, and file-read payloads stay excluded.',
     command: 'hamma continue --to codex --compact-json',
-  },
-  {
-    icon: ListRestart,
-    label: 'Black-box verified',
-    title: 'Reality drives the release.',
-    copy: 'A real Claude Code handoff exposed stale actionability and oversized command responses; alpha.7 corrects both paths with replay coverage.',
-    command: 'hamma skill install --force',
   },
 ];
 
 export default function Updates() {
   return (
     <section id="updates" className="section-shell" aria-labelledby="updates-heading">
-      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.7</div>
+      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.8</div>
       <div className="section-heading-row">
         <h2 id="updates-heading" className="section-title">Continuity you can inspect and trust.</h2>
-        <p>Alpha.7 turns real handoff evidence into a faster, more accurate continuation path.</p>
+        <p>Alpha.8 makes same-agent resume faster, safer, and more faithful to the work already finished.</p>
       </div>
       <div className="update-list">
         {updates.map(({ icon: Icon, label, title, copy, command }, index) => (

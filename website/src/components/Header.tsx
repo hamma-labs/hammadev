@@ -8,7 +8,7 @@ export default function Header() {
       <div className="flex items-center gap-3">
         <span className="hidden sm:inline-flex items-center gap-2 text-xs font-medium text-slate-500">
           <span className="status-pulse" aria-hidden="true" />
-          v0.1 alpha.7
+          v0.1 alpha.8
         </span>
         <a
           href="https://github.com/xayrullonematov/hammadev"
