@@ -213,6 +213,44 @@ reports a negative reduction and labels the package larger.
   passed every OIDC release gate. Registry verification showed `alpha` at
   `0.1.0-alpha.7`, exposed SLSA provenance, and a clean-directory npm execution
   printed `0.1.0-alpha.7`.
+
+### Same-agent resume preflight correction
+
+- A subsequent real `/hamma-resume` run loaded only one bounded handoff but
+  still took 3 minutes 29 seconds to conclude that an earlier skill-installation
+  task was already complete. The trace contained no Hamma network request: the
+  exact 58,225-byte Claude session parsed locally in 0.18 seconds, while the
+  handoff write phase took approximately 0.13 seconds. The delay was caused by
+  sequential model/tool rounds after stale state reconstruction, not local
+  Hamma processing.
+- The resume skill had not inherited alpha.7's cross-agent compact preflight.
+  It called `hamma handoff <agent>:previous --json`, created an artifact, read
+  the brief, and then asked the receiving model to reconcile an incorrect
+  remaining action.
+- Added read-only explicit-session preflight with
+  `hamma handoff <target> --to <agent> --preflight --compact-json`. Existing
+  handoff JSON remains backward compatible. `/hamma-resume` now runs this
+  compact preflight first and stops without creating or reading a handoff when
+  the prior task is completed, blocked, ambiguous, or otherwise withheld.
+- Installation requests are now substantive task instructions, and explicit
+  “skills are now available/installed” results are terminal completion signals.
+  Remaining, failed, or next-step language still overrides completion.
+- Claude normalization now retains redacted, 4,096-character-capped Bash
+  command metadata as tool evidence. Thinking blocks, tool-result contents,
+  `Read` payloads, and other tool inputs remain excluded from normalized
+  messages and evidence archives.
+- Replaying the exact normalized failure now returns `completed`, no next
+  action, and `shouldCreateHandoff: false`; the task-directory count remains
+  unchanged. The compiled preflight completed in 0.31 seconds and emitted 771
+  bytes on one line. These measurements isolate local CLI behavior and do not
+  predict Claude, Codex, or Grok model latency.
+- Verification: 39 test files and 277 tests passed; TypeScript typecheck, build,
+  compiled CLI help, installed-package smoke, and `git diff --check` passed.
+  The packed alpha.7 development artifact measured 1,949,262 bytes, its
+  explicit completed-session preflight created no handoff, and its actionable
+  flow retained a 3,166-byte initial context.
+- Feature commits: `202536b` (`feat: retain redacted Claude command evidence`)
+  and `2028232` (`fix: preflight same-agent resumes`).
 - Added `.github/workflows/publish.yml` for npm Trusted Publishing. Matching
   version tags now trigger a fail-closed Node 24 job that re-verifies the
   release and packed artifact, refuses existing registry versions, and publishes
@@ -367,6 +405,8 @@ not a stable cross-agent project-thread identity.
 - `a754502` — `fix: recognize verified automation completion`
 - `dcb1967` — `fix: compact agent continuation responses`
 - `5568857` — `chore: prepare 0.1.0-alpha.7`
+- `202536b` — `feat: retain redacted Claude command evidence`
+- `2028232` — `fix: preflight same-agent resumes`
 
 ## Demo flow (target)
 
