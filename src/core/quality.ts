@@ -29,7 +29,7 @@ export interface SessionCandidate {
 }
 
 const TRIVIAL_USER_MESSAGE = /^(?:hi|hello|hey|test|testing|ping|thanks?|thank you|ok|okay)[.!?\s]*$/i;
-const TASK_SIGNAL = /\b(?:add|analy[sz]e|audit|build|change|continue|create|debug|design|diagnose|fix|implement|improve|investigate|migrate|optimi[sz]e|refactor|remove|repair|replace|resume|review|test|trace|update|verify|write)\b/i;
+const TASK_SIGNAL = /\b(?:add|analy[sz]e|audit|build|change|continue|create|debug|design|diagnose|fix|implement|improve|install|investigate|migrate|optimi[sz]e|refactor|remove|repair|replace|resume|review|test|trace|update|verify|write)\b/i;
 const FILE_SIGNAL = /(?:^|[\s`])(?:[\w.-]+\/)+[\w.-]+\.[a-z0-9]+\b/i;
 const DECISION_SIGNAL = /\b(?:decided|decision|approach|trade-?off|because|instead of)\b/i;
 const COMPLETION_SIGNAL = /\b(?:completed|done|fixed|implemented|shipped|updated|working)\b/i;

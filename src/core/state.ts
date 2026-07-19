@@ -93,7 +93,7 @@ export interface HammaTaskState {
 }
 
 const IMPORTANT_USER_WORDS =
-  /\b(audit|assess|commit|deploy|fix|build|implement|proceed|publish|push|release|resume|continue|task|test|update|verify|use mcp|minimize|do not)\b/i;
+  /\b(audit|assess|commit|deploy|fix|build|implement|install|proceed|publish|push|release|resume|continue|task|test|update|verify|use mcp|minimize|do not)\b/i;
 
 const COMPLETED_PATTERNS: RegExp[] = [
   /Task #?(\d+)\s+completed/gi,
@@ -118,7 +118,7 @@ const BARE_CONTINUATION_INSTRUCTION =
   /^(?:please\s+)?(?:resume|continue|proceed|keep going)(?:\s+(?:the\s+)?(?:task|work))?[.!]?$/i;
 
 const TERMINAL_COMPLETION_STATUS =
-  /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes)|(?:is|are) now (?:fully )?(?:live|published|released|deployed|complete)|(?:published|released|deployed|shipped) successfully|(?:work|implementation|task|feature|fix|workflow|automation|publishing|release|configuration) (?:is|are|has been|have been) (?:now )?(?:fully )?(?:implemented|automated|configured|fixed|resolved|verified)(?: and (?:implemented|automated|configured|fixed|resolved|verified))?)\b/i;
+  /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes)|(?:is|are) now (?:fully )?(?:live|published|released|deployed|complete)|(?:published|released|deployed|shipped) successfully|(?:work|implementation|task|feature|fix|workflow|automation|publishing|release|configuration|skills?|packages?|dependencies) (?:is|are|has been|have been) (?:now )?(?:fully )?(?:available|installed|implemented|automated|configured|fixed|resolved|verified)(?: and (?:available|installed|implemented|automated|configured|fixed|resolved|verified))?)\b/i;
 
 const UNRESOLVED_STATUS =
   /\b(?:remaining|next (?:step|task|action)|todo|still need|needs? to|failed|failing|cannot proceed)\b/i;

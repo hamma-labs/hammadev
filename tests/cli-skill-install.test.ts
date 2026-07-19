@@ -45,6 +45,13 @@ describe("skill install CLI command", () => {
         expect(skill).toContain("preflight.readiness.warnings");
         expect(skill).not.toContain("--explain --json");
       }
+      if (install.skillName === "hamma-resume") {
+        expect(skill).toContain("--preflight --compact-json");
+        expect(skill).toContain('"resumed": false');
+        expect(skill).not.toContain(
+          'handoff THIS:previous --to THIS --project "<root>" --json'
+        );
+      }
     }
   });
 

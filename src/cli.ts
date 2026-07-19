@@ -25,6 +25,7 @@ import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
 import { AsyncStructuredLogger } from "./core/logger.js";
 import {
   compactContinuationResponse,
+  compactExplicitHandoffResponse,
   decideContinuation,
   evaluateContinuationPreflight,
   loadContinuationSession,
@@ -436,7 +437,9 @@ program
   )
   .requiredOption("--to <agent>", "Target CLI (claude | codex | grok | other)")
   .option("--project <path>", "Project used to resolve :project/:current/:previous for claude/codex/grok")
+  .option("--preflight", "Assess the explicit session without creating a handoff")
   .option("--json", "Print only a machine-readable handoff result")
+  .option("--compact-json", "Print a bounded one-line JSON result for agent skills")
   .option("--no-gitignore", "Do not modify .gitignore")
   .description("Create a handoff package for another agent")
   .action(async (target, options) => {
@@ -453,15 +456,93 @@ program
           ? process.cwd()
           : undefined;
       const session = await loadSession(target, { projectPath });
-      if (isProjectTarget && projectPath) {
+      if (projectPath) {
         session.meta.projectPath = projectPath;
+      }
+      const compactJson = Boolean(options.compactJson);
+      const structuredPreflight = Boolean(options.preflight || compactJson);
+      const targetCli = structuredPreflight
+        ? parseContinuationAgent(options.to)
+        : undefined;
+      const effectiveProjectPath = session.meta.projectPath
+        ? path.resolve(session.meta.projectPath)
+        : undefined;
+      const evaluation = structuredPreflight
+        ? effectiveProjectPath && targetCli
+          ? evaluateContinuationPreflight(
+              session,
+              targetCli,
+              effectiveProjectPath
+            )
+          : undefined
+        : undefined;
+      if (structuredPreflight && !evaluation) {
+        throw new Error(
+          "Handoff preflight requires a project path. Pass --project <path> or use a session that records its project."
+        );
+      }
+      if (options.preflight) {
+        const preflight = evaluation!.preflight;
+        if (compactJson) {
+          process.stdout.write(
+            `${JSON.stringify(compactExplicitHandoffResponse(
+              session,
+              effectiveProjectPath!,
+              targetCli!,
+              preflight,
+              null,
+              "preflight"
+            ))}\n`
+          );
+          return;
+        }
+        if (options.json) {
+          process.stdout.write(
+            `${JSON.stringify({
+              schemaVersion: 1,
+              mode: "preflight",
+              projectPath: effectiveProjectPath,
+              targetCli,
+              source: {
+                sourceCli: session.meta.sourceCli,
+                sessionId: session.meta.sourceSessionId,
+              },
+              preflight,
+              handoff: null,
+            }, null, 2)}\n`
+          );
+          return;
+        }
+        console.log(pc.bold("Explicit handoff preflight"));
+        console.log(
+          `Source: ${session.meta.sourceCli}:${session.meta.sourceSessionId}`
+        );
+        console.log(`Current outcome: ${preflight.outcome}`);
+        console.log(`Handoff readiness: ${preflight.readiness.level}`);
+        console.log("");
+        console.log(preflight.recommendation);
+        console.log(pc.dim("No handoff was created."));
+        return;
       }
       const result = await createHandoff(
         session,
         options.to,
         options.gitignore,
-        { quiet: Boolean(options.json) }
+        { quiet: Boolean(options.json || compactJson) }
       );
+      if (compactJson) {
+        process.stdout.write(
+          `${JSON.stringify(compactExplicitHandoffResponse(
+            session,
+            effectiveProjectPath!,
+            targetCli!,
+            evaluation!.preflight,
+            result,
+            "result"
+          ))}\n`
+        );
+        return;
+      }
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       }

@@ -56,6 +56,15 @@ async function writeClaudeSession(
   await fs.utimes(sessionPath, mtime, mtime);
 }
 
+async function taskIds(): Promise<string[]> {
+  try {
+    return (await fs.readdir(path.join(projectPath, ".hamma", "tasks"))).sort();
+  } catch (error: any) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
 beforeAll(async () => {
   fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-cli-project-"));
   projectPath = path.join(fixtureRoot, "project");
@@ -140,6 +149,101 @@ describe("handoff claude:project CLI command", () => {
     const handoff = await fs.readFile(output.handoffPath, "utf8");
     expect(handoff).toContain("Continue the project-specific parser work.");
     expect(handoff).not.toContain("This belongs to another repository.");
+  });
+
+  it("preflights a completed explicit session in compact JSON without writing", async () => {
+    const id = "eeeeeeee-5555-4eee-8eee-eeeeeeeeeeee";
+    await writeClaudeSession(
+      id,
+      projectPath,
+      "Install the requested hammadev skills from the project repository.",
+      new Date("2026-07-03T08:00:00Z"),
+      "Installed three hammadev skills. The skills are now available in the local Claude skills directory."
+    );
+    const before = await taskIds();
+    const result = await execFileAsync(
+      TSX,
+      [
+        CLI,
+        "handoff",
+        `claude:${id}`,
+        "--to",
+        "claude",
+        "--project",
+        projectPath,
+        "--preflight",
+        "--compact-json",
+      ],
+      {
+        cwd: projectPath,
+        env: { ...process.env, HOME: fakeHome },
+      }
+    );
+    const output = JSON.parse(result.stdout);
+
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(Buffer.byteLength(result.stdout, "utf8")).toBeLessThan(4096);
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      mode: "preflight",
+      projectPath,
+      targetCli: "claude",
+      source: {
+        sourceCli: "claude",
+        sessionId: id,
+      },
+      preflight: {
+        outcome: "completed",
+        shouldCreateHandoff: false,
+        requiresForce: true,
+      },
+      handoff: null,
+    });
+    expect(output.preflight).not.toHaveProperty("nextAction");
+    expect(output).not.toHaveProperty("candidates");
+    expect(await taskIds()).toEqual(before);
+  });
+
+  it("creates an actionable explicit handoff through compact JSON", async () => {
+    const result = await execFileAsync(
+      TSX,
+      [
+        CLI,
+        "handoff",
+        "claude:aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa",
+        "--to",
+        "codex",
+        "--project",
+        projectPath,
+        "--compact-json",
+        "--no-gitignore",
+      ],
+      {
+        cwd: projectPath,
+        env: { ...process.env, HOME: fakeHome },
+      }
+    );
+    const output = JSON.parse(result.stdout);
+
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(Buffer.byteLength(result.stdout, "utf8")).toBeLessThan(4096);
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      mode: "result",
+      source: {
+        sourceCli: "claude",
+        sessionId: "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa",
+      },
+      preflight: {
+        outcome: "actionable",
+        shouldCreateHandoff: true,
+      },
+      handoff: {
+        outcome: "actionable",
+        initialContextBytes: expect.any(Number),
+      },
+    });
+    await expect(fs.stat(output.handoff.handoffPath)).resolves.toBeDefined();
   });
 
   it("lists ranked project candidates without transcript content", async () => {

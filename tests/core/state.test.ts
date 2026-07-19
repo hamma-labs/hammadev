@@ -137,6 +137,43 @@ describe("handoff outcome extraction", () => {
     ]);
   });
 
+  it("recognizes installed skills reported as available as terminal completion", () => {
+    const state = extract([
+      {
+        role: "user",
+        content: "install hammadev skills from the project repository",
+      },
+      {
+        role: "assistant",
+        content:
+          "Installed three hammadev skills: hamma-snap, hamma-handoff, and hamma-resume. The skills are now available in the local Claude skills directory.",
+      },
+    ]);
+
+    expect(state.outcome).toBe("completed");
+    expect(state.nextAction).toBeUndefined();
+    expect(state.tasks).toEqual([
+      expect.objectContaining({
+        status: "completed",
+        summary: "install hammadev skills from the project repository",
+      }),
+    ]);
+  });
+
+  it("does not complete an installation that still names unresolved work", () => {
+    const state = extract([
+      { role: "user", content: "Install all requested development skills." },
+      {
+        role: "assistant",
+        content:
+          "The skills are now available, but the remaining task is to fix the failed activation check.",
+      },
+    ]);
+
+    expect(state.outcome).toBe("actionable");
+    expect(state.nextAction).toBe("Install all requested development skills.");
+  });
+
   it("keeps explicit unresolved work actionable despite completion wording", () => {
     const state = extract([
       { role: "user", content: "Automate npm publishing with GitHub Actions." },

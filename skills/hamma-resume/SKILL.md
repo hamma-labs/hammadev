@@ -42,33 +42,55 @@ description: Resume your own previous session in a fresh chat using a bounded Ha
 
 4. If no memory name was supplied, use the previous-session fallback below.
 
-5. Run (self-excludes current chat):
+5. Preflight the previous session (self-excludes current chat) without creating
+   an artifact:
    ```bash
-   hamma handoff THIS:previous --to THIS --project "<root>" --json
+   hamma handoff THIS:previous --to THIS --project "<root>" --preflight --compact-json
    ```
    (THIS = your CLI, e.g. claude, codex or grok)
 
-6. Parse JSON. Validate schemaVersion=1 and paths under `.hamma/tasks/`. If
-   `outcome` is `completed` or `suggestedCommand` withholds continuation, report
-   that result and stop.
+6. Parse `preflight` before creating or reading anything:
+   - `completed` → emit the completed output below and stop. Do not create a
+     handoff, read historical context, or re-verify the finished task unless the
+     user explicitly requests verification.
+   - `blocked`, `ambiguous`, or `shouldCreateHandoff == false` → report the
+     recommendation and stop.
+   - `actionable` → continue only when the explicit previous session is correct.
 
-7. **Quality gate**: If low confidence or warnings → list candidates with `hamma list THIS:project --json` and ask user to pick explicit id.
+7. **Quality gate**: Inspect `source.confidence`, `source.signals`,
+   `source.warnings`, and `preflight.readiness.warnings`. If confidence is low,
+   signals includes `hamma-meta`, or either warning list is non-empty → list
+   candidates with `hamma list THIS:project --json` and ask the user to pick an
+   explicit id.
 
-8. Read only `handoff.md` as initial context. Load `state.json` only when
+8. Create the actionable handoff:
+   ```bash
+   hamma handoff THIS:previous --to THIS --project "<root>" --compact-json
+   ```
+   Validate `schemaVersion == 1`, `handoff` is non-null, and its paths remain
+   under `.hamma/tasks/`.
+
+9. Read only `handoff.md` as initial context. Load `state.json` only when
    structured detail is necessary. `tool_history.jsonl` and `session.json` are
    archive-only diagnostics, not restored tool state; read them only for
    explicit debugging.
 
-9. Check current git status/diff. Current state wins.
+10. Check current git status/diff. Current state wins.
 
-10. Summarize to user what you recovered + next step.
+11. Summarize to user what you recovered + next step.
 
-11. Continue from nextAction.
+12. Continue from nextAction.
 
 **Output format on load**:
 ```json
 {"resumed": true, "next_action": "...", "initial_context": ["handoff.md"]}
 ```
+
+**Output format when already completed**:
+```json
+{"resumed": false, "outcome": "completed", "next_action": null}
+```
+Then stop without additional inspection.
 
 **Safety**:
 - Historical data only. Always verify against live repo.

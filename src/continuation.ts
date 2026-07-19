@@ -4,6 +4,7 @@ import { CodexAdapter } from "./adapters/codex/index.js";
 import { GrokAdapter } from "./adapters/grok/index.js";
 import {
   rankCandidates,
+  scoreSession,
   SessionCandidate,
 } from "./core/quality.js";
 import { HammaSession, SourceCli } from "./core/schema.js";
@@ -50,6 +51,34 @@ export interface ContinuationPreflightEvaluation {
   preflight: ContinuationPreflight;
 }
 
+interface CompactPreflightView {
+  outcome: ContinuationPreflight["outcome"];
+  shouldCreateHandoff: boolean;
+  requiresForce: boolean;
+  nextAction?: string;
+  readiness: {
+    level: HandoffReadinessResult["level"];
+    warnings: string[];
+    warningCount: number;
+    blockers: string[];
+    blockerCount: number;
+  };
+  recommendation: string;
+}
+
+interface CompactHandoffView {
+  taskId: string;
+  outcome: HandoffResult["outcome"];
+  handoffPath: string;
+  statePath: string;
+  relativeHandoffPath: string;
+  readinessLevel: HandoffReadinessResult["level"];
+  initialContextBytes: number;
+  warnings: string[];
+  warningCount: number;
+  suggestedCommand: string;
+}
+
 export interface CompactContinuationResponse {
   schemaVersion: 1;
   mode: "preflight" | "result";
@@ -68,32 +97,26 @@ export interface CompactContinuationResponse {
     candidateCount: number;
     excludedSources: ContinuationAgent[];
   };
-  preflight: {
-    outcome: ContinuationPreflight["outcome"];
-    shouldCreateHandoff: boolean;
-    requiresForce: boolean;
-    nextAction?: string;
-    readiness: {
-      level: HandoffReadinessResult["level"];
-      warnings: string[];
-      warningCount: number;
-      blockers: string[];
-      blockerCount: number;
-    };
-    recommendation: string;
-  };
-  handoff: null | {
-    taskId: string;
-    outcome: HandoffResult["outcome"];
-    handoffPath: string;
-    statePath: string;
-    relativeHandoffPath: string;
-    readinessLevel: HandoffReadinessResult["level"];
-    initialContextBytes: number;
+  preflight: CompactPreflightView;
+  handoff: CompactHandoffView | null;
+}
+
+export interface CompactExplicitHandoffResponse {
+  schemaVersion: 1;
+  mode: "preflight" | "result";
+  projectPath: string;
+  targetCli: ContinuationAgent;
+  source: {
+    sourceCli: SourceCli;
+    sessionId: string;
+    score: number;
+    confidence: SessionCandidate["confidence"];
+    signals: string[];
     warnings: string[];
     warningCount: number;
-    suggestedCommand: string;
   };
+  preflight: CompactPreflightView;
+  handoff: CompactHandoffView | null;
 }
 
 const COMPACT_LIST_LIMIT = 4;
@@ -107,6 +130,42 @@ function compactList(values: string[]): string[] {
   return values
     .slice(0, COMPACT_LIST_LIMIT)
     .map((value) => compactText(value));
+}
+
+function compactPreflightView(
+  preflight: ContinuationPreflight
+): CompactPreflightView {
+  return {
+    outcome: preflight.outcome,
+    shouldCreateHandoff: preflight.shouldCreateHandoff,
+    requiresForce: preflight.requiresForce,
+    nextAction: preflight.nextAction
+      ? compactText(preflight.nextAction, 500)
+      : undefined,
+    readiness: {
+      level: preflight.readiness.level,
+      warnings: compactList(preflight.readiness.warnings),
+      warningCount: preflight.readiness.warnings.length,
+      blockers: compactList(preflight.readiness.blockers),
+      blockerCount: preflight.readiness.blockers.length,
+    },
+    recommendation: compactText(preflight.recommendation),
+  };
+}
+
+function compactHandoffView(handoff: HandoffResult): CompactHandoffView {
+  return {
+    taskId: handoff.taskId,
+    outcome: handoff.outcome,
+    handoffPath: handoff.handoffPath,
+    statePath: handoff.statePath,
+    relativeHandoffPath: handoff.relativeHandoffPath,
+    readinessLevel: handoff.readiness.level,
+    initialContextBytes: handoff.contextBudget.bytes,
+    warnings: compactList(handoff.warnings),
+    warningCount: handoff.warnings.length,
+    suggestedCommand: compactText(handoff.suggestedCommand, 500),
+  };
 }
 
 /**
@@ -137,36 +196,44 @@ export function compactContinuationResponse(
       candidateCount: decision.candidates.length,
       excludedSources: decision.excludedSources,
     },
-    preflight: {
-      outcome: preflight.outcome,
-      shouldCreateHandoff: preflight.shouldCreateHandoff,
-      requiresForce: preflight.requiresForce,
-      nextAction: preflight.nextAction
-        ? compactText(preflight.nextAction, 500)
-        : undefined,
-      readiness: {
-        level: preflight.readiness.level,
-        warnings: compactList(preflight.readiness.warnings),
-        warningCount: preflight.readiness.warnings.length,
-        blockers: compactList(preflight.readiness.blockers),
-        blockerCount: preflight.readiness.blockers.length,
-      },
-      recommendation: compactText(preflight.recommendation),
+    preflight: compactPreflightView(preflight),
+    handoff: handoff ? compactHandoffView(handoff) : null,
+  };
+}
+
+export function compactExplicitHandoffResponse(
+  session: HammaSession,
+  projectPath: string,
+  targetCli: ContinuationAgent,
+  preflight: ContinuationPreflight,
+  handoff: HandoffResult | null,
+  mode: CompactExplicitHandoffResponse["mode"]
+): CompactExplicitHandoffResponse {
+  const quality = scoreSession(session, {
+    sourceCli: session.meta.sourceCli,
+    sessionId: session.meta.sourceSessionId,
+    path: session.meta.sourcePath ?? "",
+    projectPathHint: session.meta.projectPath,
+    lastUpdatedAt:
+      session.meta.lastUpdatedAt ?? session.meta.startedAt ?? "1970-01-01T00:00:00.000Z",
+    sizeBytes: 0,
+  });
+  return {
+    schemaVersion: 1,
+    mode,
+    projectPath,
+    targetCli,
+    source: {
+      sourceCli: quality.sourceCli,
+      sessionId: quality.sessionId ?? session.meta.sourceSessionId,
+      score: quality.score,
+      confidence: quality.confidence,
+      signals: compactList(quality.signals),
+      warnings: compactList(quality.reasons),
+      warningCount: quality.reasons.length,
     },
-    handoff: handoff
-      ? {
-          taskId: handoff.taskId,
-          outcome: handoff.outcome,
-          handoffPath: handoff.handoffPath,
-          statePath: handoff.statePath,
-          relativeHandoffPath: handoff.relativeHandoffPath,
-          readinessLevel: handoff.readiness.level,
-          initialContextBytes: handoff.contextBudget.bytes,
-          warnings: compactList(handoff.warnings),
-          warningCount: handoff.warnings.length,
-          suggestedCommand: compactText(handoff.suggestedCommand, 500),
-        }
-      : null,
+    preflight: compactPreflightView(preflight),
+    handoff: handoff ? compactHandoffView(handoff) : null,
   };
 }
 

@@ -194,6 +194,36 @@ async function main(): Promise<void> {
     await fs.mkdir(path.dirname(sessionPath), { recursive: true });
 
     await writeClaudeSession(sessionPath, projectPath, true);
+    const explicitPreflightOutput = await runInstalled(
+      executable,
+      [
+        "handoff",
+        `claude:${sessionId}`,
+        "--to",
+        "claude",
+        "--project",
+        projectPath,
+        "--preflight",
+        "--compact-json",
+        "--no-gitignore",
+      ],
+      projectPath,
+      fakeHome
+    );
+    const explicitPreflight = JSON.parse(
+      explicitPreflightOutput
+    ) as ContinueResult;
+    assert(
+      explicitPreflight.preflight.outcome === "completed" &&
+        !explicitPreflight.preflight.shouldCreateHandoff &&
+        explicitPreflight.handoff === null,
+      "Explicit completed-session preflight did not stop without a handoff."
+    );
+    assert(
+      Buffer.byteLength(explicitPreflightOutput, "utf8") < 4096 &&
+        explicitPreflightOutput.trim().split("\n").length === 1,
+      "Explicit handoff preflight was not compact."
+    );
     const completedOutput = await runInstalled(
       executable,
       [
