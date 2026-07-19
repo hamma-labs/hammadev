@@ -1,36 +1,36 @@
-import { ArrowUpRight, BadgeCheck, GitCompareArrows, History, Sparkles } from 'lucide-react';
+import { ArrowUpRight, BadgeCheck, FileText, ListRestart, Sparkles } from 'lucide-react';
 
 const updates = [
   {
-    icon: History,
-    label: 'Named project memory',
-    title: 'Sessions change. The project thread persists.',
-    copy: 'Create a stable name once, then append immutable revisions as work moves between supported coding agents.',
-    command: 'hamma memory start build-week',
+    icon: FileText,
+    label: 'Bounded initial context',
+    title: 'Load the brief, not the archive.',
+    copy: 'The receiving agent starts with handoff.md alone. Structured state and bounded diagnostics stay available only when needed.',
+    command: 'hamma benchmark latest',
   },
   {
-    icon: GitCompareArrows,
-    label: 'Repository awareness',
-    title: 'Detect drift before another agent edits.',
-    copy: 'Recorded Git metadata and relevant-file digests expose branch, HEAD, working-tree, and task-file differences.',
-    command: 'hamma show latest --check-drift',
+    icon: ListRestart,
+    label: 'Current task epoch',
+    title: 'Resume the current objective—not old session noise.',
+    copy: 'Task reconstruction scopes goals, evidence, risks, and next actions to the latest substantive development objective.',
+    command: 'hamma continue --to codex --explain',
   },
   {
     icon: BadgeCheck,
-    label: 'Explainable readiness',
-    title: 'Know when a handoff needs review.',
-    copy: 'Observable evidence, verification outcomes, task clarity, and repository consistency produce signals—not false certainty.',
-    command: 'hamma show latest --readiness',
+    label: 'No-op preflight',
+    title: 'Finished work does not launch another agent.',
+    copy: 'Completed, blocked, ambiguous, or unsafe state returns an explainable recommendation before any continuation artifact is written.',
+    command: 'hamma continue --to codex',
   },
 ];
 
 export default function Updates() {
   return (
     <section id="updates" className="section-shell" aria-labelledby="updates-heading">
-      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.5</div>
+      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.6</div>
       <div className="section-heading-row">
         <h2 id="updates-heading" className="section-title">Continuity you can inspect and trust.</h2>
-        <p>Alpha.5 turns one-off handoffs into durable, Git-aware project memory with explainable readiness.</p>
+        <p>Alpha.6 makes continuation smaller and more honest: bounded context, current-task reconstruction, and no-op preflight.</p>
       </div>
       <div className="update-list">
         {updates.map(({ icon: Icon, label, title, copy, command }, index) => (

@@ -21,8 +21,9 @@ test('presents the current product and supported agents accurately', async ({ pa
   await expect(
     page.getByText('hamma memory resume build-week --to claude', { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText('v0.1 alpha.5', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('v0.1 alpha.6', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Handoff readiness: READY', { exact: true })).toBeVisible();
+  await expect(page.getByText('No-op preflight', { exact: true })).toBeVisible();
 
   await expect(page.getByText(/hamma save/i)).toHaveCount(0);
   await expect(page.getByText(/hamma load/i)).toHaveCount(0);
