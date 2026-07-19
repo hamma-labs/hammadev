@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -44,12 +46,64 @@ describe("parseClaudeSession — v0.1 conservative parser", () => {
     expect(blob).not.toContain("permission-mode");
   });
 
-  it("skips assistant thinking and tool_use blocks, and user tool_result blocks", async () => {
+  it("skips thinking and tool-result contents while retaining Bash command metadata", async () => {
     const s = await parseClaudeSession(FIXTURE);
-    const blob = JSON.stringify(s);
-    expect(blob).not.toContain("INTERNAL_THOUGHT_MUST_NOT_LEAK");
-    expect(blob).not.toContain("TOOL_RESULT_MUST_NOT_LEAK");
-    expect(blob).not.toContain("ls -la");
+    const messages = JSON.stringify(s.messages);
+    expect(messages).not.toContain("INTERNAL_THOUGHT_MUST_NOT_LEAK");
+    expect(messages).not.toContain("TOOL_RESULT_MUST_NOT_LEAK");
+    expect(messages).not.toContain("ls -la");
+    expect(s.shellCommands).toEqual([
+      {
+        command: "ls -la",
+        startedAt: "2026-06-15T12:00:02Z",
+      },
+    ]);
+    expect(JSON.stringify(s.shellCommands)).not.toContain(
+      "TOOL_RESULT_MUST_NOT_LEAK"
+    );
+  });
+
+  it("redacts and bounds captured Bash command metadata", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-claude-command-"));
+    const fixture = path.join(
+      root,
+      "bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb.jsonl"
+    );
+    try {
+      const secret = "sk-abcdefghijklmnopqrstuvwxyz012345";
+      const command = `printf '${secret}' ${"x".repeat(5000)}`;
+      await fs.writeFile(
+        fixture,
+        `${JSON.stringify({
+          type: "assistant",
+          timestamp: "2026-07-19T10:00:00Z",
+          message: {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "tool-1",
+                name: "Bash",
+                input: { command },
+              },
+            ],
+          },
+        })}\n`,
+        "utf8"
+      );
+
+      const session = await parseClaudeSession(fixture);
+      expect(session.shellCommands).toHaveLength(1);
+      expect(session.shellCommands[0].command).not.toContain(secret);
+      expect(session.shellCommands[0].command).toContain("[REDACTED_SECRET]");
+      expect(session.shellCommands[0].command).toContain("...[truncated]");
+      expect(session.security.redacted).toBe(true);
+      expect(session.security.warnings).toContain(
+        "Truncated oversized Claude Bash command metadata."
+      );
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 
   it("skips messages whose text is empty/whitespace", async () => {

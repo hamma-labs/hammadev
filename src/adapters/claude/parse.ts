@@ -15,6 +15,8 @@ const IGNORED_TOP_TYPES = new Set([
   "attachment"
 ]);
 
+const CLAUDE_COMMAND_MAX_CHARS = 4096;
+
 function extractText(message: any): string | undefined {
   if (!message) return undefined;
 
@@ -42,6 +44,41 @@ function redactInto(session: HammaSession, text: string): string {
   session.security.redactionCount += r.count;
   if (r.count > 0) session.security.redacted = true;
   return r.text;
+}
+
+function captureBashCommands(
+  session: HammaSession,
+  content: unknown,
+  timestamp: string | undefined,
+  seenToolUseIds: Set<string>
+): void {
+  if (!Array.isArray(content)) return;
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    if (block.type !== "tool_use") continue;
+    if (String(block.name ?? "").toLowerCase() !== "bash") continue;
+    const toolUseId = typeof block.id === "string" ? block.id : undefined;
+    if (toolUseId && seenToolUseIds.has(toolUseId)) continue;
+    const command = block.input?.command;
+    if (typeof command !== "string" || command.trim().length === 0) continue;
+    if (toolUseId) seenToolUseIds.add(toolUseId);
+    const redacted = redactInto(session, command);
+    const truncated = redacted.length > CLAUDE_COMMAND_MAX_CHARS;
+    session.shellCommands.push({
+      command: truncated
+        ? `${redacted.slice(0, CLAUDE_COMMAND_MAX_CHARS)}...[truncated]`
+        : redacted,
+      startedAt: timestamp,
+    });
+    if (
+      truncated &&
+      !session.security.warnings.includes("Truncated oversized Claude Bash command metadata.")
+    ) {
+      session.security.warnings.push(
+        "Truncated oversized Claude Bash command metadata."
+      );
+    }
+  }
 }
 
 export async function parseClaudeSession(sessionPath: string): Promise<HammaSession> {
@@ -72,6 +109,7 @@ export async function parseClaudeSession(sessionPath: string): Promise<HammaSess
 
   let earliestTs: string | undefined;
   let latestTs: string | undefined;
+  const seenToolUseIds = new Set<string>();
 
   for await (const line of rl) {
     if (!line.trim()) continue;
@@ -124,6 +162,12 @@ export async function parseClaudeSession(sessionPath: string): Promise<HammaSess
     }
 
     if (type === "assistant" && obj.message?.role === "assistant") {
+      captureBashCommands(
+        session,
+        obj.message.content,
+        timestamp,
+        seenToolUseIds
+      );
       const raw = extractText(obj.message);
       if (raw && raw.trim().length > 0) {
         session.messages.push({
