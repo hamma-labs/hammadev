@@ -27,10 +27,10 @@ const updates = [
 export default function Updates() {
   return (
     <section id="updates" className="section-shell" aria-labelledby="updates-heading">
-      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.4</div>
+      <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.5</div>
       <div className="section-heading-row">
         <h2 id="updates-heading" className="section-title">Continuity you can inspect and trust.</h2>
-        <p>Alpha.4 turns one-off handoffs into durable, Git-aware project memory with explainable readiness.</p>
+        <p>Alpha.5 turns one-off handoffs into durable, Git-aware project memory with explainable readiness.</p>
       </div>
       <div className="update-list">
         {updates.map(({ icon: Icon, label, title, copy, command }, index) => (
