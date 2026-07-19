@@ -204,6 +204,15 @@ reports a negative reduction and labels the package larger.
   measurements, not provider-token or latency guarantees. Fix commits:
   `a754502` (`fix: recognize verified automation completion`) and `dcb1967`
   (`fix: compact agent continuation responses`).
+- Released the corrections as `hammadev@0.1.0-alpha.7` from release commit
+  `5568857` and annotated tag `v0.1.0-alpha.7`. [CI run
+  29695489074](https://github.com/xayrullonematov/hammadev/actions/runs/29695489074)
+  passed the Node 22.12 and Node 24 matrices, including packed-package and
+  website browser tests. [Trusted publish run
+  29695551940](https://github.com/xayrullonematov/hammadev/actions/runs/29695551940)
+  passed every OIDC release gate. Registry verification showed `alpha` at
+  `0.1.0-alpha.7`, exposed SLSA provenance, and a clean-directory npm execution
+  printed `0.1.0-alpha.7`.
 - Added `.github/workflows/publish.yml` for npm Trusted Publishing. Matching
   version tags now trigger a fail-closed Node 24 job that re-verifies the
   release and packed artifact, refuses existing registry versions, and publishes
@@ -357,6 +366,7 @@ not a stable cross-agent project-thread identity.
 - `0104f44` — `docs: document trusted npm releases`
 - `a754502` — `fix: recognize verified automation completion`
 - `dcb1967` — `fix: compact agent continuation responses`
+- `5568857` — `chore: prepare 0.1.0-alpha.7`
 
 ## Demo flow (target)
 
