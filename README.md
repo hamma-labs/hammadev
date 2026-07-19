@@ -257,6 +257,7 @@ handoff with the repository.
 - [Sanitized source-session fixtures](examples/sessions/)
 - [Example-data notes](examples/README.md)
 - [Named-memory hooks](docs/memory-hooks.md)
+- [Release automation](docs/releasing.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [OpenAI Build Week engineering log](docs/build-week-2026.md)
 

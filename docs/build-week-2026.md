@@ -170,6 +170,13 @@ reports a negative reduction and labels the package larger.
   These are artifact-size measurements, not provider-token or latency claims.
   Release-gate commit: `3847362` (`test: add installed package continuation
   smoke`).
+- Added `.github/workflows/publish.yml` for npm Trusted Publishing. Matching
+  version tags now trigger a fail-closed Node 24 job that re-verifies the
+  release and packed artifact, refuses existing registry versions, and publishes
+  through short-lived GitHub OIDC credentials with automatic provenance. No
+  `NPM_TOKEN` is stored. Prereleases intentionally update `alpha`; stable
+  versions update `latest`, because npm OIDC does not authorize a separate
+  `npm dist-tag` command. Automation commit: `dbd110c`.
 
 ### Day 3 — persistent named project memory
 
@@ -303,6 +310,7 @@ not a stable cross-agent project-thread identity.
 - `08dc30e` — `fix: bound continuation context`
 - `5a06ccc` — `fix: scope handoffs to current task epoch`
 - `3847362` — `test: add installed package continuation smoke`
+- `dbd110c` — `ci: automate npm publishing with OIDC`
 
 ## Demo flow (target)
 
