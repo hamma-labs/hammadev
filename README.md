@@ -77,6 +77,12 @@ hamma continue --to codex --explain
 hamma continue --to codex
 ```
 
+Both paths reconstruct the latest substantive task epoch before continuing.
+If that epoch is already complete, blocked, ambiguous, or not ready, HammaDev
+prints an explainable no-op/review recommendation and creates no handoff. Use
+`--force` only when you intentionally want an inspection artifact; completed
+work still receives no agent-launch command.
+
 ### Keep a named development thread
 
 ```bash
@@ -96,6 +102,8 @@ hamma memory resume build-week --to claude
 After `memory start`, the active memory is project-scoped, so ordinary
 `hamma memory sync` calls do not need the name again. Each successful sync
 creates an immutable revision; it does not overwrite earlier task state.
+`memory resume` similarly withholds an automatic launch for completed or unsafe
+state and reports `resumeAllowed` in JSON.
 
 ## The continuation flow
 
@@ -170,7 +178,7 @@ and structured logs stay off stdout, so JSON consumers remain safe.
 | Command | Purpose |
 | --- | --- |
 | `hamma` | Guided project diagnosis and exact next step. |
-| `hamma continue --to <agent> [--explain]` | Select the strongest cross-agent project session and create a continuation. |
+| `hamma continue --to <agent> [--explain] [--force]` | Select the strongest cross-agent project session, preflight its current task epoch, and create a continuation only when actionable. |
 | `hamma handoff <agent>:<session> --to <agent>` | Create a handoff from an explicitly selected source session. |
 | `hamma memory start <name> [--goal <text>]` | Create and activate a named project memory. |
 | `hamma memory sync [name] [--source <target>]` | Append an immutable revision from a selected or automatically discovered session. |

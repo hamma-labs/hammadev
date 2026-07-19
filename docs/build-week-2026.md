@@ -126,6 +126,38 @@ reports a negative reduction and labels the package larger.
 - Quickstart now recommends `hamma continue --to <agent> --explain` so source
   selection is inspected before a handoff is created.
 
+### Current-task epoch and no-op continuation correction
+
+- A replay of the local release session showed a second source of wasted work:
+  whole-session extraction selected an old task number, an earlier progress
+  message, and a resolved publishing blocker even though the final release was
+  complete. The corrected reconstruction produced one completed task, no next
+  action, no unresolved risk, and `shouldCreateHandoff: false`.
+- Task extraction now starts at the latest substantive user objective. Bare
+  `continue`/`resume` messages and short confirmations such as `done` remain in
+  that epoch without replacing its goal. Timestamped command evidence is scoped
+  to the same epoch.
+- Ordinary numbered release reports are no longer treated as task ledgers.
+  Numbered items remain supported beneath explicit plan, task, todo, or
+  remaining-work headings.
+- A terminal assistant result takes precedence over stale remaining-task text
+  in the current epoch. Explicit success can also clear an earlier matching
+  build or publishing risk.
+- `hamma continue` now performs state reconstruction and readiness assessment
+  before writing artifacts. Completed, blocked, ambiguous, and not-ready states
+  return a structured preflight with a recommendation and no handoff. `--force`
+  is an explicit inspection escape hatch, not an automatic-resume override.
+- Direct handoff creation and named-memory resume use the same outcome gate.
+  Their JSON results expose `outcome` or `resumeAllowed`, and completed state
+  receives a no-continuation command instead of launching another agent.
+- The sanitized regression fixture preserves the failure shape without copying
+  native session contents, credentials, or real user paths. The three packaged
+  skills were updated and validated so their model-driven workflows honor the
+  same preflight.
+- Verification: 39 test files and 268 tests passed; TypeScript typecheck, build,
+  packaged CLI smoke, skill validation, and `git diff --check` passed. Feature
+  commit: `5a06ccc` (`fix: scope handoffs to current task epoch`).
+
 ### Day 3 — persistent named project memory
 
 - Added a stable Hamma-owned identity for long-running development threads:
@@ -256,6 +288,7 @@ not a stable cross-agent project-thread identity.
 - `1439b2e` — `feat: add persistent named project memory`
 - `dab3fcc` — `fix: activate named memory on resume`
 - `08dc30e` — `fix: bound continuation context`
+- `5a06ccc` — `fix: scope handoffs to current task epoch`
 
 ## Demo flow (target)
 
@@ -275,9 +308,10 @@ hamma memory show build-week
 hamma memory resume build-week --to claude
 ```
 
-The first command should show the winning source session and selection signals
-without writing artifacts. The second should create the handoff and print the
-exact Codex continuation command. The final two commands report the size of the
+The first command should show the winning source session, selection signals,
+and current-task preflight without writing artifacts. The second creates a
+handoff only when that preflight is actionable; completed work returns a no-op
+instead of launching Codex. The final two commands report the size of the
 effective receiving-agent context separately from local archive artifacts.
 The named-memory commands demonstrate one stable Hamma-owned thread spanning
 several native agent sessions while retaining evidence, Git state, readiness,
