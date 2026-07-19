@@ -170,6 +170,40 @@ reports a negative reduction and labels the package larger.
   These are artifact-size measurements, not provider-token or latency claims.
   Release-gate commit: `3847362` (`test: add installed package continuation
   smoke`).
+
+### Black-box handoff skill correction
+
+- A real Claude Code invocation of the packaged `hamma-handoff` skill confirmed
+  that the bounded-context contract was being followed: Claude initially read
+  only a 3,803-byte `handoff.md` and did not preload the 10 MB local
+  `session.json` archive or bounded tool-history diagnostics.
+- That run still took 3 minutes 48 seconds because the source agent's explicit
+  result, “npm publishing is now fully automated and verified,” was not covered
+  by terminal-completion detection. Hamma incorrectly retained the earlier user
+  request as an actionable next step, so Claude had to reconcile Git history and
+  discover that the work was already complete.
+- Terminal outcome detection now recognizes explicit implemented, automated,
+  configured, fixed, resolved, and verified results for task-like subjects.
+  Existing unresolved-work language still overrides those completion phrases.
+  Replaying the archived normalized session now returns `completed`,
+  `shouldCreateHandoff: false`, no next action, and creates no new artifact.
+- Added `hamma continue --compact-json`, a transcript-free, one-line response
+  intended for agent skills. It includes the selected source identity and
+  quality signals, preflight outcome and readiness warnings, recommendation,
+  and only the handoff fields required to locate and load the bounded artifact.
+  Lists and free-form status text are capped. Existing `--json` output remains
+  unchanged for backward compatibility.
+- The packaged `hamma-handoff` skill now uses the compact response for both
+  selection preflight and handoff creation, while still loading only
+  `handoff.md` as initial continuation context.
+- Verification: 39 test files and 272 tests passed; TypeScript typecheck, build,
+  compiled CLI help smoke, installed-package smoke, and `git diff --check`
+  passed. The package smoke measured a 1,947,146-byte tarball, withheld the
+  completed flow, kept the compact response below 4 KiB on one line, and
+  generated a 3,166-byte actionable handoff. These are artifact and CLI-output
+  measurements, not provider-token or latency guarantees. Fix commits:
+  `a754502` (`fix: recognize verified automation completion`) and `dcb1967`
+  (`fix: compact agent continuation responses`).
 - Added `.github/workflows/publish.yml` for npm Trusted Publishing. Matching
   version tags now trigger a fail-closed Node 24 job that re-verifies the
   release and packed artifact, refuses existing registry versions, and publishes
@@ -321,6 +355,8 @@ not a stable cross-agent project-thread identity.
 - `dbd110c` — `ci: automate npm publishing with OIDC`
 - `9748d10` — `chore: prepare 0.1.0-alpha.6`
 - `0104f44` — `docs: document trusted npm releases`
+- `a754502` — `fix: recognize verified automation completion`
+- `dcb1967` — `fix: compact agent continuation responses`
 
 ## Demo flow (target)
 
