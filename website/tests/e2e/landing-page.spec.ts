@@ -1,40 +1,49 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 const INSTALL_COMMAND = 'npm install -g hammadev@alpha';
+const ROOT_PACKAGE = JSON.parse(
+  readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'),
+) as { version: string };
+const VERSION_LABEL = `v${ROOT_PACKAGE.version}`;
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test('presents the current product and supported agents accurately', async ({ page }) => {
-  await expect(page).toHaveTitle(/HammaDev.*Local Handoff/);
+test('presents the current product identity and supported agents accurately', async ({ page }) => {
+  await expect(page).toHaveTitle(/HammaDev.*Native Local Continuity/);
   await expect(page.getByRole('main')).toBeVisible();
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: /Switch AI coding agents without losing context/i,
+      name: /Your agents remember where the work stopped/i,
     }),
   ).toBeVisible();
 
   await expect(page.getByText('Codex · Claude · Grok', { exact: true })).toBeVisible();
   await expect(page.getByText('hamma save', { exact: true }).first()).toBeVisible();
-  await expect(
-    page.getByText('hamma switch claude', { exact: true }).first(),
-  ).toBeVisible();
-  await expect(page.getByText('v0.1 alpha.8', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Context prepared for Claude', { exact: true })).toBeVisible();
-  await expect(page.getByText('Simple save', { exact: true })).toBeVisible();
-  await expect(page.getByText('hamma done', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('hamma hooks install', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('hamma codex', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(VERSION_LABEL, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('SessionStart context ready', { exact: true })).toBeVisible();
 });
 
-test('explains the handoff workflow and safety boundaries', async ({ page }) => {
+test('explains the native continuity workflow and safety boundaries', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'How it works' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Save what you are doing' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Switch with one command' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Finish without cleanup work' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Enable memory explicitly' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Install trusted hooks' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Give Codex a real exit boundary' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Switch or finish normally' })).toBeVisible();
+
+  await expect(page.getByText('Native lifecycle', { exact: true })).toBeVisible();
+  await expect(page.getByText('Exact Codex exit', { exact: true })).toBeVisible();
+  await expect(page.getByText('Crash recovery', { exact: true })).toBeVisible();
 
   await expect(page.getByText('No backend', { exact: true })).toBeVisible();
   await expect(page.getByText('No cloud sync', { exact: true })).toBeVisible();
+  await expect(page.getByText('Trust-controlled', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Only transcript bytes persisted to disk are recoverable/i)).toBeVisible();
   await expect(page.getByText(/Redaction is best-effort, not a privacy guarantee/i)).toBeVisible();
 });
 

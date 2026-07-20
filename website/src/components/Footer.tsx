@@ -1,5 +1,6 @@
 import { ArrowUpRight, Github, Package } from 'lucide-react';
 import Logo from './Logo';
+import { PRODUCT_VERSION_LABEL } from '../product';
 
 export default function Footer() {
   return (
@@ -15,7 +16,7 @@ export default function Footer() {
       <div className="footer-bottom">
         <div>
           <Logo />
-          <p>Local continuity for AI coding agents.</p>
+          <p>The local continuity layer for AI coding agents.</p>
         </div>
         <nav aria-label="Footer links">
           <a href="https://github.com/xayrullonematov/hammadev" target="_blank" rel="noopener noreferrer"><Github size={16} /> GitHub</a>
@@ -23,7 +24,7 @@ export default function Footer() {
           <a href="https://github.com/xayrullonematov/hammadev#readme" target="_blank" rel="noopener noreferrer">Docs <ArrowUpRight size={14} /></a>
         </nav>
       </div>
-      <div className="footer-meta"><span>HammaDev v0.1 alpha.8</span><span>ISC License</span><span>Codex · Claude Code · Grok</span></div>
+      <div className="footer-meta"><span>HammaDev {PRODUCT_VERSION_LABEL}</span><span>ISC License</span><span>Codex · Claude Code · Grok</span></div>
     </footer>
   );
 }

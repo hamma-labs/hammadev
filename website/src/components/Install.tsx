@@ -16,7 +16,7 @@ export default function Install() {
     <section id="install" className="install-section" aria-labelledby="install-heading">
       <div>
         <div className="section-kicker"><PackageCheck size={14} /> Start locally</div>
-        <h2 id="install-heading" className="section-title">From install to saved context in minutes.</h2>
+        <h2 id="install-heading" className="section-title">From install to native continuity in minutes.</h2>
         <p className="install-intro">Requires Node.js 22.12+; Node 24 is recommended. The package is <code>hammadev</code> and the CLI is <code>hamma</code>.</p>
       </div>
 
@@ -33,7 +33,9 @@ export default function Install() {
           {[
             ['01', 'Install the agent skill', 'hamma skill install'],
             ['02', 'Check your environment', 'hamma doctor'],
-            ['03', 'Save your current work', 'hamma save'],
+            ['03', 'Enable project memory explicitly', 'hamma save'],
+            ['04', 'Install native lifecycle hooks', 'hamma hooks install'],
+            ['05', 'Codex: trust /hooks, then launch', 'hamma codex'],
           ].map(([number, label, command]) => (
             <li key={command}>
               <span>{number}</span>

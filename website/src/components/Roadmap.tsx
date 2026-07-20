@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react';
 
 const roadmapItems = [
-  ['Now', 'Deeper extraction evidence', 'More precise task ledgers and verification outcomes.'],
+  ['Now', 'Lifecycle-native continuity', 'Harden trusted hooks, exact checkpoints, and recovery across supported agents.'],
   ['Next', 'More agent adapters', 'Broaden support only where local session formats are dependable.'],
   ['Later', 'Team continuity', 'Optional encrypted sync and shared handoff memory.'],
 ];

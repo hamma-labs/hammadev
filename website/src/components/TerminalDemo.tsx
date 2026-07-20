@@ -4,12 +4,12 @@ export default function TerminalDemo() {
   return (
     <section className="demo-section" aria-labelledby="demo-heading">
       <div className="demo-copy">
-        <div className="section-kicker light">Repository memory, safe next step</div>
-        <h2 id="demo-heading">One project thread. Any supported agent.</h2>
-        <p>Attach durable project context with plain Markdown and JSON. Completed work stays available without running twice.</p>
+        <div className="section-kicker light">Native where the agents allow it</div>
+        <h2 id="demo-heading">One local continuity loop.</h2>
+        <p>Reviewable agent hooks checkpoint before compaction and load bounded context at session start. Codex gets an exact process-exit boundary too.</p>
         <div className="demo-stat">
-          <strong>READY</strong>
-          <span>explainable readiness from evidence and live Git state</span>
+          <strong>EXACT</strong>
+          <span>session identity is bound, never guessed from the newest file</span>
         </div>
       </div>
 
@@ -19,18 +19,18 @@ export default function TerminalDemo() {
           <span>~/project — hamma</span>
           <Copy size={14} />
         </div>
-        <div className="terminal-body">
-          <div className="terminal-command"><span>$</span><code>hamma switch claude</code></div>
-          <div className="terminal-log muted">Saving current Codex work…</div>
-          <div className="terminal-log"><CheckCircle2 size={14} /> Repository drift: none detected</div>
-          <div className="terminal-log"><CheckCircle2 size={14} /> Context prepared for Claude</div>
+          <div className="terminal-body">
+          <div className="terminal-command"><span>$</span><code>hamma hooks install --agent codex</code></div>
+          <div className="terminal-log"><CheckCircle2 size={14} /> codex hooks installed: .codex/hooks.json</div>
+          <div className="terminal-log"><CheckCircle2 size={14} /> PreCompact · SessionStart</div>
+          <div className="terminal-log muted">Review and trust project hooks with /hooks</div>
           <div className="terminal-result">
-            <span>Latest trusted revision</span>
-            <strong>.hamma/memories/build-week/revisions/…/</strong>
+            <span>Reliable Codex exit</span>
+            <strong>hamma codex -- --model gpt-5.4</strong>
           </div>
           <div className="terminal-next">
             <CornerDownRight size={15} />
-            <div><span>Next</span><code>Opening Claude…</code></div>
+            <div><span>Lifecycle</span><code>PreCompact → checkpoint · SessionStart → context · Exit → exact sync</code></div>
           </div>
           <span className="terminal-cursor" aria-hidden="true" />
         </div>

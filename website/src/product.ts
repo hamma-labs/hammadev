@@ -1,0 +1,2 @@
+export const PRODUCT_VERSION = __HAMMA_VERSION__;
+export const PRODUCT_VERSION_LABEL = `v${PRODUCT_VERSION}`;

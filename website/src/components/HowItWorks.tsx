@@ -1,40 +1,50 @@
-import { Bot, FileCheck2, ScanText } from 'lucide-react';
+import { Bot, FileCheck2, ScanText, Webhook } from 'lucide-react';
 
 const steps = [
   {
     icon: ScanText,
-    title: 'Save what you are doing',
-    copy: 'Run hamma save. Hamma detects the current project and agent session without asking you for IDs or JSON files.',
+    title: 'Enable memory explicitly',
+    copy: 'Run hamma save once. Hamma detects the current project and exact agent session without asking for IDs or JSON files.',
+    command: 'hamma save',
+  },
+  {
+    icon: Webhook,
+    title: 'Install trusted hooks',
+    copy: 'Add native lifecycle checkpoints and bounded session-start context. Agent trust remains visible and under your control.',
+    command: 'hamma hooks install',
   },
   {
     icon: FileCheck2,
-    title: 'Switch with one command',
-    copy: 'Run hamma switch claude, codex, or grok. Hamma saves, checks Git, prepares context, and opens the target agent.',
+    title: 'Give Codex a real exit boundary',
+    copy: 'Launch through Hamma for exact-session checkpoints on normal exit, failure, or forwarded terminal signals.',
+    command: 'hamma codex',
   },
   {
     icon: Bot,
-    title: 'Finish without cleanup work',
-    copy: 'Run hamma done. Hamma closes the correct task claim; finished work stays searchable without running again.',
+    title: 'Switch or finish normally',
+    copy: 'Move to Claude, Codex, or Grok with one command. Hamma reconciles Git and preserves task ownership automatically.',
+    command: 'hamma switch claude',
   },
 ];
 
 export default function HowItWorks() {
   return (
     <section id="workflow" className="section-shell workflow-section" aria-labelledby="workflow-heading">
-      <div className="section-kicker">Four commands, no memory jargon</div>
+      <div className="section-kicker">One setup · native continuity after</div>
       <div className="section-heading-row">
         <h2 id="workflow-heading" className="section-title">How it works</h2>
-        <p>The simple CLI hides session IDs, attach IDs, update files, and lifecycle bookkeeping.</p>
+        <p>Start explicitly, then let native lifecycle events maintain the thread without hiding safety boundaries.</p>
       </div>
 
       <div className="workflow-track">
         <div className="workflow-line" aria-hidden="true"><span /></div>
-        {steps.map(({ icon: Icon, title, copy }, index) => (
+        {steps.map(({ icon: Icon, title, copy, command }, index) => (
           <article className="workflow-step" key={title}>
             <div className="step-number">0{index + 1}</div>
             <div className="step-icon"><Icon size={21} /></div>
             <h3>{title}</h3>
             <p>{copy}</p>
+            <code className="step-command">{command}</code>
           </article>
         ))}
       </div>
