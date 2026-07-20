@@ -11,6 +11,13 @@ description: Persist the current session into repository-scoped HammaDev memory.
 - Session is getting long.
 - User says "snapshot this", "save for later", "prepare handoff before switching".
 
+**Note**: If `hamma hooks install` has been run for this project, checkpoints
+happen automatically on supported lifecycle events (compaction for every
+agent, plus session end where available); this skill is the manual/explicit
+path and remains useful right before switching agents. Codex users can launch
+with `hamma codex` to add an exact process-exit checkpoint and next-start crash
+recovery.
+
 **Steps**:
 
 1. Resolve project: `git rev-parse --show-toplevel` (or cwd).

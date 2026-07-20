@@ -365,6 +365,7 @@ describe("memory CLI", () => {
     ]));
     expect(contextOnly).toMatchObject({ executionMode: "ready_for_input", autoExecuteAllowed: false });
     expect(contextOnly.attachId).toBeUndefined();
+    expect(contextOnly.suggestedCommand).toContain("hamma codex --memory \"lifecycle\" --");
     expect(contextOnly.suggestedCommand).toContain("[HAMMA_CONTEXT_LOAD]");
   }, 30_000);
 

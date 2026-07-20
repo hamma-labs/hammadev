@@ -812,7 +812,10 @@ export async function attachMemory(projectPath: string, requestedName: string | 
       : `Load context but do not execute automatically; execution mode is ${mode.mode}.`;
   const transportMarker = run ? `[HAMMA_ATTACH_ID:${run.id}]` : "[HAMMA_CONTEXT_LOAD]";
   const prompt = `${transportMarker} Attach Hamma repository memory '${inspection.manifest.name}'. Read only ${relativeBootstrap} as initial context. ${modeInstruction} Use hamma memory recall ${inspection.manifest.name} --query <text> only if deeper history is needed. Reconcile with live Git state; the repository wins on conflict.`;
-  const suggestedCommand = `${targetCli} ${JSON.stringify(prompt)}`; const launchPromptBytes = Buffer.byteLength(prompt, "utf8"); const combinedBytes = bootstrapBytes + launchPromptBytes;
+  const suggestedCommand = targetCli === "codex"
+    ? `hamma codex --memory ${JSON.stringify(inspection.manifest.name)} -- ${JSON.stringify(prompt)}`
+    : `${targetCli} ${JSON.stringify(prompt)}`;
+  const launchPromptBytes = Buffer.byteLength(prompt, "utf8"); const combinedBytes = bootstrapBytes + launchPromptBytes;
   const revisionPath = latest.revisionPath;
   return {
     schemaVersion: 2, memory: inspection.manifest.name, targetCli, projectPath: project, revision: latest.revision.id,

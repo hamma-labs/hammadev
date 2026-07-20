@@ -16,6 +16,11 @@ description: Attach repository-scoped HammaDev memory in a fresh chat. Use after
 - User says "resume previous session", "continue from last time", "new chat but pick up where we left".
 - User names a Hamma project memory such as `build-week`, `auth-refactor`, or `payment-bug`.
 
+**Note**: If `hamma hooks install` has been run for this project, session-start
+context already loads automatically via `hamma bootstrap`, including recovery
+of ended `hamma codex` launch records; use this skill when that context is
+absent or a specific named memory is requested.
+
 **Steps**:
 
 1. Get project root: `git rev-parse --show-toplevel` (fallback to cwd).

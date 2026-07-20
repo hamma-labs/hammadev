@@ -16,6 +16,12 @@ description: Switch from another local AI coding agent using repository-scoped H
 **When to use**:
 - User says: "continue from Claude", "pick up from Codex", "handoff from Grok", "continue from the other agent", "resume previous work in the other tool".
 
+**Note**: If `hamma hooks install` has been run for this project, the other
+agent's supported lifecycle checkpoints are saved automatically and
+session-start context loads via `hamma bootstrap`. Ended `hamma codex`
+launches are recovered before that context is rendered; this skill remains the
+explicit cross-agent path.
+
 **Steps** (execute in order):
 
 1. Resolve project root: `git rev-parse --show-toplevel` (or cwd if no git).

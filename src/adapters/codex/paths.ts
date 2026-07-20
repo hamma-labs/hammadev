@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 
 export function defaultCodexHome(): string {
-  return path.join(os.homedir(), ".codex");
+  return process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex");
 }
 
 export function codexSessionsGlob(codexHome = defaultCodexHome()): string {

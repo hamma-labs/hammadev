@@ -296,10 +296,17 @@ reports a negative reduction and labels the package larger.
   sessions are never renamed or modified.
 
 The hook investigation found stable command hooks in current Codex, including
-`PreCompact`, but no documented Codex `SessionEnd`; `Stop` is turn-scoped.
+`PreCompact` and model-visible `SessionStart`, but no documented Codex
+`SessionEnd`; `Stop` is turn-scoped.
 Claude Code and Grok document `PreCompact` and `SessionEnd`. Hooks still depend
 on installation, project trust, a live process, and a parseable source session,
 so the honest fallback remains skill-driven or explicit `hamma memory sync`.
+
+The Codex reliability layer therefore uses `hamma codex` as a transparent
+process wrapper. Native `SessionStart` binds an opaque launch record to the
+exact Codex session, wrapper exit checkpoints that session, and a later trusted
+agent startup retries records left behind by an interrupted wrapper. This
+avoids full transcript parsing on every turn-scoped `Stop` event.
 Codex's separate experimental memory feature is agent-local background memory,
 not a stable cross-agent project-thread identity.
 

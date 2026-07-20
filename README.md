@@ -84,6 +84,13 @@ hamma done
 
 # Ask the project memory a question.
 hamma ask "why did we choose sqlite"
+
+# Optional: make it automatic. Installs native agent hooks so memory
+# checkpoints on supported lifecycle events and loads at session start.
+hamma hooks install
+
+# Codex: also checkpoint on normal exit, Ctrl-C, or child-process failure.
+hamma codex
 ```
 
 That is the complete normal workflow. Hamma detects the current project session,
@@ -222,10 +229,13 @@ hamma skill install
 
 Skills are advisory/model-driven. They use the same `hamma save`, `switch`, and
 `done` interface while keeping exact-source and attach-claim mechanics internal.
-Codex supports
-a useful `PreCompact` checkpoint; Claude Code and Grok also document
-`SessionEnd`. Hooks remain opt-in and cannot guarantee a final sync after a
-crash or killed process.
+Codex uses native `PreCompact` and `SessionStart` hooks to checkpoint before
+compaction and load bounded memory context on startup, resume, clear, and after
+compaction. Launching it through `hamma codex -- [Codex arguments]` adds an
+exact-session exit checkpoint. If the wrapper is interrupted too, a persistent
+per-launch record is recovered at the next agent session start. Claude Code and
+Grok also document `SessionEnd`. Hooks remain opt-in; no local tool can preserve
+transcript bytes that never reached disk.
 
 See [named-memory hook recipes and limitations](docs/memory-hooks.md).
 

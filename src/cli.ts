@@ -21,7 +21,7 @@ import { formatProjectStatus, getProjectStatus } from "./core/project-status.js"
 import { runDoctor } from "./core/doctor.js";
 import { installAllSkills, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
-import { runQuickstart } from "./core/quickstart.js";
+import { commandAvailable, runQuickstart } from "./core/quickstart.js";
 import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
 import { AsyncStructuredLogger } from "./core/logger.js";
 import {
@@ -68,6 +68,20 @@ import {
   simpleSave,
   simpleSwitch,
 } from "./core/simple-ux.js";
+import { buildBootstrapContext } from "./core/bootstrap-context.js";
+import {
+  HOOK_AGENTS,
+  HookAgent,
+  HookInstallResult,
+  HookUninstallResult,
+  installHooks,
+  uninstallHooks,
+} from "./core/hooks-install.js";
+import {
+  launchCodexWithRecovery,
+  recoverCodexLaunches,
+  registerCodexSessionStart,
+} from "./adapters/codex/runtime.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -182,6 +196,23 @@ function failSimple(error: unknown): void {
   process.exitCode = 1;
 }
 
+function reportCodexLauncherResult(result: Awaited<ReturnType<typeof launchCodexWithRecovery>>): void {
+  if (result.setupWarning) {
+    console.error(pc.yellow(`Hamma warning: ${result.setupWarning}`));
+  }
+  if (result.checkpoint?.status === "updated") {
+    console.error(pc.green(
+      `Hamma saved Codex session ${result.checkpoint.sessionId} to memory '${result.checkpoint.memory}'.`
+    ));
+  } else if (result.checkpoint?.status === "unchanged") {
+    console.error(pc.dim("Hamma memory was already current when Codex exited."));
+  } else if (result.checkpoint && ["pending", "failed"].includes(result.checkpoint.status)) {
+    console.error(pc.yellow(
+      `Hamma exit checkpoint is pending: ${result.checkpoint.reason ?? "it will be retried at the next session start."}`
+    ));
+  }
+}
+
 async function launchAttachedAgent(
   command: string,
   args: string[],
@@ -225,6 +256,30 @@ async function readJsonStdin(): Promise<Record<string, unknown>> {
   return JSON.parse(input) as Record<string, unknown>;
 }
 
+async function readOptionalJsonStdin(): Promise<Record<string, unknown> | undefined> {
+  if (process.stdin.isTTY) return undefined;
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  try {
+    for await (const chunk of process.stdin) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.byteLength;
+      if (bytes > 1024 * 1024) return undefined;
+      chunks.push(buffer);
+    }
+    const input = Buffer.concat(chunks).toString("utf8").trim();
+    if (!input) return undefined;
+    const parsed = JSON.parse(input);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined;
+  } catch {
+    // Session-start hooks are fail-open. Invalid input disables registration
+    // for this event but must not suppress already-saved bootstrap context.
+    return undefined;
+  }
+}
+
 const program = new Command();
 
 program
@@ -257,6 +312,7 @@ program
     "",
     "Simple workflow:",
     "  hamma save                 Save the current coding session",
+    "  hamma codex                Launch Codex with reliable exit recovery",
     "  hamma switch claude        Save and move the work to Claude",
     "  hamma done                 Mark the current work complete",
     "  hamma ask \"why SQLite?\"  Search project memory",
@@ -348,11 +404,22 @@ program
         return;
       }
       console.log(pc.cyan(`\nOpening ${result.target}…`));
-      await launchAttachedAgent(
-        result.attach.launch.command,
-        result.attach.launch.args,
-        projectPath
-      );
+      if (result.target === "codex") {
+        const launched = await launchCodexWithRecovery({
+          projectPath,
+          memory: result.memory,
+          command: result.attach.launch.command,
+          args: result.attach.launch.args,
+        });
+        reportCodexLauncherResult(launched);
+        process.exitCode = launched.exitCode;
+      } else {
+        await launchAttachedAgent(
+          result.attach.launch.command,
+          result.attach.launch.args,
+          projectPath
+        );
+      }
     } catch (err: any) {
       return failSimple(err);
     }
@@ -393,6 +460,29 @@ program
       if (result.attachId) console.log(pc.dim("  The agent claim is now closed."));
       for (const warning of result.warnings) console.log(pc.yellow(`  Warning: ${warning}`));
       console.log(pc.dim("\nThe history remains available, but Hamma will not repeat this work."));
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("codex [codexArgs...]")
+  .option("--memory <name>", "Memory to checkpoint; defaults to the active memory")
+  .option("--project <path>", "Project directory and Codex working directory")
+  .option("--codex-bin <command>", "Codex executable to launch", "codex")
+  .allowUnknownOption(true)
+  .description("Launch Codex with exact-session exit checkpointing and crash recovery")
+  .action(async (codexArgs: string[] | undefined, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await launchCodexWithRecovery({
+        projectPath,
+        memory: options.memory,
+        command: options.codexBin,
+        args: codexArgs ?? [],
+      });
+      reportCodexLauncherResult(result);
+      process.exitCode = result.exitCode;
     } catch (err: any) {
       return failSimple(err);
     }
@@ -990,6 +1080,68 @@ program
     }
   });
 
+program
+  .command("bootstrap")
+  .option("--memory <name>", "Memory name; defaults to the active memory")
+  .option("--project <path>", "Project directory")
+  .option("--hook-agent <agent>", "Emit for a native SessionStart hook: codex | claude | grok")
+  .option("--json", "Print a machine-readable result")
+  .description("Recover ended Codex launches and print bounded project-memory context")
+  .action(async (options) => {
+    // Unlike sync hooks, bootstrap intentionally writes stdout on success:
+    // agents inject SessionStart hook stdout into model context. In hook mode
+    // every failure is swallowed to a silent exit 0 so a broken memory store
+    // can never block or pollute session start.
+    try {
+      let hookAgent: "codex" | "claude" | "grok" | undefined;
+      let hookEvent: Record<string, unknown> | undefined;
+      if (options.hookAgent) {
+        hookAgent = parseContinuationAgent(options.hookAgent);
+        hookEvent = await readOptionalJsonStdin();
+      }
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      if (hookAgent) {
+        try {
+          if (hookAgent === "codex" && hookEvent) {
+            await registerCodexSessionStart(projectPath, hookEvent);
+          }
+          const recoveries = await recoverCodexLaunches(projectPath);
+          for (const recovery of recoveries) {
+            if (["pending", "failed"].includes(recovery.status)) {
+              cliLogger.warn("codex.recovery.pending", {
+                launchId: recovery.launchId,
+                sessionId: recovery.sessionId,
+                reason: recovery.reason,
+              });
+            }
+          }
+        } catch (runtimeError) {
+          // Recovery is best-effort at startup. Existing frozen memory remains
+          // useful even when a runtime marker is malformed or temporarily busy.
+          cliLogger.warn("codex.recovery.failed", { error: errorMessage(runtimeError) });
+        }
+      }
+      const result = await buildBootstrapContext(projectPath, { memory: options.memory });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      if (result.status === "ready") {
+        process.stdout.write(result.context ?? "");
+        return;
+      }
+      if (!options.hookAgent) {
+        console.log(pc.dim(`No session-start context (${result.reason}).`));
+      }
+    } catch (err: any) {
+      if (options.hookAgent) {
+        cliLogger.error("operation.failed", { category: "HISTORY_ERROR", error: errorMessage(err) });
+        return;
+      }
+      return fail("HISTORY_ERROR", err);
+    }
+  });
+
 const memoryCommand = program
   .command("memory")
   .description("Maintain persistent repository knowledge and task epochs across coding agents");
@@ -1324,6 +1476,122 @@ program
       await runQuickstart(process.cwd());
     } catch (error: unknown) {
       fail("PROJECT_ERROR", error);
+    }
+  });
+
+const hooksCommand = program
+  .command("hooks")
+  .description("Install native agent lifecycle hooks for automatic memory checkpoints and session-start context");
+
+async function resolveHookAgents(agentOption: string | undefined): Promise<HookAgent[]> {
+  const agent = agentOption ? String(agentOption).toLowerCase() : undefined;
+  if (agent && !["codex", "claude", "grok", "all"].includes(agent)) {
+    throw new Error(`Unsupported --agent '${agentOption}'. Use codex, claude, grok, or all.`);
+  }
+  if (agent && agent !== "all") return [agent as HookAgent];
+  if (agent === "all") return HOOK_AGENTS;
+  // No --agent: install for whichever supported agents exist on this machine.
+  const detected: HookAgent[] = [];
+  for (const candidate of HOOK_AGENTS) {
+    if (await commandAvailable(candidate)) detected.push(candidate);
+  }
+  if (detected.length === 0) {
+    throw new Error(
+      "No supported coding agent (claude, codex, grok) was found on PATH. Re-run with an explicit --agent."
+    );
+  }
+  return detected;
+}
+
+hooksCommand
+  .command("install")
+  .option("--agent <agent>", "Target agent: codex | claude | grok | all (default: detect installed agents)")
+  .option("--project <path>", "Project directory")
+  .option("--shared", "Claude: write committable .claude/settings.json instead of settings.local.json")
+  .option("--session-start", "Grok: also install a SessionStart bootstrap hook")
+  .option("--force", "Replace differing hamma-managed hook entries")
+  .option("--json", "Print a machine-readable install result")
+  .description("Write Hamma lifecycle hooks into this project's agent settings files")
+  .action(async (options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const agents = await resolveHookAgents(options.agent);
+      const results: HookInstallResult[] = [];
+      for (const agent of agents) {
+        results.push(await installHooks({
+          agent,
+          projectPath,
+          force: Boolean(options.force),
+          shared: Boolean(options.shared),
+          sessionStart: Boolean(options.sessionStart),
+        }));
+      }
+      if (options.json) {
+        const payload = results.length === 1 ? results[0] : { installs: results };
+        process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+        return;
+      }
+      for (const result of results) {
+        const events = [...result.installed, ...result.replaced];
+        const relative = path.relative(projectPath, result.settingsPath);
+        if (events.length > 0) {
+          console.log(pc.green(`✓ ${result.agent} hooks installed: ${relative} (${events.join(", ")})`));
+        } else {
+          console.log(pc.dim(`✓ ${result.agent} hooks already current: ${relative}`));
+        }
+        for (const warning of result.warnings) console.log(pc.yellow(`  Warning: ${warning}`));
+      }
+      console.log("");
+      console.log("Hooks stay no-ops until memory is enabled for this project (first `hamma save` or `hamma switch`).");
+      if (results.some((result) => result.agent !== "claude")) {
+        console.log("Codex and Grok project hooks require project trust in those agents.");
+      }
+      if (results.some((result) => result.agent === "codex")) {
+        console.log("For reliable Codex exit checkpoints, trust these commands with `/hooks`, then launch with `hamma codex`.");
+      }
+    } catch (err: any) {
+      return fail("INSTALL_ERROR", err);
+    }
+  });
+
+hooksCommand
+  .command("uninstall")
+  .option("--agent <agent>", "Target agent: codex | claude | grok | all (default: all)")
+  .option("--project <path>", "Project directory")
+  .option("--shared", "Claude: target .claude/settings.json instead of settings.local.json")
+  .option("--json", "Print a machine-readable uninstall result")
+  .description("Remove Hamma-managed hook entries from this project's agent settings files")
+  .action(async (options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const agent = options.agent ? String(options.agent).toLowerCase() : "all";
+      if (!["codex", "claude", "grok", "all"].includes(agent)) {
+        throw new Error(`Unsupported --agent '${options.agent}'. Use codex, claude, grok, or all.`);
+      }
+      const agents: HookAgent[] = agent === "all" ? HOOK_AGENTS : [agent as HookAgent];
+      const results: HookUninstallResult[] = [];
+      for (const target of agents) {
+        results.push(await uninstallHooks({
+          agent: target,
+          projectPath,
+          shared: Boolean(options.shared),
+        }));
+      }
+      if (options.json) {
+        const payload = results.length === 1 ? results[0] : { uninstalls: results };
+        process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+        return;
+      }
+      for (const result of results) {
+        const relative = path.relative(projectPath, result.settingsPath);
+        if (result.removed.length > 0) {
+          console.log(pc.green(`✓ ${result.agent} hooks removed: ${relative} (${result.removed.join(", ")})${result.fileDeleted ? " — file deleted" : ""}`));
+        } else {
+          console.log(pc.dim(`✓ ${result.agent}: no Hamma hooks found in ${relative}`));
+        }
+      }
+    } catch (err: any) {
+      return fail("INSTALL_ERROR", err);
     }
   });
 

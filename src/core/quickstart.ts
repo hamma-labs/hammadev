@@ -7,7 +7,7 @@ import { isNodeVersionSupported, MIN_NODE_VERSION } from "./runtime.js";
 
 const execFileAsync = promisify(execFile);
 
-async function commandAvailable(command: string): Promise<boolean> {
+export async function commandAvailable(command: string): Promise<boolean> {
   try {
     await execFileAsync(command, ["--version"], {
       encoding: "utf8",

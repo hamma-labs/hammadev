@@ -135,6 +135,10 @@ async function main(): Promise<void> {
     const packedPaths = new Set(packResult.files.map((file) => file.path));
     assert(packedPaths.has("dist/cli.js"), "Packed artifact is missing dist/cli.js.");
     assert(
+      packedPaths.has("dist/adapters/codex/runtime.js"),
+      "Packed artifact is missing the Codex runtime recovery module."
+    );
+    assert(
       packedPaths.has("skills/hamma-handoff/SKILL.md"),
       "Packed artifact is missing the handoff skill."
     );
@@ -181,6 +185,17 @@ async function main(): Promise<void> {
     assert(
       installedVersion === packageJson.version,
       `Installed CLI version ${installedVersion} does not match ${packageJson.version}.`
+    );
+    const installedCodexHelp = await runInstalled(
+      executable,
+      ["codex", "--help"],
+      temporaryRoot,
+      fakeHome
+    );
+    assert(
+      installedCodexHelp.includes("exact-session exit checkpointing") &&
+        installedCodexHelp.includes("--codex-bin <command>"),
+      "Installed package does not expose the reliable Codex launcher."
     );
 
     await git(projectPath, ["init", "-q"]);
