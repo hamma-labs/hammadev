@@ -4,7 +4,9 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { discoverClaudeSessions } from "../adapters/claude/discover.js";
 import { discoverCodexSessions } from "../adapters/codex/discover.js";
+import { discoverGrokSessions } from "../adapters/grok/discover.js";
 import { HandoffHistoryEntry, listHandoffs } from "./history.js";
+import { listMemories } from "./memory.js";
 import { filterSessionsByProject } from "./project-match.js";
 
 const execFileAsync = promisify(execFile);
@@ -18,6 +20,7 @@ export type ProjectGitStatus =
 export interface ProjectStatusOptions {
   codexHome?: string;
   claudeHomes?: string[];
+  grokHome?: string;
 }
 
 export interface ProjectStatus {
@@ -33,9 +36,19 @@ export interface ProjectStatus {
   };
   codexSessionCount: number;
   claudeSessionCount: number;
+  grokSessionCount: number;
   codexProjectSessionCount: number;
   claudeProjectSessionCount: number;
+  grokProjectSessionCount: number;
   hammaIgnored: boolean | null;
+  memory: {
+    count: number;
+    activeName?: string;
+    revisionCount: number;
+    outcome?: "completed" | "actionable" | "blocked" | "ambiguous";
+    openAttachId?: string;
+    openAttachTarget?: string;
+  };
 }
 
 interface GitOverview {
@@ -186,18 +199,21 @@ export async function getProjectStatus(
     throw new Error(`Project path is not a directory: ${resolvedProjectPath}`);
   }
 
-  const [git, handoffCount, handoffs, codexSessions, claudeSessions] =
+  const [git, handoffCount, handoffs, codexSessions, claudeSessions, grokSessions, memories] =
     await Promise.all([
       inspectGit(resolvedProjectPath),
       countTaskDirectories(resolvedProjectPath),
       listHandoffs(resolvedProjectPath),
       discoverCodexSessions(options.codexHome),
       discoverClaudeSessions(options.claudeHomes),
+      discoverGrokSessions(options.grokHome),
+      listMemories(resolvedProjectPath),
     ]);
 
-  const [codexProject, claudeProject] = await Promise.all([
+  const [codexProject, claudeProject, grokProject] = await Promise.all([
     filterSessionsByProject(codexSessions, resolvedProjectPath),
-    filterSessionsByProject(claudeSessions, resolvedProjectPath)
+    filterSessionsByProject(claudeSessions, resolvedProjectPath),
+    filterSessionsByProject(grokSessions, resolvedProjectPath),
   ]);
 
   return {
@@ -208,9 +224,19 @@ export async function getProjectStatus(
     latestHandoff: await latestHandoffStatus(handoffs),
     codexSessionCount: codexSessions.length,
     claudeSessionCount: claudeSessions.length,
+    grokSessionCount: grokSessions.length,
     codexProjectSessionCount: codexProject.matches.length,
     claudeProjectSessionCount: claudeProject.matches.length,
+    grokProjectSessionCount: grokProject.matches.length,
     hammaIgnored: git.hammaIgnored,
+    memory: {
+      count: memories.length,
+      activeName: memories.find((memory) => memory.active)?.name,
+      revisionCount: memories.find((memory) => memory.active)?.revisionCount ?? 0,
+      outcome: memories.find((memory) => memory.active)?.outcome,
+      openAttachId: memories.find((memory) => memory.active)?.openAttachId,
+      openAttachTarget: memories.find((memory) => memory.active)?.openAttachTarget,
+    },
   };
 }
 
@@ -230,6 +256,11 @@ export function formatProjectStatus(status: ProjectStatus): string {
         ? "n/a (git unavailable)"
         : "n/a (not a git repository)"
       : yesNo(status.hammaIgnored);
+  const simpleNext = status.memory.openAttachId
+    ? "hamma save  (checkpoint)  or  hamma done"
+    : status.memory.activeName
+      ? "hamma switch <codex|claude|grok>"
+      : "hamma save";
 
   return [
     `Project: ${status.projectPath}`,
@@ -241,8 +272,16 @@ export function formatProjectStatus(status: ProjectStatus): string {
     `Latest source → target: ${latest ? route : "none"}`,
     `Codex sessions: ${status.codexSessionCount}`,
     `Claude sessions: ${status.claudeSessionCount}`,
+    `Grok sessions: ${status.grokSessionCount}`,
     `Codex project sessions: ${status.codexProjectSessionCount}`,
     `Claude project sessions: ${status.claudeProjectSessionCount}`,
+    `Grok project sessions: ${status.grokProjectSessionCount}`,
     `.hamma/ ignored: ${ignored}`,
+    `Repository memories: ${status.memory.count}`,
+    `Active memory: ${status.memory.activeName ?? "none (first explicit sync or attach creates default)"}`,
+    `Active memory revisions: ${status.memory.revisionCount}`,
+    `Active memory outcome: ${status.memory.outcome ?? "none"}`,
+    `Open memory attach: ${status.memory.openAttachId ? `${status.memory.openAttachId} (${status.memory.openAttachTarget})` : "none"}`,
+    `Recommended next command: ${simpleNext}`,
   ].join("\n");
 }

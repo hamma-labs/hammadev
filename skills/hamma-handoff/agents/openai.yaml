@@ -1,4 +1,4 @@
 interface:
   display_name: "Hamma Handoff"
-  short_description: "Continue work across local coding agents"
-  default_prompt: "Use $hamma-handoff to continue this project from Claude Code."
+  short_description: "Attach repository memory across coding agents"
+  default_prompt: "Use $hamma-handoff to attach this project's memory from Claude Code."

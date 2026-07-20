@@ -1,4 +1,4 @@
 interface:
   display_name: "Hamma Resume"
-  short_description: "Continue the previous same-agent session in a fresh chat"
-  default_prompt: "Use $hamma-resume to continue my previous session in this fresh chat."
+  short_description: "Attach repository memory in a fresh chat"
+  default_prompt: "Use $hamma-resume to load this project's memory and honor its execution mode."

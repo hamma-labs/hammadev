@@ -64,6 +64,14 @@ describe("scoreSession", () => {
     expect(candidate.resumable).toBe(false);
   });
 
+  it("flags generated attach transport prompts as non-resumable", () => {
+    const candidate = scoreSession(session([
+      "[HAMMA_ATTACH_ID:123e4567-e89b-42d3-a456-426614174000] Attach Hamma repository memory 'default'.",
+    ]), ref());
+    expect(candidate.signals).toContain("hamma-meta");
+    expect(candidate.resumable).toBe(false);
+  });
+
   it("does not flag ordinary work that merely mentions hamma", () => {
     const candidate = scoreSession(
       session(["Make the hamma handoff CLI bidirectional and update src/cli.ts."]),

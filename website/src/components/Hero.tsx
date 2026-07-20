@@ -9,9 +9,10 @@ export default function Hero() {
           Switch AI coding agents <span>without losing context.</span>
         </h1>
         <p>
-          HammaDev turns local Codex, Claude Code, and Grok sessions into compact,
-          evidence-backed project memory—so the next agent starts where the last one stopped.
+          Save, switch, and finish AI coding work with four plain commands.
+          HammaDev handles sessions, task ownership, and repository memory underneath.
         </p>
+        <p><code>hamma save</code> · <code>hamma switch claude</code> · <code>hamma done</code> · <code>hamma ask</code></p>
 
         <div className="hero-actions">
           <a
@@ -59,7 +60,7 @@ export default function Hero() {
           <div className="task-row"><Check size={14} /> Evidence-backed state</div>
           <div className="task-row"><Check size={14} /> Repository reconciled</div>
           <div className="artifact-stack">
-            <span>handoff.md</span><span>state.json</span><span>history</span>
+            <span>bootstrap.md</span><span>memory-state.json</span><span>recall</span>
           </div>
         </div>
         <div className="agent-card claude-card">

@@ -85,9 +85,10 @@ describe("quickstart CLI command", () => {
 
     expect(output).toContain("Codex sessions: 1 total, none match this project");
     expect(output).toContain("Claude sessions: 1 total, 1 for this project");
+    expect(output).toContain("Grok sessions: none found");
 
     expect(output).toContain("What is missing:");
     expect(output).toContain("Run next:");
-    expect(output).toMatch(/hamma continue --to codex .* --explain|npm install -g/);
+    expect(output).toMatch(/hamma save --agent claude|Install Codex, Claude Code, or Grok/);
   });
 });

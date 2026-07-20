@@ -17,23 +17,21 @@ test('presents the current product and supported agents accurately', async ({ pa
   ).toBeVisible();
 
   await expect(page.getByText('Codex · Claude · Grok', { exact: true })).toBeVisible();
-  await expect(page.getByText('hamma quickstart', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('hamma save', { exact: true }).first()).toBeVisible();
   await expect(
-    page.getByText('hamma memory resume build-week --to claude', { exact: true }),
+    page.getByText('hamma switch claude', { exact: true }).first(),
   ).toBeVisible();
   await expect(page.getByText('v0.1 alpha.8', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Handoff readiness: READY', { exact: true })).toBeVisible();
-  await expect(page.getByText('Resume preflight', { exact: true })).toBeVisible();
-
-  await expect(page.getByText(/hamma save/i)).toHaveCount(0);
-  await expect(page.getByText(/hamma load/i)).toHaveCount(0);
+  await expect(page.getByText('Context prepared for Claude', { exact: true })).toBeVisible();
+  await expect(page.getByText('Simple save', { exact: true })).toBeVisible();
+  await expect(page.getByText('hamma done', { exact: true }).first()).toBeVisible();
 });
 
 test('explains the handoff workflow and safety boundaries', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'How it works' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Read local agent sessions' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Create clean task memory' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Continue in another agent' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Save what you are doing' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Switch with one command' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Finish without cleanup work' })).toBeVisible();
 
   await expect(page.getByText('No backend', { exact: true })).toBeVisible();
   await expect(page.getByText('No cloud sync', { exact: true })).toBeVisible();

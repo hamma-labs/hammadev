@@ -41,6 +41,8 @@ const AUTH_FAILURE = /\b(?:api error|authentication failed|login required|please
 // injected body/sentinel, NOT incidental mentions of "hamma" — so real dev
 // sessions inside the hamma repo are not falsely flagged.
 const HAMMA_META_PATTERNS: RegExp[] = [
+  /\[HAMMA_(?:ATTACH_ID:[0-9a-f-]+|CONTEXT_LOAD)\]/i,
+  /^Attach Hamma repository memory '/i,
   /base directory for this skill:.*hamma-handoff/is,
   /recover the newest[\s\S]{0,80}?session[\s\S]{0,160}?(?:validate|handoff)/i,
   /\$hamma-handoff/i,

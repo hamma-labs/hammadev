@@ -1,12 +1,12 @@
 import { BadgeCheck, FileClock, Fingerprint, GitCompareArrows, History, Network } from 'lucide-react';
 
 const features = [
-  { icon: Network, title: 'Cross-agent continuation', desc: 'Move live work among Codex, Claude Code, and Grok with one project-aware workflow.', tone: 'violet', size: 'wide' },
-  { icon: Fingerprint, title: 'Named project memory', desc: 'Keep one stable development thread across many underlying agent sessions.', tone: 'coral', size: '' },
+  { icon: Network, title: 'One-command switching', desc: 'Run hamma switch claude, codex, or grok. Session detection and task ownership stay behind the CLI.', tone: 'violet', size: 'wide' },
+  { icon: Fingerprint, title: 'Repository knowledge', desc: 'Keep a project default or named threads with decisions, constraints, discoveries, preferences, and provenance.', tone: 'coral', size: '' },
   { icon: FileClock, title: 'Evidence-backed state', desc: 'Separate agent claims from commands, repository signals, tools, and user confirmation.', tone: 'blue', size: '' },
   { icon: GitCompareArrows, title: 'Git drift detection', desc: 'Compare the handoff snapshot with the live branch, HEAD, working tree, and relevant files.', tone: 'ink', size: '' },
   { icon: BadgeCheck, title: 'Readiness assessment', desc: 'Surface strong signals, warnings, and blockers before the receiving agent continues.', tone: 'green', size: 'wide' },
-  { icon: History, title: 'Inspectable history', desc: 'Review immutable memory revisions and local handoffs without uploading a transcript.', tone: 'amber', size: '' },
+  { icon: History, title: 'Local recall', desc: 'Search immutable epochs, structured facts, file paths, and sanitized messages without network calls.', tone: 'amber', size: '' },
 ];
 
 export default function Features() {

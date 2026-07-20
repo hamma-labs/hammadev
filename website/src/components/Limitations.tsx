@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 const limitations = [
   'Three source adapters today',
   'Conservative, heuristic extraction',
-  'Explicit memory sync without a trusted hook',
+  'Explicit enablement before lifecycle hooks',
   'Local-machine scope',
   'Best-effort secret redaction',
 ];

@@ -76,7 +76,7 @@ describe("project memory storage", () => {
     const inspection = await inspectMemory(projectPath);
 
     expect(manifest).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "build-week",
       goal: "Finish the Build Week release.",
       revisionCount: 0,

@@ -3,10 +3,14 @@
 HammaDev named memories are useful without hooks:
 
 ```bash
-hamma memory start build-week
-hamma memory sync --source codex:current
-hamma memory resume build-week --to claude
+hamma save
+hamma switch claude
+hamma done
 ```
+
+These commands automatically handle the exact source session, attach claim,
+checkpoint, and completion transition. The lower-level `hamma memory ...`
+commands below are documented for hook authors and automation.
 
 Hooks are an optional checkpoint layer. They do not replace explicit sync, and
 they must be reviewed and trusted in each agent. HammaDev never edits native
@@ -15,11 +19,13 @@ agent sessions. Hook input is used only to select the exact current session.
 ## Fallback hierarchy
 
 1. A trusted native lifecycle hook invokes `hamma memory sync --hook-agent ...`.
-2. The installed `hamma-snap` skill invokes an exact `THIS:current` sync.
-3. The developer runs `hamma memory sync` or supplies `--source` explicitly.
+2. The installed `hamma-snap` skill invokes `hamma save` for the current agent.
+3. The developer runs `hamma save` (or an exact low-level sync) explicitly.
 
-The CLI exits successfully without writing anything when a hook fires in a
-project that has no active Hamma memory.
+The first `hamma save` or `hamma switch` creates the reserved `default` memory
+(as do their explicit low-level sync/attach equivalents).
+Lifecycle hooks deliberately remain no-ops until an explicit workflow has
+enabled memory for that project.
 
 ## Codex
 
@@ -129,6 +135,19 @@ trust. Place a JSON hook file under `.grok/hooks/`:
   diagnostics.
 - HammaDev uses an atomic per-memory lock and content fingerprint so concurrent
   or duplicate updates do not silently overwrite a revision.
+- Repository-wide automatic source selection is intentionally disabled for
+  persistent memory. Attach loads the frozen latest revision by default, and
+  every memory write names one exact native session.
+- An actionable attach creates a durable run claim. Generic lifecycle hooks
+  skip while that claim is open; the attached agent must use
+  `memory checkpoint --attach <id>` or `memory finish --attach <id>` so updates
+  remain in the original task epoch. If it cannot finish,
+  `memory abandon --attach <id> --reason <text>` releases the claim explicitly.
+- Hooks use deterministic transcript and Git extraction. Packaged skills can
+  supply richer validated knowledge through `--update-file`.
+- Append-only source cursors store only new sanitized user/assistant messages.
+  If native history is rewritten, HammaDev records a safe normalized snapshot
+  and warns without changing older revisions.
 - Hook sync parses a session that may still be actively written. If parsing
   fails, the prior immutable revision remains current and explicit sync can be
   retried.

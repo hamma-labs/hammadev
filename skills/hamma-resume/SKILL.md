@@ -1,6 +1,6 @@
 ---
 name: hamma-resume
-description: Resume your own previous session in a fresh chat using a bounded HammaDev handoff. Use after long sessions or context limits in the *same* agent.
+description: Attach repository-scoped HammaDev memory in a fresh chat. Use after long sessions or context limits in the same agent, including when completed work should remain context without being repeated.
 ---
 
 # Hamma Resume Skill
@@ -8,8 +8,8 @@ description: Resume your own previous session in a fresh chat using a bounded Ha
 **Purpose**: Pick up where you left off from a bounded continuation brief instead of preloading the full transcript or diagnostic archives.
 
 **Core Rules**:
-- Load only `handoff.md` as initial context.
-- Continue from the recorded next action.
+- Load only `bootstrap.md` as initial context.
+- Honor `executionMode`; completed epochs wait for new user input.
 - Reconcile with current git/files.
 
 **When to use**:
@@ -22,25 +22,29 @@ description: Resume your own previous session in a fresh chat using a bounded Ha
 
 2. Check `command -v hamma`. If missing, instruct user to install + `hamma skill install --force`.
 
-3. If the user supplied a named project memory, prefer the stable Hamma-owned thread:
+3. Prefer repository memory, using the supplied name or the active/default memory:
    ```bash
-   hamma memory resume <name> --to THIS --project "<root>" --json
+   hamma switch THIS --no-save --no-launch --project "<root>" --json
    ```
-   Validate the returned revision and paths under `.hamma/memories/<name>/`,
-   check `resumeAllowed`, and stop when it is false. A completed memory needs no
-   continuation; blocked, ambiguous, or not-ready state needs review. Otherwise,
-   load only `handoff.md` as initial context, report drift and readiness, and
-   continue from the recorded next action. Load `state.json` only if structured
-   detail is needed. Do not rename or modify the native agent session.
-   While working in a named memory, checkpoint after meaningful verified
-   milestones and before ending when no native hook is configured:
+   Add `--memory "<name>"` when the user supplied a memory name.
+   Validate paths under `.hamma/memories/<name>/`, `attach.memoryLoadAllowed`,
+   `attach.autoExecuteAllowed`, and `attach.executionMode`. Load only `bootstrap.md`.
+   `ready_for_input` means load context, do not repeat the completed epoch, and
+   wait for the user's next instruction. `needs_instruction`, `blocked`, and
+   `review_required` do not auto-execute. Only `continue_work` proceeds from the
+   recorded next action. Use `hamma memory recall [name] --query <text>` only
+   when the current request needs deeper history.
+   For `continue_work`, checkpoint meaningful verified milestones without
+   exposing the internal attach claim:
    ```bash
-   hamma memory sync <name> --source THIS:current --project "<root>" --json
+   hamma save --agent THIS --project "<root>" --json
    ```
-   This instruction is advisory; do not claim a checkpoint occurred unless the
-   command succeeded and returned a revision id.
+   Before ending, use `hamma done --agent THIS --project "<root>" --json`.
+   Do not claim writeback occurred unless the command returned a completed or
+   blocked outcome.
 
-4. If no memory name was supplied, use the previous-session fallback below.
+4. If attach reports that no eligible memory revision can be created, use the
+   previous-session fallback below.
 
 5. Preflight the previous session (self-excludes current chat) without creating
    an artifact:

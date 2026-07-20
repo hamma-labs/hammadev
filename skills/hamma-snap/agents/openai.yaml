@@ -1,4 +1,4 @@
 interface:
   display_name: "Hamma Snap"
-  short_description: "Snapshot the current session into a resumable handoff"
-  default_prompt: "Use $hamma-snap to snapshot this session so I can resume it in a fresh chat."
+  short_description: "Persist this session into repository memory"
+  default_prompt: "Use $hamma-snap to save this session's durable knowledge and task epoch."

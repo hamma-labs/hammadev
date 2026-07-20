@@ -32,21 +32,20 @@ function sessionSummary(total: number, project: number): string {
 function missingItems(
   status: ProjectStatus,
   codexInstalled: boolean,
-  claudeInstalled: boolean
+  claudeInstalled: boolean,
+  grokInstalled: boolean
 ): string[] {
   const missing: string[] = [];
-  if (!codexInstalled) {
-    missing.push("Codex CLI is not installed or not on PATH: npm install -g @openai/codex");
-  }
-  if (!claudeInstalled) {
-    missing.push("Claude Code is not installed or not on PATH: npm install -g @anthropic-ai/claude-code");
+  if (!codexInstalled && !claudeInstalled && !grokInstalled) {
+    missing.push("Install at least one supported coding agent: Codex, Claude Code, or Grok.");
   }
   if (!status.isGitRepo) {
     missing.push("This directory is not a Git repository; run quickstart from the project you want to hand off.");
   }
   if (
     status.codexProjectSessionCount === 0 &&
-    status.claudeProjectSessionCount === 0
+    status.claudeProjectSessionCount === 0 &&
+    status.grokProjectSessionCount === 0
   ) {
     missing.push("No sessions from supported agents (codex, claude, grok) match this project; start an agent session from this directory first.");
   }
@@ -59,48 +58,83 @@ function missingItems(
 function nextCommands(
   status: ProjectStatus,
   codexInstalled: boolean,
-  claudeInstalled: boolean
+  claudeInstalled: boolean,
+  grokInstalled: boolean
 ): string[] {
   const project = JSON.stringify(status.projectPath);
-  if (status.codexProjectSessionCount > 0 && claudeInstalled) {
+  if (status.memory.activeName) {
+    if (status.memory.openAttachId) {
+      return [
+        `hamma save --project ${project}`,
+        `# When finished: hamma done --project ${project}`,
+      ];
+    }
+    const target = claudeInstalled ? "claude" : codexInstalled ? "codex" : grokInstalled ? "grok" : "codex";
     return [
-      `hamma continue --to claude --project ${project} --explain`,
-      `# If the selection is correct: hamma continue --to claude --project ${project}`,
+      `hamma switch ${target} --project ${project}`,
+      "# Hamma saves, prepares context, and opens the target agent.",
     ];
   }
-  if (status.claudeProjectSessionCount > 0 && codexInstalled) {
+  if (status.codexProjectSessionCount > 0 && (claudeInstalled || grokInstalled)) {
+    const target = claudeInstalled ? "claude" : "grok";
     return [
-      `hamma continue --to codex --project ${project} --explain`,
-      `# If the selection is correct: hamma continue --to codex --project ${project}`,
+      `hamma save --agent codex --project ${project}`,
+      `hamma switch ${target} --project ${project}`,
     ];
+  }
+  if (status.claudeProjectSessionCount > 0 && (codexInstalled || grokInstalled)) {
+    const target = codexInstalled ? "codex" : "grok";
+    return [
+      `hamma save --agent claude --project ${project}`,
+      `hamma switch ${target} --project ${project}`,
+    ];
+  }
+  if (status.grokProjectSessionCount > 0 && (claudeInstalled || codexInstalled)) {
+    const target = claudeInstalled ? "claude" : "codex";
+    return [
+      `hamma save --agent grok --project ${project}`,
+      `hamma switch ${target} --project ${project}`,
+    ];
+  }
+  if (status.codexProjectSessionCount > 0) {
+    return [`hamma save --agent codex --project ${project}`];
+  }
+  if (status.claudeProjectSessionCount > 0) {
+    return [`hamma save --agent claude --project ${project}`];
+  }
+  if (status.grokProjectSessionCount > 0) {
+    return [`hamma save --agent grok --project ${project}`];
   }
 
   const commands: string[] = [];
-  if (!codexInstalled) commands.push("npm install -g @openai/codex");
-  if (!claudeInstalled) commands.push("npm install -g @anthropic-ai/claude-code");
+  if (!codexInstalled && !claudeInstalled && !grokInstalled) {
+    commands.push("# Install Codex, Claude Code, or Grok, then run `hamma save` from your project.");
+  }
   if (status.isGitRepo && status.hammaIgnored === false) {
     commands.push("printf '\n.hamma/\n' >> .gitignore");
   }
   if (
     status.codexProjectSessionCount === 0 &&
-    status.claudeProjectSessionCount === 0
+    status.claudeProjectSessionCount === 0 &&
+    status.grokProjectSessionCount === 0
   ) {
-    commands.push("# Start a supported agent (codex, claude or grok) from this project, then run: hamma");
+    commands.push("# Start a supported agent from this project, then run: hamma save");
   }
   return commands.length > 0 ? commands : ["hamma status"];
 }
 
 export async function runQuickstart(projectDir: string): Promise<void> {
   const projectPath = path.resolve(projectDir);
-  const [status, codexInstalled, claudeInstalled] = await Promise.all([
+  const [status, codexInstalled, claudeInstalled, grokInstalled] = await Promise.all([
     getProjectStatus(projectPath),
     commandAvailable("codex"),
-    commandAvailable("claude")
+    commandAvailable("claude"),
+    commandAvailable("grok"),
   ]);
   const nodeRaw = process.versions.node;
   const nodeOk = isNodeVersionSupported(nodeRaw);
   const gitAvailable = status.gitStatus !== "unavailable";
-  const missing = missingItems(status, codexInstalled, claudeInstalled);
+  const missing = missingItems(status, codexInstalled, claudeInstalled, grokInstalled);
   if (!gitAvailable) missing.unshift("Git is not installed or not on PATH.");
   if (!nodeOk) {
     missing.unshift(`Node.js ${MIN_NODE_VERSION}+ is required; detected ${nodeRaw}.`);
@@ -116,6 +150,8 @@ export async function runQuickstart(projectDir: string): Promise<void> {
   console.log(`  ${indicator(status.codexProjectSessionCount > 0)} Codex sessions: ${sessionSummary(status.codexSessionCount, status.codexProjectSessionCount)}`);
   console.log(`  ${indicator(claudeInstalled)} Claude Code: ${claudeInstalled ? "installed" : "not found"}`);
   console.log(`  ${indicator(status.claudeProjectSessionCount > 0)} Claude sessions: ${sessionSummary(status.claudeSessionCount, status.claudeProjectSessionCount)}`);
+  console.log(`  ${indicator(grokInstalled)} Grok: ${grokInstalled ? "installed" : "not found"}`);
+  console.log(`  ${indicator(status.grokProjectSessionCount > 0)} Grok sessions: ${sessionSummary(status.grokSessionCount, status.grokProjectSessionCount)}`);
   const ignored = status.hammaIgnored === null
     ? "not applicable (not a Git repository)"
     : status.hammaIgnored
@@ -123,13 +159,14 @@ export async function runQuickstart(projectDir: string): Promise<void> {
       : "no";
   console.log(`  ${indicator(status.hammaIgnored !== false)} .hamma/ ignored: ${ignored}`);
   console.log(`  ${pc.green("•")} Existing handoffs: ${status.handoffCount}\n`);
+  console.log(`  ${pc.green("•")} Repository memory: ${status.memory.activeName ? `${status.memory.activeName} (${status.memory.revisionCount} revisions, ${status.memory.outcome ?? "waiting"}${status.memory.openAttachId ? `, claimed by ${status.memory.openAttachTarget}` : ""})` : "not enabled; first explicit sync or attach creates default"}\n`);
 
   console.log("What is missing:");
-  if (missing.length === 0) console.log("  Nothing required. This project is ready for a continuation preflight.");
+  if (missing.length === 0) console.log("  Nothing required. This project is ready for `hamma save` or `hamma switch`.");
   else for (const item of missing) console.log(`  - ${item}`);
 
   console.log("\nRun next:");
-  for (const command of nextCommands(status, codexInstalled, claudeInstalled)) {
+  for (const command of nextCommands(status, codexInstalled, claudeInstalled, grokInstalled)) {
     console.log(`  ${command}`);
   }
 }

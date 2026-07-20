@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
@@ -46,15 +47,27 @@ import {
   formatContextEfficiencyBenchmark,
 } from "./core/benchmark.js";
 import {
+  abandonMemory,
+  attachMemory,
+  checkpointMemory,
+  finishMemory,
   formatMemoryInspection,
   formatMemoryList,
+  formatMemoryRecall,
   inspectMemory,
   listMemories,
+  recallMemory,
   resolveMemoryProjectPath,
   resumeMemory,
   startMemory,
   syncMemory,
 } from "./core/memory.js";
+import {
+  simpleAsk,
+  simpleDone,
+  simpleSave,
+  simpleSwitch,
+} from "./core/simple-ux.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -161,6 +174,41 @@ function fail(category: ErrorCategory, error: unknown): void {
   process.exitCode = 1;
 }
 
+function failSimple(error: unknown): void {
+  const message = errorMessage(error);
+  cliLogger.error("operation.failed", { category: "SIMPLE_UX", error: message });
+  console.error(pc.red(`Hamma couldn't complete that: ${message}`));
+  console.error(pc.dim("Run `hamma` for a guided next step or add --help to the command."));
+  process.exitCode = 1;
+}
+
+async function launchAttachedAgent(
+  command: string,
+  args: string[],
+  cwd: string
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, { cwd, stdio: "inherit" });
+    child.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") {
+        reject(new Error(`${command} is not installed or is not on PATH.`));
+      } else reject(error);
+    });
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} exited with code ${code ?? "unknown"}.`));
+    });
+  });
+}
+
+async function simpleCommandAvailable(command: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn(command, ["--version"], { stdio: "ignore" });
+    child.on("error", () => resolve(false));
+    child.on("close", (code) => resolve(code === 0));
+  });
+}
+
 async function readJsonStdin(): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let bytes = 0;
@@ -196,13 +244,185 @@ program
 
 program
   .name("hamma")
-  .description("Shared memory and handoff layer for agentic coding CLIs")
+  .description("Keep AI coding work moving across Codex, Claude, and Grok")
   .version(pkg.version)
   .action(async () => {
     try {
       await runQuickstart(process.cwd());
     } catch (error: unknown) {
       fail("PROJECT_ERROR", error);
+    }
+  })
+  .addHelpText("after", [
+    "",
+    "Simple workflow:",
+    "  hamma save                 Save the current coding session",
+    "  hamma switch claude        Save and move the work to Claude",
+    "  hamma done                 Mark the current work complete",
+    "  hamma ask \"why SQLite?\"  Search project memory",
+    "",
+    "Advanced memory controls remain under `hamma memory`.",
+  ].join("\n"));
+
+program
+  .command("save")
+  .option("--agent <agent>", "Current agent when auto-detection is ambiguous")
+  .option("--memory <name>", "Memory name; defaults to the active/default memory")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable result")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Save the current coding session to project memory")
+  .action(async (options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      if (!options.json) console.log(pc.dim("Finding the current agent session…"));
+      const result = await simpleSave(projectPath, {
+        agent: options.agent,
+        memory: options.memory,
+        useGitignore: options.gitignore,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green("✓ Current work saved"));
+      console.log(`  Agent: ${result.source.agent}`);
+      console.log(`  Memory: ${result.memory}`);
+      console.log(`  State: ${result.outcome ?? "saved"}`);
+      console.log(`  Revision: ${result.revision ?? "already up to date"}`);
+      if (result.attachId) console.log(pc.dim("  Active transferred task checkpointed."));
+      if (result.nextAction) console.log(`  Next: ${result.nextAction}`);
+      for (const warning of result.warnings) console.log(pc.yellow(`  Warning: ${warning}`));
+      const suggestedTarget = result.source.agent === "claude" ? "codex" : "claude";
+      console.log(pc.dim(`\nSwitch agents with: hamma switch ${suggestedTarget}`));
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("switch")
+  .argument("<agent>", "Destination: codex | claude | grok")
+  .option("--from <agent>", "Current agent when auto-detection is ambiguous")
+  .option("--memory <name>", "Memory name; defaults to the active/default memory")
+  .option("--project <path>", "Project directory")
+  .option("--no-save", "Use the frozen saved memory without saving first")
+  .option("--no-launch", "Print the launch command without starting the agent")
+  .option("--start", "Start the target even when this shell is non-interactive")
+  .option("--json", "Print a machine-readable result without launching")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Save the work and move it to another coding agent")
+  .action(async (agent, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const shouldLaunch = !options.json && options.launch !== false && (
+        options.start || (Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY))
+      );
+      if (shouldLaunch && !await simpleCommandAvailable(String(agent).toLowerCase())) {
+        throw new Error(`${agent} is not installed or is not on PATH. Install it, or use --no-launch to prepare and print the command only.`);
+      }
+      if (!options.json) console.log(pc.dim(`Saving work and preparing ${agent}…`));
+      const result = await simpleSwitch(projectPath, agent, {
+        from: options.from,
+        memory: options.memory,
+        save: options.save,
+        useGitignore: options.gitignore,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      if (result.saved) console.log(pc.green("✓ Current work saved"));
+      else console.log(pc.green("✓ Saved memory is current"));
+      if (result.source) console.log(`  Source: ${result.source.agent}`);
+      if (result.transferredClaim) console.log(pc.green("✓ Previous agent claim released"));
+      console.log(pc.green(`✓ Context prepared for ${result.target}`));
+      console.log(`  Memory: ${result.memory}`);
+      console.log(`  State: ${result.attach.previousOutcome}`);
+      console.log(`  Mode: ${result.attach.executionMode}`);
+      if (result.attach.attachId) console.log(pc.dim("  Task ownership is protected until `hamma done`."));
+      for (const warning of result.attach.warnings) console.log(pc.yellow(`  Warning: ${warning}`));
+      if (!shouldLaunch) {
+        console.log("\nRun this command to open the agent:");
+        console.log(result.attach.suggestedCommand);
+        return;
+      }
+      console.log(pc.cyan(`\nOpening ${result.target}…`));
+      await launchAttachedAgent(
+        result.attach.launch.command,
+        result.attach.launch.args,
+        projectPath
+      );
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("done")
+  .option("--agent <agent>", "Current agent when auto-detection is ambiguous")
+  .option("--memory <name>", "Memory name; defaults to the active memory")
+  .option("--blocked", "Save the task as blocked instead of completed")
+  .option("--next <text>", "Next action when the task is blocked")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable result")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Save the current session and close its task")
+  .action(async (options) => {
+    try {
+      if (options.blocked && !options.next) {
+        throw new Error("Blocked work needs a next step. Add --next \"what must happen next\".");
+      }
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      if (!options.json) console.log(pc.dim("Saving the final session…"));
+      const result = await simpleDone(projectPath, {
+        agent: options.agent,
+        memory: options.memory,
+        outcome: options.blocked ? "blocked" : "completed",
+        nextAction: options.next,
+        useGitignore: options.gitignore,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green(options.blocked ? "✓ Work saved as blocked" : "✓ Work completed and saved"));
+      console.log(`  Agent: ${result.source.agent}`);
+      console.log(`  Memory: ${result.memory}`);
+      console.log(`  Revision: ${result.revision ?? "already up to date"}`);
+      if (result.attachId) console.log(pc.dim("  The agent claim is now closed."));
+      for (const warning of result.warnings) console.log(pc.yellow(`  Warning: ${warning}`));
+      console.log(pc.dim("\nThe history remains available, but Hamma will not repeat this work."));
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("ask")
+  .argument("<query...>", "Question, phrase, decision, or file path")
+  .option("--memory <name>", "Memory name; defaults to the active memory")
+  .option("--limit <n>", "Maximum results", "5")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print machine-readable recall results")
+  .description("Search this project's saved memory")
+  .action(async (queryParts, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await simpleAsk(
+        projectPath,
+        (queryParts as string[]).join(" "),
+        options.memory,
+        Number(options.limit)
+      );
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.bold(`Project memory: ${result.memory}\n`));
+      process.stdout.write(`${formatMemoryRecall(result)}\n`);
+    } catch (err: any) {
+      return failSimple(err);
     }
   });
 
@@ -772,7 +992,7 @@ program
 
 const memoryCommand = program
   .command("memory")
-  .description("Maintain named project task state across coding agents");
+  .description("Maintain persistent repository knowledge and task epochs across coding agents");
 
 memoryCommand
   .command("start")
@@ -797,7 +1017,7 @@ memoryCommand
       }
       console.log(pc.green(`Project memory '${manifest.name}' is active.`));
       console.log(`Project: ${manifest.projectPath}`);
-      console.log(`Next: hamma memory sync`);
+      console.log(`Next: hamma memory sync --source <agent>:<session-id>`);
     } catch (err: any) {
       return fail("HANDOFF_ERROR", err);
     }
@@ -813,7 +1033,7 @@ memoryCommand
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
       const memories = await listMemories(projectPath);
       if (options.json) {
-        process.stdout.write(`${JSON.stringify({ schemaVersion: 1, projectPath, memories }, null, 2)}\n`);
+        process.stdout.write(`${JSON.stringify({ schemaVersion: 2, projectPath, memories }, null, 2)}\n`);
         return;
       }
       process.stdout.write(`${formatMemoryList(memories)}\n`);
@@ -846,11 +1066,12 @@ memoryCommand
   .command("sync")
   .argument("[name]", "Memory name; defaults to the active memory")
   .option("--source <target>", "Exact source session, for example codex:current or claude:<id>")
+  .option("--update-file <path>", "Validated structured memory update JSON")
   .option("--hook-agent <agent>", "Read a native hook event from stdin: codex | claude | grok")
   .option("--project <path>", "Project directory")
   .option("--json", "Print a machine-readable sync result")
   .option("--no-gitignore", "Do not modify .gitignore")
-  .description("Create an immutable memory revision from a project session")
+  .description("Create an immutable memory revision from an exact project session")
   .action(async (name, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -866,7 +1087,9 @@ memoryCommand
       }
       const result = await syncMemory(projectPath, name, {
         source,
+        updateFile: options.updateFile,
         useGitignore: options.gitignore,
+        lifecycleHook: Boolean(options.hookAgent),
       });
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -884,10 +1107,11 @@ memoryCommand
     } catch (err: any) {
       if (
         options.hookAgent &&
-        String(err.message).includes("No active project memory")
+        (String(err.message).includes("No active project memory") ||
+          String(err.message).includes("lifecycle sync skipped"))
       ) {
         if (options.json) {
-          process.stdout.write(`${JSON.stringify({ schemaVersion: 1, updated: false, skipped: true, reason: err.message }, null, 2)}\n`);
+          process.stdout.write(`${JSON.stringify({ schemaVersion: 2, updated: false, skipped: true, reason: err.message }, null, 2)}\n`);
         }
         return;
       }
@@ -896,27 +1120,181 @@ memoryCommand
   });
 
 memoryCommand
-  .command("resume")
-  .argument("[name]", "Memory name; defaults to the active memory")
+  .command("attach")
+  .argument("[name]", "Memory name; defaults to active, creating 'default' when absent")
   .requiredOption("--to <agent>", "Target CLI: codex | claude | grok")
+  .option("--source <target>", "Exact source session to synchronize before attach")
+  .option("--no-sync", "Load the frozen latest revision without synchronizing")
   .option("--project <path>", "Project directory")
-  .option("--json", "Print a machine-readable resume contract")
-  .description("Create an exact continuation command for a named memory")
+  .option("--json", "Print a machine-readable attach contract")
+  .description("Load repository memory into an agent with execution safeguards")
   .action(async (name, options) => {
     try {
       const targetCli = parseContinuationAgent(options.to);
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
-      const result = await resumeMemory(projectPath, name, targetCli);
+      const result = await attachMemory(projectPath, name, targetCli, {
+        source: options.source,
+        noSync: options.sync === false,
+      });
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
         return;
       }
-      console.log(pc.bold(`Resume project memory '${result.memory}' in ${result.targetCli}`));
+      console.log(pc.bold(`Attach repository memory '${result.memory}' in ${result.targetCli}`));
+      console.log(`Execution mode: ${result.executionMode}`);
+      console.log(`Memory load: ${result.memoryLoadAllowed ? "allowed" : "withheld"}`);
+      console.log(`Automatic execution: ${result.autoExecuteAllowed ? "allowed" : "withheld"}`);
+      console.log(`Sync: ${result.syncStatus}`);
+      if (result.attachId) console.log(`Attach run: ${result.attachId}`);
+      console.log(`Repository drift: ${result.drift.detected ? result.drift.categories.join(", ") : "none"}`);
+      console.log(`Initial context + prompt: ${result.contextBudget.combinedBytes}/${result.contextBudget.maxBytes} bytes`);
+      for (const warning of result.warnings) console.log(pc.yellow(`Warning: ${warning}`));
+      console.log("");
+      console.log(result.suggestedCommand);
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("checkpoint")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .requiredOption("--attach <id>", "Attach run identifier returned by memory attach")
+  .requiredOption("--source <target>", "Exact attached agent session, for example codex:<id>")
+  .option("--update-file <path>", "Optional structured memory update JSON")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable checkpoint result")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Checkpoint the exact attached session into its original task epoch")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await checkpointMemory(projectPath, name, options.attach, {
+        source: options.source,
+        updateFile: options.updateFile,
+        useGitignore: options.gitignore,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green(`Attach run ${result.attachId} checkpointed.`));
+      console.log(`Status: ${result.run.status}`);
+      console.log(`Revision: ${result.revision?.id ?? "unchanged"}`);
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("finish")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .requiredOption("--attach <id>", "Attach run identifier returned by memory attach")
+  .requiredOption("--source <target>", "Exact attached agent session, for example codex:<id>")
+  .option("--update-file <path>", "Optional structured memory update JSON")
+  .option("--outcome <outcome>", "Final outcome: completed | blocked", "completed")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable finish result")
+  .option("--no-gitignore", "Do not modify .gitignore")
+  .description("Write back the exact attached session and close its task epoch")
+  .action(async (name, options) => {
+    try {
+      if (options.outcome !== "completed" && options.outcome !== "blocked") {
+        throw new Error("Finish outcome must be completed or blocked.");
+      }
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await finishMemory(projectPath, name, options.attach, {
+        source: options.source,
+        updateFile: options.updateFile,
+        outcome: options.outcome,
+        useGitignore: options.gitignore,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green(`Attach run ${result.attachId} finished.`));
+      console.log(`Outcome: ${result.run.status}`);
+      console.log(`Revision: ${result.revision?.id ?? "unchanged"}`);
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("abandon")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .requiredOption("--attach <id>", "Attach run identifier returned by memory attach")
+  .requiredOption("--reason <text>", "Why the claimed run cannot be completed")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable abandon result")
+  .description("Release an unfinished attach claim without changing memory state")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const run = await abandonMemory(projectPath, name, options.attach, options.reason);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify({ schemaVersion: 2, run }, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.yellow(`Attach run ${run.id} abandoned.`));
+      console.log(`Reason: ${run.history.at(-1)?.reason}`);
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("recall")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .requiredOption("--query <text>", "Phrase, file path, decision, or topic to recall")
+  .option("--limit <n>", "Maximum results", "10")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print machine-readable recall results")
+  .description("Search durable knowledge and sanitized archived messages locally")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const limit = Number(options.limit);
+      const result = await recallMemory(projectPath, name, options.query, limit);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      process.stdout.write(`${formatMemoryRecall(result)}\n`);
+    } catch (err: any) {
+      return fail("HISTORY_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("resume")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .requiredOption("--to <agent>", "Target CLI: codex | claude | grok")
+  .option("--source <target>", "Exact source session to synchronize before attach")
+  .option("--no-sync", "Load the frozen latest revision without synchronizing")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable resume contract")
+  .description("Compatibility alias for memory attach")
+  .action(async (name, options) => {
+    try {
+      const targetCli = parseContinuationAgent(options.to);
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await resumeMemory(projectPath, name, targetCli, {
+        source: options.source,
+        noSync: options.sync === false,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.bold(`Attach project memory '${result.memory}' in ${result.targetCli}`));
       console.log(`Readiness: ${result.readiness.level}`);
+      console.log(`Execution mode: ${result.executionMode}`);
       console.log(`Automatic resume: ${result.resumeAllowed ? "allowed" : "withheld"}`);
       console.log(`Repository drift: ${result.drift.detected ? result.drift.categories.join(", ") : "none"}`);
       console.log(
-        `Initial context: ${result.contextBudget.bytes}/${result.contextBudget.maxBytes} bytes`
+        `Initial context + prompt: ${result.contextBudget.combinedBytes}/${result.contextBudget.maxBytes} bytes`
       );
       if (!result.contextBudget.withinBudget) {
         console.log(

@@ -126,16 +126,16 @@ describe("memory CLI", () => {
     });
     expect(first.revision.parentRevision).toBeUndefined();
     expect(first.contextBudget).toMatchObject({
-      initialArtifacts: ["handoff.md"],
+      initialArtifacts: ["bootstrap.md"],
       maxBytes: 8192,
       withinBudget: true,
     });
     expect(await fs.readdir(first.revisionPath)).toEqual(
-      expect.arrayContaining(["handoff.md", "revision.json", "state.json", "tool_history.jsonl"])
+      expect.arrayContaining(["bootstrap.md", "conversation.jsonl", "handoff.md", "memory-state.json", "revision.json", "state.json", "tool_history.jsonl"])
     );
     expect(await fs.readdir(first.revisionPath)).not.toContain("session.json");
-    expect(await fs.readFile(first.handoffPath, "utf8")).toContain(
-      "Full native or normalized transcripts are not copied"
+    expect(await fs.readFile(first.bootstrapPath, "utf8")).toContain(
+      "Hamma Repository Memory"
     );
 
     const noOp = JSON.parse(await run([
@@ -173,10 +173,10 @@ describe("memory CLI", () => {
       revision: second.revision.id,
       resumeAllowed: false,
     });
-    expect(resumed.suggestedCommand).toContain("No continuation required");
+    expect(resumed.suggestedCommand).toContain("do not repeat old work");
     expect(resumed.suggestedCommand).not.toContain("tool_history.jsonl");
     expect(resumed.contextBudget).toMatchObject({
-      initialArtifacts: ["handoff.md"],
+      initialArtifacts: ["bootstrap.md"],
       maxBytes: 8192,
       withinBudget: true,
     });
@@ -221,22 +221,212 @@ describe("memory CLI", () => {
       ]));
   }, 30_000);
 
-  it("can safely select the newest resumable project session when source is omitted", async () => {
+  it("requires exact source selection and preserves frozen attach state", async () => {
     await run([
       "memory", "start", "automatic-thread", "--json", "--no-gitignore",
     ]);
-    const result = JSON.parse(await run([
+    await expect(run([
       "memory", "sync", "--json", "--no-gitignore",
+    ])).rejects.toThrow("requires an exact");
+
+    const updatePath = path.join(fixtureRoot, "memory-update.json");
+    await fs.writeFile(updatePath, JSON.stringify({
+      sessionSummary: "The persistent memory implementation is complete.",
+      projectSummary: "A local repository memory CLI.",
+      decisions: [{
+        decision: "Use immutable v2 revisions.",
+        rationale: "Old snapshots remain auditable.",
+        files: ["src/core/memory.ts"],
+      }],
+      constraints: ["Keep memory local under .hamma/.", "token=super-secret-value-that-must-not-persist"],
+      discoveries: ["Completed epochs should remain loadable context."],
+    }));
+    const structured = JSON.parse(await run([
+      "memory", "sync", "automatic-thread", "--source", `claude:${SESSION_ID}`,
+      "--update-file", updatePath, "--json", "--no-gitignore",
     ]));
-    expect(result).toMatchObject({
-      updated: true,
-      memory: "automatic-thread",
-      selection: {
-        mode: "automatic",
-        sourceCli: "claude",
-        sourceSessionId: SESSION_ID,
-      },
+    expect(structured.updated).toBe(true);
+    expect(structured.memoryStatePath).toContain("memory-state.json");
+    expect(await fs.readFile(structured.memoryStatePath, "utf8")).not.toContain("super-secret-value");
+    expect(structured.warnings.join(" ")).toContain("Redacted 1 potential secret");
+
+    const autoAttached = JSON.parse(await run([
+      "memory", "attach", "automatic-thread", "--to", "codex", "--json",
+    ]));
+    expect(autoAttached.syncStatus).toBe("skipped");
+    expect(autoAttached.revision).toBe(structured.revision.id);
+
+    let attached = JSON.parse(await run([
+      "memory", "attach", "automatic-thread", "--to", "codex", "--no-sync", "--json",
+    ]));
+    expect(attached).toMatchObject({
+      schemaVersion: 2,
+      memoryLoadAllowed: true,
+      autoExecuteAllowed: false,
+      executionMode: "ready_for_input",
+      previousOutcome: "completed",
+      syncStatus: "skipped",
     });
+    expect(attached.suggestedCommand).toContain("do not repeat old work");
+    expect(attached.contextBudget.combinedBytes).toBeLessThanOrEqual(8192);
+
+    const recalled = JSON.parse(await run([
+      "memory", "recall", "automatic-thread", "--query", "immutable v2 revisions", "--json",
+    ]));
+    expect(recalled.results[0]).toMatchObject({ kind: "knowledge", category: "decision" });
+
+    const laterUpdatePath = path.join(fixtureRoot, "later-memory-update.json");
+    await fs.writeFile(laterUpdatePath, JSON.stringify({
+      sessionSummary: "A later task update must not replace the project identity.",
+      discoveries: ["Project summaries only change through explicit projectSummary updates."],
+    }));
+    const later = JSON.parse(await run([
+      "memory", "sync", "automatic-thread", "--source", `claude:${SESSION_ID}`,
+      "--update-file", laterUpdatePath, "--json", "--no-gitignore",
+    ]));
+    expect(JSON.parse(await fs.readFile(later.memoryStatePath, "utf8")).projectSummary)
+      .toBe("A local repository memory CLI.");
+  }, 20_000);
+
+  it("claims actionable work once and finishes the same epoch explicitly", async () => {
+    await writeSession(false);
+    await run(["memory", "start", "lifecycle", "--json", "--no-gitignore"]);
+    const synced = JSON.parse(await run([
+      "memory", "sync", "lifecycle", "--source", `claude:${SESSION_ID}`,
+      "--json", "--no-gitignore",
+    ]));
+    const beforeEpoch = JSON.parse(await fs.readFile(synced.memoryStatePath, "utf8")).activeEpochId;
+
+    let attached = JSON.parse(await run([
+      "memory", "attach", "lifecycle", "--to", "claude", "--json",
+    ]));
+    expect(attached).toMatchObject({
+      executionMode: "continue_work",
+      autoExecuteAllowed: true,
+      run: { status: "claimed", epochId: beforeEpoch },
+    });
+    expect(attached.attachId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(attached.suggestedCommand).toContain(`[HAMMA_ATTACH_ID:${attached.attachId}]`);
+    await expect(run([
+      "memory", "attach", "lifecycle", "--to", "claude", "--json",
+    ])).rejects.toThrow("already has open attach run");
+    await expect(run([
+      "memory", "sync", "lifecycle", "--source", `claude:${SESSION_ID}`,
+      "--json", "--no-gitignore",
+    ])).rejects.toThrow("use memory checkpoint or finish");
+    const abandoned = JSON.parse(await run([
+      "memory", "abandon", "lifecycle", "--attach", attached.attachId,
+      "--reason", "Testing explicit claim release.", "--json",
+    ]));
+    expect(abandoned.run.status).toBe("abandoned");
+    attached = JSON.parse(await run([
+      "memory", "attach", "lifecycle", "--to", "claude", "--json",
+    ]));
+    expect(attached.run.status).toBe("claimed");
+
+    const checkpointPath = path.join(fixtureRoot, "checkpoint-update.json");
+    await fs.writeFile(checkpointPath, JSON.stringify({
+      sessionSummary: "The exact-source guard is implemented; lifecycle closure remains.",
+      outcome: "actionable",
+      nextAction: "Close the claimed epoch after verification.",
+    }));
+    const checkpointed = JSON.parse(await run([
+      "memory", "checkpoint", "lifecycle", "--attach", attached.attachId,
+      "--source", `claude:${SESSION_ID}`, "--update-file", checkpointPath,
+      "--json", "--no-gitignore",
+    ]));
+    expect(checkpointed.run.status).toBe("running");
+    expect(JSON.parse(await fs.readFile(checkpointed.memoryStatePath, "utf8")).activeEpochId)
+      .toBe(beforeEpoch);
+
+    const updatePath = path.join(fixtureRoot, "finish-update.json");
+    await fs.writeFile(updatePath, JSON.stringify({
+      sessionSummary: "Immutable memory revisions are implemented and verified.",
+      projectSummary: "Stable repository continuity across coding agents.",
+      outcome: "completed",
+      nextAction: null,
+      decisions: ["Require exact source sessions for every memory write."],
+      discoveries: ["Attach claims prevent duplicate execution."],
+    }));
+    const finished = JSON.parse(await run([
+      "memory", "finish", "lifecycle", "--attach", attached.attachId,
+      "--source", `claude:${SESSION_ID}`, "--update-file", updatePath,
+      "--json", "--no-gitignore",
+    ]));
+    expect(finished.run.status).toBe("completed");
+    const finishedState = JSON.parse(await fs.readFile(finished.memoryStatePath, "utf8"));
+    expect(finishedState.activeEpochId).toBe(beforeEpoch);
+    expect(finishedState.taskEpochs).toHaveLength(1);
+    expect(finishedState.taskEpochs[0].outcome).toBe("completed");
+    expect(finishedState.taskEpochs[0].nextAction).toBeUndefined();
+
+    const contextOnly = JSON.parse(await run([
+      "memory", "attach", "lifecycle", "--to", "codex", "--json",
+    ]));
+    expect(contextOnly).toMatchObject({ executionMode: "ready_for_input", autoExecuteAllowed: false });
+    expect(contextOnly.attachId).toBeUndefined();
+    expect(contextOnly.suggestedCommand).toContain("[HAMMA_CONTEXT_LOAD]");
+  }, 30_000);
+
+  it("creates default on explicit sync and rejects invalid updates atomically", async () => {
+    await fs.rm(path.join(projectPath, ".hamma", "memories", "active.json"), { force: true });
+    const synced = JSON.parse(await run([
+      "memory", "sync", "--source", `claude:${SESSION_ID}`, "--json", "--no-gitignore",
+    ]));
+    expect(synced).toMatchObject({ schemaVersion: 2, memory: "default", updated: true });
+    const before = JSON.parse(await run(["memory", "show", "default", "--json"]));
+    const invalidPath = path.join(fixtureRoot, "invalid-update.json");
+    await fs.writeFile(invalidPath, JSON.stringify({ sessionSummary: "x", unknown: true }));
+    await expect(run([
+      "memory", "sync", "default", "--source", `claude:${SESSION_ID}`,
+      "--update-file", invalidPath, "--json", "--no-gitignore",
+    ])).rejects.toThrow();
+    const after = JSON.parse(await run(["memory", "show", "default", "--json"]));
+    expect(after.manifest.revisionCount).toBe(before.manifest.revisionCount);
+  }, 20_000);
+
+  it("reads v1 revisions through a transient view and migrates lazily", async () => {
+    await run(["memory", "start", "legacy-thread", "--json", "--no-gitignore"]);
+    const original = JSON.parse(await run([
+      "memory", "sync", "legacy-thread", "--source", `claude:${SESSION_ID}`,
+      "--json", "--no-gitignore",
+    ]));
+    const manifestPath = path.join(projectPath, ".hamma", "memories", "legacy-thread", "memory.json");
+    const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+    manifest.schemaVersion = 1;
+    await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    await fs.rm(path.join(original.revisionPath, "bootstrap.md"));
+    await fs.rm(path.join(original.revisionPath, "memory-state.json"));
+    await fs.rm(path.join(original.revisionPath, "conversation.jsonl"));
+
+    const shown = JSON.parse(await run(["memory", "show", "legacy-thread", "--json"]));
+    expect(shown).toMatchObject({ schemaVersion: 2, compatibilityView: true });
+    const attached = JSON.parse(await run([
+      "memory", "attach", "legacy-thread", "--to", "codex", "--no-sync", "--json",
+    ]));
+    expect(attached.contextBudget.initialArtifacts).toEqual(["handoff.md"]);
+    expect(attached.bootstrapPath).toBe(original.handoffPath);
+    if (attached.attachId) {
+      await run([
+        "memory", "abandon", "legacy-thread", "--attach", attached.attachId,
+        "--reason", "Continue the lazy migration compatibility test.", "--json",
+      ]);
+    }
+
+    const updatePath = path.join(fixtureRoot, "legacy-update.json");
+    await fs.writeFile(updatePath, JSON.stringify({
+      sessionSummary: "Migrated legacy memory without changing its original revision.",
+      discoveries: ["V1 remains readable."],
+    }));
+    const migrated = JSON.parse(await run([
+      "memory", "sync", "legacy-thread", "--source", `claude:${SESSION_ID}`,
+      "--update-file", updatePath, "--json", "--no-gitignore",
+    ]));
+    expect(migrated.updated).toBe(true);
+    expect(migrated.warnings.join(" ")).toContain("Migrated the latest v1 state");
+    expect(JSON.parse(await fs.readFile(manifestPath, "utf8")).schemaVersion).toBe(2);
+    await expect(fs.stat(path.join(original.revisionPath, "memory-state.json"))).rejects.toThrow();
+    await expect(fs.stat(migrated.memoryStatePath)).resolves.toBeTruthy();
   }, 20_000);
 
   it("keeps JSON stdout valid for native-hook no-active fallback", async () => {

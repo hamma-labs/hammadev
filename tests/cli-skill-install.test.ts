@@ -40,10 +40,9 @@ describe("skill install CLI command", () => {
       );
       expect(skill).toContain(`name: ${install.skillName}`);
       if (install.skillName === "hamma-handoff") {
-        expect(skill).toContain("--explain --compact-json");
-        expect(skill).toContain("--project \"<root>\" --compact-json");
-        expect(skill).toContain("preflight.readiness.warnings");
-        expect(skill).not.toContain("--explain --json");
+        expect(skill).toContain("hamma switch THIS --no-save --no-launch");
+        expect(skill).toContain("executionMode");
+        expect(skill).toContain("bootstrap.md");
       }
       if (install.skillName === "hamma-resume") {
         expect(skill).toContain("--preflight --compact-json");

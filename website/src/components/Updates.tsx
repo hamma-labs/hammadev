@@ -3,24 +3,24 @@ import { ArrowUpRight, BadgeCheck, FileTerminal, Sparkles } from 'lucide-react';
 const updates = [
   {
     icon: BadgeCheck,
-    label: 'Resume preflight',
-    title: 'Finished sessions stop before handoff.',
-    copy: 'Resume skills can inspect an explicit prior session through a compact, read-only preflight and avoid creating an unnecessary artifact.',
-    command: 'hamma handoff claude:previous --to claude --preflight',
+    label: 'Simple save',
+    title: 'Save the current session without knowing its ID.',
+    copy: 'Hamma detects the active project agent and either creates project memory or checkpoints the open task.',
+    command: 'hamma save',
   },
   {
     icon: BadgeCheck,
-    label: 'Installation completion',
-    title: 'Installed means complete.',
-    copy: 'Successful installed and available outcomes are recognized as completion while unresolved failures still override optimistic claims.',
-    command: '/hamma-resume',
+    label: 'Simple switch',
+    title: 'Move live work with one readable command.',
+    copy: 'Hamma hides exact sources, claims, Git checks, and launch prompts while retaining their safety guarantees.',
+    command: 'hamma switch claude',
   },
   {
     icon: FileTerminal,
-    label: 'Claude command evidence',
-    title: 'Evidence without tool-output leakage.',
-    copy: 'Claude sessions retain redacted, capped Bash command metadata while tool outputs, thinking, and file-read payloads stay excluded.',
-    command: 'hamma continue --to codex --compact-json',
+    label: 'Simple finish',
+    title: 'Close the right task without cleanup commands.',
+    copy: 'Hamma recovers the task claim automatically, saves the final session, and keeps completed work as searchable context.',
+    command: 'hamma done',
   },
 ];
 
@@ -30,7 +30,7 @@ export default function Updates() {
       <div className="section-kicker"><Sparkles size={14} /> Updated in alpha.8</div>
       <div className="section-heading-row">
         <h2 id="updates-heading" className="section-title">Continuity you can inspect and trust.</h2>
-        <p>Alpha.8 makes same-agent resume faster, safer, and more faithful to the work already finished.</p>
+        <p>Repository memory keeps durable knowledge across agents while preserving strict local safety and execution gates.</p>
       </div>
       <div className="update-list">
         {updates.map(({ icon: Icon, label, title, copy, command }, index) => (

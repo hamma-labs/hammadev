@@ -131,9 +131,17 @@ describe("project status", () => {
       },
       codexSessionCount: 2,
       claudeSessionCount: 1,
+      grokSessionCount: 0,
       codexProjectSessionCount: 0,
       claudeProjectSessionCount: 1,
+      grokProjectSessionCount: 0,
       hammaIgnored: true,
+      memory: {
+        count: 0,
+        activeName: undefined,
+        revisionCount: 0,
+        outcome: undefined,
+      },
     });
 
     const output = formatProjectStatus(status);

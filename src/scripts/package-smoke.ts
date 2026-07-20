@@ -38,6 +38,13 @@ interface ContinueResult {
   };
 }
 
+interface SimpleSaveSmokeResult {
+  operation: string;
+  memory: string;
+  source: { agent: string; sessionId: string };
+  outcome?: string;
+}
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -258,6 +265,20 @@ async function main(): Promise<void> {
     );
 
     await writeClaudeSession(sessionPath, projectPath, false);
+    const simpleSave = JSON.parse(await runInstalled(
+      executable,
+      ["save", "--agent", "claude", "--json", "--no-gitignore"],
+      projectPath,
+      fakeHome
+    )) as SimpleSaveSmokeResult;
+    assert(
+      simpleSave.operation === "save" &&
+        simpleSave.memory === "default" &&
+        simpleSave.source.agent === "claude" &&
+        simpleSave.source.sessionId === sessionId &&
+        simpleSave.outcome === "actionable",
+      "Installed simple save workflow did not capture the exact current session."
+    );
     const actionable = JSON.parse(
       await runInstalled(
         executable,
@@ -302,6 +323,7 @@ async function main(): Promise<void> {
     console.log(`Version: ${installedVersion}`);
     console.log(`Packed size: ${packResult.size} bytes`);
     console.log("Completed flow: no handoff created");
+    console.log("Simple flow: current session saved to default memory");
     console.log(`Actionable flow: ${handoffStat.size} initial-context bytes`);
   } finally {
     await fs.rm(temporaryRoot, { recursive: true, force: true });
