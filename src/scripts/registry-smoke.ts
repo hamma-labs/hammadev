@@ -18,7 +18,8 @@ function requestedVersion(): string {
 
 async function installFromRegistry(version: string, root: string): Promise<void> {
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 12; attempt += 1) {
+  const maximumAttempts = 36;
+  for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
     try {
       await execFileAsync("npm", [
         "install",
@@ -32,7 +33,9 @@ async function installFromRegistry(version: string, root: string): Promise<void>
       return;
     } catch (error) {
       lastError = error;
-      if (attempt < 12) await new Promise((resolve) => setTimeout(resolve, 5_000));
+      if (attempt < maximumAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      }
     }
   }
   throw lastError;

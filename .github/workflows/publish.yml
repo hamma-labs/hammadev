@@ -89,16 +89,20 @@ jobs:
       - name: Test packed artifact
         run: pnpm smoke:package
 
-      - name: Refuse an existing registry version
+      - name: Detect an existing registry version
+        id: registry
         shell: bash
         run: |
           set -euo pipefail
           if npm view "hammadev@${{ steps.release.outputs.version }}" version >/dev/null 2>&1; then
-            echo "hammadev@${{ steps.release.outputs.version }} is already published" >&2
-            exit 1
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "hammadev@${{ steps.release.outputs.version }} is already published; skipping duplicate publication."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish to npm with trusted publishing
+        if: steps.registry.outputs.already_published != 'true'
         run: npm publish --access public --tag "${{ steps.release.outputs.dist_tag }}"
 
       - name: Install and verify the published registry artifact
@@ -109,4 +113,5 @@ jobs:
           echo "### npm publish" >> "$GITHUB_STEP_SUMMARY"
           echo "- Package: \`hammadev@${{ steps.release.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Distribution tag: \`${{ steps.release.outputs.dist_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Already published before this run: \`${{ steps.registry.outputs.already_published }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Authentication: npm Trusted Publishing (GitHub OIDC)" >> "$GITHUB_STEP_SUMMARY"
