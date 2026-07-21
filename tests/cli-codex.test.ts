@@ -294,6 +294,9 @@ describe("hamma codex", () => {
       "memory", "start", "default", "--project", recoveryProject,
       "--no-gitignore", "--json",
     ], recoveryProject);
+    // This unwrapped bootstrap must emit context so the assertion below can
+    // prove recovery ran first; the shipped default ('manual') would stay silent.
+    await run(["config", "set", "bootstrap", "automatic", "--project", recoveryProject], recoveryProject);
     await writeCodexSession(recoveryProject, sessionId);
 
     const runtimeRoot = path.join(recoveryProject, ".hamma", "runtime", "codex");

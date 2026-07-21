@@ -117,6 +117,14 @@ const EXPLICIT_NEXT_ACTION =
 const BARE_CONTINUATION_INSTRUCTION =
   /^(?:please\s+)?(?:resume|continue|proceed|keep going)(?:\s+(?:the\s+)?(?:task|work))?[.!]?$/i;
 
+const AGENT_CONTEXT_ARTIFACT_PATTERNS: RegExp[] = [
+  /^Base directory for this skill:\s*[^\n]+\n+[\s\S]*^#\s+.+\s+Skill\s*$/im,
+  /^#\s+AGENTS\.md instructions for\s+[^\n]+/im,
+  /<environment_context>[\s\S]*<\/environment_context>/i,
+  /<INSTRUCTIONS>[\s\S]*<\/INSTRUCTIONS>/i,
+  /<collaboration_mode>[\s\S]*<\/collaboration_mode>/i,
+];
+
 const TERMINAL_COMPLETION_STATUS =
   /\b(?:all acceptance criteria (?:pass|passed)|all (?:tests?|checks?) (?:pass|passed)|(?:work|implementation|task) (?:is )?(?:complete|completed)|nothing (?:remains|is left)|no (?:remaining|further) (?:implementation )?(?:work|tasks?|changes)|(?:is|are) now (?:fully )?(?:live|published|released|deployed|complete)|(?:published|released|deployed|shipped) successfully|(?:work|implementation|task|feature|fix|workflow|automation|publishing|release|configuration|skills?|packages?|dependencies) (?:is|are|has been|have been) (?:now )?(?:fully )?(?:available|installed|implemented|automated|configured|fixed|resolved|verified)(?: and (?:available|installed|implemented|automated|configured|fixed|resolved|verified))?)\b/i;
 
@@ -253,13 +261,29 @@ export function isImportantUserMessage(content: string): boolean {
   return IMPORTANT_USER_WORDS.test(content);
 }
 
+/**
+ * Agent runtimes may serialize repository guidance or an invoked skill as a
+ * user-role message. Those messages are execution context, not a new user
+ * objective, and must never reopen a completed task epoch.
+ */
+export function isAgentContextArtifact(content: string): boolean {
+  const trimmed = content.trim();
+  return trimmed.length > 0 && AGENT_CONTEXT_ARTIFACT_PATTERNS.some((pattern) =>
+    pattern.test(trimmed)
+  );
+}
+
 function isBareContinuationInstruction(content: string): boolean {
   return BARE_CONTINUATION_INSTRUCTION.test(content.trim());
 }
 
 function isSubstantiveTaskInstruction(content: string): boolean {
   const trimmed = content.trim();
-  if (!trimmed || isBareContinuationInstruction(trimmed)) return false;
+  if (
+    !trimmed ||
+    isBareContinuationInstruction(trimmed) ||
+    isAgentContextArtifact(trimmed)
+  ) return false;
   if (USER_CONFIRMATION.test(trimmed)) return false;
   return (
     (trimmed.length >= 12 && isImportantUserMessage(trimmed)) ||
@@ -662,6 +686,7 @@ export function extractTaskState(
 
   for (const msg of messages) {
     if (msg.role === "user") {
+      if (isAgentContextArtifact(msg.content)) continue;
       users.push(msg);
       if (isImportantUserMessage(msg.content)) {
         importantUsers.push(msg);

@@ -79,20 +79,23 @@ describe("installHooks", () => {
     expect(settings.hooks.SessionEnd).toBeUndefined();
   });
 
-  it("creates the Grok owned hook file and adds SessionStart only when requested", async () => {
-    const withoutStart = await installHooks({ agent: "grok", projectPath });
-    expect(withoutStart.settingsPath).toBe(
+  it("creates the Grok owned hook file with SessionStart by default", async () => {
+    const withStart = await installHooks({ agent: "grok", projectPath });
+    expect(withStart.settingsPath).toBe(
       path.join(projectPath, ".grok", "hooks", "hamma-memory.json")
     );
-    expect(withoutStart.installed.sort()).toEqual(["PreCompact", "SessionEnd"]);
-
-    const withStart = await installHooks({ agent: "grok", projectPath, sessionStart: true });
-    expect(withStart.installed).toEqual(["SessionStart"]);
-    expect(withStart.skipped.sort()).toEqual(["PreCompact", "SessionEnd"]);
+    expect(withStart.installed.sort()).toEqual(["PreCompact", "SessionEnd", "SessionStart"]);
     const settings = await readSettings(withStart.settingsPath);
     expect(settings.hooks.SessionStart[0].hooks[0].command).toBe(
       "hamma bootstrap --hook-agent grok"
     );
+  });
+
+  it("skips the Grok SessionStart hook when sessionStart is false", async () => {
+    const withoutStart = await installHooks({ agent: "grok", projectPath, sessionStart: false });
+    expect(withoutStart.installed.sort()).toEqual(["PreCompact", "SessionEnd"]);
+    const settings = await readSettings(withoutStart.settingsPath);
+    expect(settings.hooks.SessionStart).toBeUndefined();
   });
 
   it("is idempotent: a re-run skips every event and does not rewrite the file", async () => {
@@ -226,7 +229,7 @@ describe("uninstallHooks", () => {
   it("deletes a hooks-only file it fully empties", async () => {
     const install = await installHooks({ agent: "grok", projectPath });
     const result = await uninstallHooks({ agent: "grok", projectPath });
-    expect(result.removed.sort()).toEqual(["PreCompact", "SessionEnd"]);
+    expect(result.removed.sort()).toEqual(["PreCompact", "SessionEnd", "SessionStart"]);
     expect(result.fileDeleted).toBe(true);
     await expect(fs.access(install.settingsPath)).rejects.toThrow();
   });

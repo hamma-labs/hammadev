@@ -86,12 +86,28 @@ hamma done
 hamma ask "why did we choose sqlite"
 
 # Optional: make it automatic. Installs native agent hooks so memory
-# checkpoints on supported lifecycle events and loads at session start.
+# checkpoints on supported lifecycle events.
 hamma hooks install
 
 # Codex: also checkpoint on normal exit, Ctrl-C, or child-process failure.
 hamma codex
+
+# Claude Code: same reliable exit checkpointing, native hooks auto-installed.
+hamma claude
+
+# Grok: same reliable exit checkpointing, native hooks auto-installed.
+hamma grok
+
+# Optional: load memory context in every session, not just hamma-launched ones.
+hamma config set bootstrap automatic
 ```
+
+By default session-start memory loading is **manual**: a plain `codex`,
+`claude`, or `grok` start is a completely normal session, and memory context is
+injected only when the session is launched through `hamma codex`,
+`hamma claude`, or `hamma grok` (or `hamma switch <agent>`). Saving is never
+gated — installed checkpoint hooks keep recording plain sessions too. Set
+`hamma config set bootstrap automatic` to restore always-on loading.
 
 That is the complete normal workflow. Hamma detects the current project session,
 creates the default memory, remembers the active task claim, generates the
@@ -103,8 +119,7 @@ The lower-level `hamma memory ...`, `handoff`, and `continue` commands remain
 available for scripts, hooks, named threads, inspection, and debugging. They are
 not required for ordinary use.
 
-If these commands are newer than the npm alpha currently installed, run the
-checkout directly while developing:
+When testing changes that have not been released yet, run the checkout directly:
 
 ```bash
 corepack pnpm install
@@ -191,12 +206,17 @@ and structured logs stay off stdout, so JSON consumers remain safe.
 | `hamma switch <agent>` | Save current work, prepare safe context, and open the destination agent. |
 | `hamma done [--blocked --next <text>]` | Save and close the current task without exposing attach IDs or update files. |
 | `hamma ask <question>` | Search the active project memory in plain language. |
+| `hamma codex\|claude\|grok [-- args]` | Launch the agent with memory context, native hooks, and exact-session exit checkpointing. |
+| `hamma config get\|set bootstrap <manual\|automatic>` | Control whether session-start memory loads in every session or only hamma-launched ones (default: manual). |
 | `hamma continue --to <agent> [--explain] [--force]` | Select the strongest cross-agent project session, preflight its current task epoch, and create a continuation only when actionable. |
 | `hamma handoff <agent>:<session> --to <agent>` | Create a handoff from an explicitly selected source session. |
 | `hamma memory start <name> [--goal <text>]` | Create and activate a named project memory. |
 | `hamma memory sync [name] --source <target> [--update-file <path>]` | Append an immutable v2 revision from an exact session; first explicit use creates `default`. |
 | `hamma memory list` | List project memories and their active/latest state. |
 | `hamma memory show [name]` | Show latest task state, drift, and readiness. |
+| `hamma memory review [name]` | Review the reconstructed goal, outcome, next action, drift, and safe correction commands. |
+| `hamma memory repair [name] --reason <text> [correction options]` | Replace incorrect goal/task-state fields in a new immutable correction revision. |
+| `hamma memory close [name] --reason <text>` | Mark falsely actionable completed work closed with no next action, preserving provenance. |
 | `hamma memory attach [name] --to <agent> [--source <target>] [--no-sync]` | Load the frozen bootstrap, optionally sync an exact source first, and claim actionable work. |
 | `hamma memory checkpoint [name] --attach <id> --source <target> [--update-file <path>]` | Advanced: write a milestone into the claimed task epoch. |
 | `hamma memory finish [name] --attach <id> --source <target> [--update-file <path>]` | Advanced: write back and close the claimed task epoch. |
@@ -232,10 +252,23 @@ Skills are advisory/model-driven. They use the same `hamma save`, `switch`, and
 Codex uses native `PreCompact` and `SessionStart` hooks to checkpoint before
 compaction and load bounded memory context on startup, resume, clear, and after
 compaction. Launching it through `hamma codex -- [Codex arguments]` adds an
-exact-session exit checkpoint. If the wrapper is interrupted too, a persistent
-per-launch record is recovered at the next agent session start. Claude Code and
-Grok also document `SessionEnd`. Hooks remain opt-in; no local tool can preserve
-transcript bytes that never reached disk.
+exact-session exit checkpoint. Claude Code has the most complete native
+lifecycle (`SessionStart`, `PreCompact`, `SessionEnd`); `hamma claude`
+additionally installs those hooks automatically and covers crashes and signals
+that skip `SessionEnd`. If a wrapper is interrupted too, a persistent
+per-launch record is recovered at the next agent session start. Grok has
+native `PreCompact` and `SessionEnd` hooks plus a `SessionStart` bootstrap
+hook; `hamma grok` installs them automatically and adds the same exit
+checkpoint (Grok must trust the project's hooks). Hooks remain opt-in; no
+local tool can preserve transcript bytes that never reached disk.
+
+Session-start loading follows the per-project bootstrap mode (default
+`manual`): the `SessionStart` hooks stay silent for plainly-started sessions
+and inject context only for hamma-launched ones. `hamma config set bootstrap
+automatic` restores injection in every session. Checkpointing hooks are never
+affected by the mode. Upgrade note: earlier alphas always injected context
+once hooks were installed; after this change that behavior requires the
+explicit `automatic` setting.
 
 See [named-memory hook recipes and limitations](docs/memory-hooks.md).
 
@@ -297,6 +330,7 @@ pnpm install
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm quality:semantic
 pnpm smoke:cli
 pnpm smoke:package
 ```
@@ -304,7 +338,11 @@ pnpm smoke:package
 The CLI is strict TypeScript and ESM. Tests use synthetic sessions and temporary
 Git repositories. `smoke:package` packs and installs the actual npm tarball in a
 temporary environment, then checks completed/no-op and actionable/bounded
-continuation paths. CI validates Node 22.12 and Node 24.
+continuation paths. `quality:semantic` evaluates sanitized real-session-shaped
+Claude, Codex, and Grok cases for task-state accuracy, next-action accuracy, and
+recall usefulness. The publish workflow then installs the exact version back
+from npm and compares its command surface with the shared website contract. CI
+validates Node 22.12 and Node 24.
 
 The optional project-level Kiro quality hook runs `pnpm quality:report` after
 TypeScript source saves and records a local, content-safe validation report. See

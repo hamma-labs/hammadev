@@ -369,6 +369,76 @@ describe("memory CLI", () => {
     expect(contextOnly.suggestedCommand).toContain("[HAMMA_CONTEXT_LOAD]");
   }, 30_000);
 
+  it("reviews, repairs, and closes reconstructed state with immutable provenance", async () => {
+    await writeSession(false);
+    await run(["memory", "start", "correction", "--json", "--no-gitignore"]);
+    const synced = JSON.parse(await run([
+      "memory", "sync", "correction", "--source", `claude:${SESSION_ID}`,
+      "--json", "--no-gitignore",
+    ]));
+
+    const review = JSON.parse(await run([
+      "memory", "review", "correction", "--json",
+    ]));
+    expect(review.inspection.latest.state).toMatchObject({
+      outcome: "actionable",
+      nextAction: expect.any(String),
+    });
+    expect(review.correctionCommands.close).toContain("hamma memory close correction");
+
+    const repaired = JSON.parse(await run([
+      "memory", "repair", "correction",
+      "--goal", "Ship trustworthy project memory.",
+      "--outcome", "actionable",
+      "--next-action", "Add the semantic evaluation gate.",
+      "--reason", "Rejected skill-document extraction.",
+      "--json",
+    ]));
+    expect(repaired).toMatchObject({
+      action: "repair",
+      previous: { outcome: "actionable" },
+      current: {
+        outcome: "actionable",
+        goal: "Ship trustworthy project memory.",
+        nextAction: "Add the semantic evaluation gate.",
+      },
+      revision: {
+        kind: "correction",
+        correction: {
+          action: "repair",
+          reason: "Rejected skill-document extraction.",
+          fields: expect.arrayContaining(["goal", "nextAction"]),
+        },
+      },
+    });
+    expect(repaired.revision.parentRevision).toBe(synced.revision.id);
+    expect(JSON.parse(await fs.readFile(synced.statePath, "utf8")).goal)
+      .not.toBe("Ship trustworthy project memory.");
+
+    const closed = JSON.parse(await run([
+      "memory", "close", "correction",
+      "--reason", "The implementation and verification are complete.",
+      "--json",
+    ]));
+    expect(closed).toMatchObject({
+      action: "close",
+      previous: { outcome: "actionable" },
+      current: { outcome: "completed" },
+      revision: {
+        kind: "correction",
+        correction: { action: "close" },
+      },
+    });
+    expect(closed.current.nextAction).toBeUndefined();
+    const shown = JSON.parse(await run(["memory", "show", "correction", "--json"]));
+    expect(shown.manifest.revisionCount).toBe(3);
+    expect(shown.latest.state.outcome).toBe("completed");
+    expect(shown.latest.state.nextAction).toBeUndefined();
+    expect(shown.latest.state.tasks.every((task: { status: string }) =>
+      task.status === "completed"
+    )).toBe(true);
+  }, 30_000);
+
   it("creates default on explicit sync and rejects invalid updates atomically", async () => {
     await fs.rm(path.join(projectPath, ".hamma", "memories", "active.json"), { force: true });
     const synced = JSON.parse(await run([

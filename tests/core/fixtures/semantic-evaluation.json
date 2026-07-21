@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "claude-complete-before-skill-injection",
+      "provenance": "sanitized-real-session",
+      "session": {
+        "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-1", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Implement native lifecycle wrappers for all supported agents." },
+          { "role": "assistant", "content": "The implementation is complete. All 382 tests passed. No remaining work." },
+          { "role": "user", "content": "Base directory for this skill: /home/test/.claude/skills/hamma-snap\n\n# Hamma Snap Skill\n\n**Purpose**: Persist current work.\n\n**Steps**:\n1. Resolve the repository.\n2. Run hamma save." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "completed",
+        "nextActionContains": null,
+        "recall": [{ "query": "382 tests passed", "answerContains": "382 tests passed" }]
+      }
+    },
+    {
+      "id": "codex-actionable-explicit-next-action",
+      "provenance": "sanitized-real-session",
+      "session": {
+        "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-1", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Harden release verification for the npm artifact." },
+          { "role": "assistant", "content": "The local package smoke passes. Next action: install the published package from npm and compare its command surface." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "actionable",
+        "nextActionContains": "install the published package from npm",
+        "recall": [{ "query": "command surface", "answerContains": "compare its command surface" }]
+      }
+    },
+    {
+      "id": "grok-blocked-user-decision",
+      "provenance": "sanitized-real-session",
+      "session": {
+        "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-1", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Choose and publish the next release channel." },
+          { "role": "assistant", "content": "I am blocked and need user input to choose between the alpha and latest npm channels." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "blocked",
+        "nextActionContains": "Resolve blocker",
+        "recall": [{ "query": "npm channels", "answerContains": "alpha and latest npm channels" }]
+      }
+    },
+    {
+      "id": "claude-completed-release",
+      "provenance": "sanitized-real-session",
+      "session": {
+        "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-2", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Publish the alpha and verify a clean installation." },
+          { "role": "assistant", "content": "The release is now fully live. Clean installation and CLI verification both passed." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "completed",
+        "nextActionContains": null,
+        "recall": [{ "query": "clean installation", "answerContains": "Clean installation" }]
+      }
+    },
+    {
+      "id": "codex-mixed-task-ledger",
+      "provenance": "sanitized-real-session",
+      "session": {
+        "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-2", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Implement semantic evaluation and then add platform coverage." },
+          { "role": "assistant", "content": "Task #1 completed. Task #2 remains. Next action: add macOS and Windows lifecycle tests." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "actionable",
+        "nextActionContains": "macOS and Windows lifecycle tests",
+        "recall": [{ "query": "platform coverage", "answerContains": "macOS and Windows" }]
+      }
+    },
+    {
+      "id": "grok-completed-security-fix",
+      "provenance": "sanitized-real-session",
+      "session": {
+        "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-2", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Fix path traversal handling and verify the regression tests." },
+          { "role": "assistant", "content": "The security fix is implemented and verified. All tests pass. Nothing remains." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "completed",
+        "nextActionContains": null,
+        "recall": [{ "query": "path traversal", "answerContains": "path traversal handling" }]
+      }
+    }
+  ]
+}

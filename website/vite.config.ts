@@ -6,11 +6,15 @@ import path from 'path';
 const rootPackage = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'),
 ) as { version: string };
+const productContract = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../product-contract.json'), 'utf8'),
+) as { websiteCommands: Record<string, string> };
 
 export default defineConfig({
   plugins: [react()],
   define: {
     __HAMMA_VERSION__: JSON.stringify(rootPackage.version),
+    __HAMMA_WEBSITE_COMMANDS__: JSON.stringify(productContract.websiteCommands),
   },
   resolve: {
     alias: {

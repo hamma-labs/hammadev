@@ -18,7 +18,7 @@ export interface HookInstallOptions {
   force?: boolean;
   /** Claude only: write shared .claude/settings.json instead of settings.local.json. */
   shared?: boolean;
-  /** Grok only: also install a SessionStart bootstrap hook. */
+  /** Grok only: set false to skip the SessionStart bootstrap hook (installed by default). */
   sessionStart?: boolean;
 }
 
@@ -88,10 +88,13 @@ function desiredHooks(options: HookInstallOptions): Record<string, HookCommand> 
       SessionStart: bootstrapHook("codex"),
     };
   }
+  // SessionStart is included by default: `hamma grok` needs it to bind the
+  // exact session, and the manual bootstrap mode keeps it silent for plain
+  // grok starts, so unconditional injection is no longer a concern.
   return {
     PreCompact: syncHook("grok"),
     SessionEnd: syncHook("grok"),
-    ...(options.sessionStart ? { SessionStart: bootstrapHook("grok") } : {}),
+    ...(options.sessionStart === false ? {} : { SessionStart: bootstrapHook("grok") }),
   };
 }
 

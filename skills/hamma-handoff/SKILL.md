@@ -18,9 +18,11 @@ description: Switch from another local AI coding agent using repository-scoped H
 
 **Note**: If `hamma hooks install` has been run for this project, the other
 agent's supported lifecycle checkpoints are saved automatically and
-session-start context loads via `hamma bootstrap`. Ended `hamma codex`
-launches are recovered before that context is rendered; this skill remains the
-explicit cross-agent path.
+session-start context loads via `hamma bootstrap` (by default only for
+sessions launched with `hamma codex` / `hamma claude` / `hamma grok`; see
+`hamma config set bootstrap automatic`). Ended `hamma codex`, `hamma claude`,
+and `hamma grok` launches are recovered before that context is rendered; this
+skill remains the explicit cross-agent path.
 
 **Steps** (execute in order):
 

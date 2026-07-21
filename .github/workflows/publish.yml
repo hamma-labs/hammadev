@@ -83,6 +83,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Semantic memory quality gate
+        run: pnpm quality:semantic
+
       - name: Test packed artifact
         run: pnpm smoke:package
 
@@ -97,6 +100,9 @@ jobs:
 
       - name: Publish to npm with trusted publishing
         run: npm publish --access public --tag "${{ steps.release.outputs.dist_tag }}"
+
+      - name: Install and verify the published registry artifact
+        run: pnpm smoke:registry -- --version "${{ steps.release.outputs.version }}"
 
       - name: Record release summary
         run: |

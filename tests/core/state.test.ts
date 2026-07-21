@@ -202,6 +202,54 @@ describe("handoff outcome extraction", () => {
     expect(state.tasks).toHaveLength(1);
     expect(state.tasks[0]?.status).toBe("completed");
   });
+
+  it("does not reopen completed work when a skill document is injected as a user message", () => {
+    const state = extract([
+      { role: "user", content: "Implement and verify the memory lifecycle wrappers." },
+      {
+        role: "assistant",
+        content: "The implementation is complete. All tests passed. No remaining work.",
+      },
+      {
+        role: "user",
+        content: [
+          "Base directory for this skill: /home/test/.claude/skills/hamma-snap",
+          "",
+          "# Hamma Snap Skill",
+          "",
+          "**Purpose**: Persist current work as structured repository knowledge.",
+          "",
+          "**Steps**:",
+          "1. Resolve the project.",
+          "2. Run hamma save.",
+        ].join("\n"),
+      },
+    ]);
+
+    expect(state.outcome).toBe("completed");
+    expect(state.nextAction).toBeUndefined();
+    expect(state.goal).toBe("Implement and verify the memory lifecycle wrappers.");
+    expect(state.current.taskEpoch).toMatchObject({
+      startMessageIndex: 0,
+      basis: "latest_substantive_user",
+    });
+    expect(state.filesMentioned).not.toContain("hamma-snap");
+  });
+
+  it("does not treat injected repository instructions as a user objective", () => {
+    const state = extract([
+      { role: "user", content: "Fix the readiness contradiction." },
+      { role: "assistant", content: "The task is complete. Nothing remains." },
+      {
+        role: "user",
+        content: "# AGENTS.md instructions for /workspace/project\n\n<INSTRUCTIONS>\nRun tests and update files.\n</INSTRUCTIONS>",
+      },
+    ]);
+
+    expect(state.outcome).toBe("completed");
+    expect(state.nextAction).toBeUndefined();
+    expect(state.goal).toBe("Fix the readiness contradiction.");
+  });
 });
 
 describe("current task epoch reconstruction", () => {

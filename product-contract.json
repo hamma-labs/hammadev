@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "topLevelCommands": [
+    "ask",
+    "benchmark",
+    "bootstrap",
+    "claude",
+    "codex",
+    "config",
+    "continue",
+    "doctor",
+    "done",
+    "grok",
+    "handoff",
+    "hooks",
+    "inspect",
+    "list",
+    "log",
+    "memory",
+    "quickstart",
+    "save",
+    "show",
+    "skill",
+    "status",
+    "switch"
+  ],
+  "requiredCommandPaths": [
+    "config get",
+    "config set",
+    "hooks install",
+    "hooks uninstall",
+    "memory close",
+    "memory repair",
+    "memory review",
+    "skill install"
+  ],
+  "websiteCommands": {
+    "save": "hamma save",
+    "hooksInstall": "hamma hooks install",
+    "codex": "hamma codex",
+    "switchClaude": "hamma switch claude",
+    "skillInstall": "hamma skill install",
+    "doctor": "hamma doctor",
+    "hooksInstallCodex": "hamma hooks install --agent codex",
+    "codexModel": "hamma codex -- --model gpt-5.4"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "hammadev",
-  "version": "0.1.0-alpha.9",
+  "version": "0.1.0-alpha.10",
   "description": "Local handoff and shared-memory CLI for Codex, Claude Code, and Grok",
   "main": "dist/cli.js",
   "files": [
@@ -8,6 +8,7 @@
     "skills",
     "docs",
     "examples",
+    "product-contract.json",
     "README.md",
     "LICENSE"
   ],
@@ -31,7 +32,9 @@
     "postbuild": "node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
     "smoke:cli": "pnpm build && node dist/cli.js --help",
     "smoke:package": "pnpm build && tsx src/scripts/package-smoke.ts",
+    "smoke:registry": "tsx src/scripts/registry-smoke.ts",
     "typecheck": "tsc --noEmit",
+    "quality:semantic": "tsx src/scripts/semantic-eval.ts",
     "quality:report": "tsx src/scripts/handoff-quality-guard.ts",
     "test": "vitest run",
     "test:watch": "vitest",

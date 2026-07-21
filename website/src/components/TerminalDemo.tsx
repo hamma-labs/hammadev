@@ -1,4 +1,5 @@
 import { CheckCircle2, Copy, CornerDownRight } from 'lucide-react';
+import { PRODUCT_COMMANDS } from '../product';
 
 export default function TerminalDemo() {
   return (
@@ -20,13 +21,13 @@ export default function TerminalDemo() {
           <Copy size={14} />
         </div>
           <div className="terminal-body">
-          <div className="terminal-command"><span>$</span><code>hamma hooks install --agent codex</code></div>
+          <div className="terminal-command"><span>$</span><code>{PRODUCT_COMMANDS.hooksInstallCodex}</code></div>
           <div className="terminal-log"><CheckCircle2 size={14} /> codex hooks installed: .codex/hooks.json</div>
           <div className="terminal-log"><CheckCircle2 size={14} /> PreCompact · SessionStart</div>
           <div className="terminal-log muted">Review and trust project hooks with /hooks</div>
           <div className="terminal-result">
             <span>Reliable Codex exit</span>
-            <strong>hamma codex -- --model gpt-5.4</strong>
+            <strong>{PRODUCT_COMMANDS.codexModel}</strong>
           </div>
           <div className="terminal-next">
             <CornerDownRight size={15} />

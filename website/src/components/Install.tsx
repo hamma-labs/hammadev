@@ -1,5 +1,6 @@
 import { Check, Copy, PackageCheck } from 'lucide-react';
 import { useState } from 'react';
+import { PRODUCT_COMMANDS } from '../product';
 
 const INSTALL_COMMAND = 'npm install -g hammadev@alpha';
 
@@ -31,11 +32,11 @@ export default function Install() {
         </div>
         <ol className="install-steps">
           {[
-            ['01', 'Install the agent skill', 'hamma skill install'],
-            ['02', 'Check your environment', 'hamma doctor'],
-            ['03', 'Enable project memory explicitly', 'hamma save'],
-            ['04', 'Install native lifecycle hooks', 'hamma hooks install'],
-            ['05', 'Codex: trust /hooks, then launch', 'hamma codex'],
+            ['01', 'Install the agent skill', PRODUCT_COMMANDS.skillInstall],
+            ['02', 'Check your environment', PRODUCT_COMMANDS.doctor],
+            ['03', 'Enable project memory explicitly', PRODUCT_COMMANDS.save],
+            ['04', 'Install native lifecycle hooks', PRODUCT_COMMANDS.hooksInstall],
+            ['05', 'Codex: trust /hooks, then launch', PRODUCT_COMMANDS.codex],
           ].map(([number, label, command]) => (
             <li key={command}>
               <span>{number}</span>

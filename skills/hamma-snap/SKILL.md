@@ -14,9 +14,9 @@ description: Persist the current session into repository-scoped HammaDev memory.
 **Note**: If `hamma hooks install` has been run for this project, checkpoints
 happen automatically on supported lifecycle events (compaction for every
 agent, plus session end where available); this skill is the manual/explicit
-path and remains useful right before switching agents. Codex users can launch
-with `hamma codex` to add an exact process-exit checkpoint and next-start crash
-recovery.
+path and remains useful right before switching agents. Codex, Claude Code,
+and Grok users can launch with `hamma codex` / `hamma claude` / `hamma grok`
+to add an exact process-exit checkpoint and next-start crash recovery.
 
 **Steps**:
 

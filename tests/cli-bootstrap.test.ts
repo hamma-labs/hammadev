@@ -24,11 +24,16 @@ async function run(args: string[], cwd = projectPath): Promise<string> {
   return result.stdout;
 }
 
-async function runWithInput(args: string[], cwd: string, input: string): Promise<string> {
+async function runWithInput(
+  args: string[],
+  cwd: string,
+  input: string,
+  extraEnv: Record<string, string> = {}
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(TSX, [CLI, ...args], {
       cwd,
-      env: { ...process.env, HOME: fakeHome },
+      env: { ...process.env, HOME: fakeHome, ...extraEnv },
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
@@ -103,6 +108,10 @@ beforeAll(async () => {
   await execFileAsync("git", ["-C", projectPath, "add", "README.md"]);
   await execFileAsync("git", ["-C", projectPath, "commit", "-qm", "initial"]);
   await writeSession(false);
+  // The suite below exercises the historical always-inject behavior; the
+  // shipped default is 'manual', which is covered by the "bootstrap modes"
+  // describe block.
+  await run(["config", "set", "bootstrap", "automatic"]);
 }, 30_000);
 
 afterAll(async () => {
@@ -248,5 +257,66 @@ describe("bootstrap CLI", () => {
     await fs.mkdir(plainDir, { recursive: true });
     const result = JSON.parse(await run(["bootstrap", "--json"], plainDir));
     expect(result).toMatchObject({ status: "skipped", reason: "memory-not-enabled" });
+  });
+});
+
+describe("bootstrap modes", () => {
+  beforeAll(async () => {
+    await run(["config", "set", "bootstrap", "manual"]);
+  });
+
+  it("manual mode keeps hook-driven context out of plain sessions", async () => {
+    const stdout = await runWithInput(
+      ["bootstrap", "--hook-agent", "claude"],
+      projectPath,
+      HOOK_EVENT
+    );
+    expect(stdout).toBe("");
+    const json = JSON.parse(await runWithInput(
+      ["bootstrap", "--hook-agent", "claude", "--json"],
+      projectPath,
+      HOOK_EVENT
+    ));
+    expect(json).toMatchObject({ status: "skipped", reason: "manual-mode" });
+  });
+
+  it("manual mode still injects context for hamma-launched sessions", async () => {
+    const stdout = await runWithInput(
+      ["bootstrap", "--hook-agent", "claude"],
+      projectPath,
+      HOOK_EVENT,
+      { HAMMA_CLAUDE_LAUNCH_ID: "00000000-0000-4000-8000-000000000000" }
+    );
+    expect(stdout).toContain('<hamma-project-memory name="bootstrap-thread"');
+    expect(stdout.trimEnd().endsWith("</hamma-project-memory>")).toBe(true);
+  });
+
+  it("manual mode does not gate the lifecycle sync hook", async () => {
+    await expect(runWithInput(
+      ["memory", "sync", "--hook-agent", "claude", "--no-gitignore"],
+      projectPath,
+      HOOK_EVENT
+    )).resolves.toBeDefined();
+  });
+
+  it("manual mode does not gate an explicit non-hook bootstrap", async () => {
+    const result = JSON.parse(await run(["bootstrap", "--json"]));
+    expect(result).toMatchObject({ status: "ready", memory: "bootstrap-thread" });
+  });
+
+  it("defaults to manual when the config file is corrupted", async () => {
+    const configPath = path.join(projectPath, ".hamma", "config.json");
+    const original = await fs.readFile(configPath, "utf8");
+    try {
+      await fs.writeFile(configPath, "{ not valid json\n");
+      const stdout = await runWithInput(
+        ["bootstrap", "--hook-agent", "claude"],
+        projectPath,
+        HOOK_EVENT
+      );
+      expect(stdout).toBe("");
+    } finally {
+      await fs.writeFile(configPath, original);
+    }
   });
 });

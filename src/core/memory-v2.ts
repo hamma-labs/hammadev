@@ -53,6 +53,12 @@ export interface MemoryRevisionSummary {
   sourceFingerprint: string;
   driftFromParent: RepositoryDriftCategory[];
   warnings: string[];
+  kind?: "sync" | "correction";
+  correction?: {
+    action: "repair" | "close";
+    reason: string;
+    fields: Array<"goal" | "outcome" | "nextAction">;
+  };
 }
 
 export interface ProjectMemoryManifest {
@@ -146,6 +152,36 @@ export interface MemorySyncResult {
   };
   warnings: string[];
   reason?: string;
+}
+
+export interface MemoryRepairOptions {
+  goal?: string;
+  outcome?: HammaTaskState["outcome"];
+  nextAction?: string | null;
+  reason: string;
+}
+
+export interface MemoryCorrectionResult {
+  schemaVersion: 2;
+  memory: string;
+  projectPath: string;
+  action: "repair" | "close";
+  revision: MemoryRevisionSummary;
+  revisionPath: string;
+  bootstrapPath: string;
+  memoryStatePath: string;
+  statePath: string;
+  handoffPath: string;
+  previous: {
+    outcome: HammaTaskState["outcome"];
+    goal?: string;
+    nextAction?: string;
+  };
+  current: {
+    outcome: HammaTaskState["outcome"];
+    goal?: string;
+    nextAction?: string;
+  };
 }
 
 export type MemoryExecutionMode =
@@ -735,7 +771,7 @@ export async function syncMemory(projectPath: string, requestedName?: string, op
     if (initialContextBytes > sourceContextBytes) warnings.push(`Initial bootstrap (${initialContextBytes} bytes) is larger than the normalized source content (${sourceContextBytes} bytes).`);
     if (parentDrift?.detected) warnings.push(`Repository differences from the parent revision were recorded: ${parentDrift.categories.join(", ")}.`);
     if (previous?.compatibilityView || manifest.schemaVersion === 1) warnings.push("Migrated the latest v1 state into a v2 compatibility epoch; existing revisions were retained unchanged.");
-    const revision: MemoryRevisionSummary = { id: revisionId, parentRevision: manifest.latestRevision, createdAt: timestamp, sourceCli: session.meta.sourceCli, sourceSessionId: session.meta.sourceSessionId, sourceLastUpdatedAt: session.meta.lastUpdatedAt, sourceContentFingerprint: contentFingerprint, sourceFingerprint: fingerprint, driftFromParent: parentDrift?.categories ?? ["none"], warnings };
+    const revision: MemoryRevisionSummary = { id: revisionId, parentRevision: manifest.latestRevision, createdAt: timestamp, sourceCli: session.meta.sourceCli, sourceSessionId: session.meta.sourceSessionId, sourceLastUpdatedAt: session.meta.lastUpdatedAt, sourceContentFingerprint: contentFingerprint, sourceFingerprint: fingerprint, driftFromParent: parentDrift?.categories ?? ["none"], warnings, kind: "sync" };
     const revisionsRoot = path.join(directory, "revisions"); const finalRevisionPath = path.join(revisionsRoot, revisionId); const temporaryRevisionPath = path.join(revisionsRoot, `.tmp-${revisionId}`);
     await fs.mkdir(temporaryRevisionPath);
     try {
@@ -754,6 +790,217 @@ export async function syncMemory(projectPath: string, requestedName?: string, op
     await writeJsonAtomic(path.join(directory, "memory.json"), updatedManifest); await setActive(root, name); if (options.useGitignore !== false) await ensureGitignore(project);
     return { schemaVersion: 2, updated: true, memory: name, projectPath: project, revision, revisionPath: finalRevisionPath, bootstrapPath: path.join(finalRevisionPath, "bootstrap.md"), memoryStatePath: path.join(finalRevisionPath, "memory-state.json"), statePath: path.join(finalRevisionPath, "state.json"), handoffPath: path.join(finalRevisionPath, "handoff.md"), conversationPath: path.join(finalRevisionPath, "conversation.jsonl"), toolHistoryPath: path.join(finalRevisionPath, "tool_history.jsonl"), contextBudget: { initialArtifacts: ["bootstrap.md"], bytes: initialContextBytes, maxBytes: INITIAL_CONTEXT_MAX_BYTES, withinBudget: initialContextBytes <= INITIAL_CONTEXT_MAX_BYTES, sourceBytes: sourceContextBytes, continuationLargerThanSource: initialContextBytes > sourceContextBytes }, selection: { mode: selectionMode, sourceCli: session.meta.sourceCli, sourceSessionId: session.meta.sourceSessionId, explanation }, warnings };
   } finally { await fs.rm(lock, { recursive: true, force: true }).catch(() => undefined); }
+}
+
+function correctionText(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) throw new Error(`${label} must be a non-empty string.`);
+  if (Buffer.byteLength(trimmed, "utf8") > 16_384) {
+    throw new Error(`${label} exceeds the 16384-byte limit.`);
+  }
+  return redactText(trimmed).text;
+}
+
+async function correctMemory(
+  projectPath: string,
+  requestedName: string | undefined,
+  action: "repair" | "close",
+  options: MemoryRepairOptions
+): Promise<MemoryCorrectionResult> {
+  const project = await canonicalProject(projectPath);
+  const root = await storeRoot(project, false);
+  const name = await resolveMemoryName(root, requestedName);
+  const directory = memoryPath(root, name);
+  const reason = correctionText(options.reason, "Correction reason");
+  const goal = options.goal === undefined
+    ? undefined
+    : correctionText(options.goal, "Goal");
+  const nextAction = typeof options.nextAction === "string"
+    ? correctionText(options.nextAction, "Next action")
+    : options.nextAction;
+  if (options.outcome === "completed" && nextAction) {
+    throw new Error("A completed memory correction cannot retain a next action.");
+  }
+  if ((await listMemoryRuns(directory)).some(isOpenRun)) {
+    throw new Error(`Memory '${name}' has an open attach run; finish or abandon it before correcting memory state.`);
+  }
+
+  const lock = await acquireLock(directory);
+  try {
+    const manifest = await readManifest(root, name);
+    const previous = await latestState(root, manifest);
+    if (!previous) throw new Error(`Memory '${name}' has no revision to correct.`);
+
+    const corrected = structuredClone(previous.state);
+    const fields: Array<"goal" | "outcome" | "nextAction"> = [];
+    if (goal !== undefined && goal !== corrected.goal) {
+      corrected.goal = goal;
+      fields.push("goal");
+    }
+    if (options.outcome !== undefined && options.outcome !== corrected.outcome) {
+      corrected.outcome = options.outcome;
+      fields.push("outcome");
+    }
+    if (nextAction !== undefined) {
+      const normalized = nextAction ?? undefined;
+      if (normalized !== corrected.nextAction) {
+        corrected.nextAction = normalized;
+        fields.push("nextAction");
+      }
+    }
+    if (corrected.outcome === "completed") {
+      if (corrected.nextAction !== undefined && !fields.includes("nextAction")) {
+        fields.push("nextAction");
+      }
+      corrected.nextAction = undefined;
+      corrected.tasks = corrected.tasks.map((task) =>
+        task.status === "completed" ? task : { ...task, status: "completed" as const }
+      );
+    }
+    if (corrected.outcome === "actionable" && !corrected.nextAction) {
+      throw new Error("An actionable memory correction requires --next-action.");
+    }
+    if (fields.length === 0) {
+      throw new Error(`The requested ${action} operation does not change the latest memory state.`);
+    }
+
+    corrected.current.nextRecommendedTask = corrected.nextAction;
+    const currentSnapshot = captureGitRepositorySnapshot(project, corrected.filesMentioned);
+    const parentDrift = compareRepositorySnapshots(previous.state.repoState.snapshot, currentSnapshot);
+    corrected.repoState = computeRepoState(project);
+    corrected.repoState.snapshot = currentSnapshot;
+    corrected.readiness = assessHandoffReadiness(
+      corrected,
+      compareRepositorySnapshots(currentSnapshot, currentSnapshot)
+    );
+
+    const revisionNumber = manifest.revisionCount + 1;
+    const timestamp = new Date().toISOString();
+    const revisionId = `${String(revisionNumber).padStart(6, "0")}-${timestamp.replace(/[:.]/g, "-")}-user`;
+    const memoryState = structuredClone(previous.memoryState);
+    const epochIndex = memoryState.taskEpochs.findIndex((epoch) =>
+      epoch.id === memoryState.activeEpochId
+    );
+    const resolvedEpochIndex = epochIndex >= 0
+      ? epochIndex
+      : memoryState.taskEpochs.length - 1;
+    if (resolvedEpochIndex < 0) {
+      throw new Error(`Memory '${name}' has no task epoch to correct.`);
+    }
+    const previousEpoch = memoryState.taskEpochs[resolvedEpochIndex];
+    memoryState.taskEpochs[resolvedEpochIndex] = {
+      ...previousEpoch,
+      updatedAt: timestamp,
+      sessionSummary: `User ${action === "close" ? "closed" : "corrected"} memory state: ${reason}`,
+      outcome: corrected.outcome,
+      goal: corrected.goal,
+      nextAction: corrected.nextAction,
+      taskState: corrected,
+      revisionIds: [...previousEpoch.revisionIds, revisionId],
+    };
+    memoryState.activeEpochId = previousEpoch.id;
+    if (goal !== undefined) memoryState.projectSummary = goal;
+    memoryState.updatedAt = timestamp;
+
+    const bootstrap = renderMemoryBootstrap(name, memoryState, corrected, INITIAL_CONTEXT_TARGET_BYTES);
+    const correction = { action, reason, fields };
+    const revision: MemoryRevisionSummary = {
+      id: revisionId,
+      parentRevision: manifest.latestRevision,
+      createdAt: timestamp,
+      sourceCli: "user",
+      sourceFingerprint: createHash("sha256")
+        .update(JSON.stringify({ parent: manifest.latestRevision, correction }))
+        .digest("hex"),
+      driftFromParent: parentDrift.categories,
+      warnings: parentDrift.detected
+        ? [`Repository differences from the parent revision were recorded: ${parentDrift.categories.join(", ")}.`]
+        : [],
+      kind: "correction",
+      correction,
+    };
+    const revisionsRoot = path.join(directory, "revisions");
+    const finalRevisionPath = path.join(revisionsRoot, revisionId);
+    const temporaryRevisionPath = path.join(revisionsRoot, `.tmp-${revisionId}`);
+    await fs.mkdir(temporaryRevisionPath);
+    try {
+      await Promise.all([
+        writeJsonAtomic(path.join(temporaryRevisionPath, "state.json"), corrected),
+        writeJsonAtomic(path.join(temporaryRevisionPath, "memory-state.json"), memoryState),
+        writeJsonAtomic(path.join(temporaryRevisionPath, "revision.json"), revision),
+        fs.writeFile(path.join(temporaryRevisionPath, "bootstrap.md"), bootstrap, "utf8"),
+        fs.writeFile(path.join(temporaryRevisionPath, "handoff.md"), renderMemoryHandoff(corrected, name), "utf8"),
+        fs.writeFile(path.join(temporaryRevisionPath, "conversation.jsonl"), "", "utf8"),
+        fs.writeFile(path.join(temporaryRevisionPath, "tool_history.jsonl"), "", "utf8"),
+      ]);
+      await fs.rename(temporaryRevisionPath, finalRevisionPath);
+    } catch (error) {
+      await fs.rm(temporaryRevisionPath, { recursive: true, force: true }).catch(() => undefined);
+      throw error;
+    }
+    const updatedManifest: ProjectMemoryManifest = {
+      ...manifest,
+      schemaVersion: 2,
+      goal: corrected.goal,
+      updatedAt: timestamp,
+      latestRevision: revisionId,
+      revisionCount: revisionNumber,
+      revisions: [...manifest.revisions, revision],
+    };
+    await writeJsonAtomic(path.join(directory, "memory.json"), updatedManifest);
+    await setActive(root, name);
+    return {
+      schemaVersion: 2,
+      memory: name,
+      projectPath: project,
+      action,
+      revision,
+      revisionPath: finalRevisionPath,
+      bootstrapPath: path.join(finalRevisionPath, "bootstrap.md"),
+      memoryStatePath: path.join(finalRevisionPath, "memory-state.json"),
+      statePath: path.join(finalRevisionPath, "state.json"),
+      handoffPath: path.join(finalRevisionPath, "handoff.md"),
+      previous: {
+        outcome: previous.state.outcome,
+        goal: previous.state.goal,
+        nextAction: previous.state.nextAction,
+      },
+      current: {
+        outcome: corrected.outcome,
+        goal: corrected.goal,
+        nextAction: corrected.nextAction,
+      },
+    };
+  } finally {
+    await fs.rm(lock, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+export async function repairMemory(
+  projectPath: string,
+  requestedName: string | undefined,
+  options: MemoryRepairOptions
+): Promise<MemoryCorrectionResult> {
+  if (
+    options.goal === undefined &&
+    options.outcome === undefined &&
+    options.nextAction === undefined
+  ) {
+    throw new Error("Memory repair requires --goal, --outcome, --next-action, or --clear-next-action.");
+  }
+  return correctMemory(projectPath, requestedName, "repair", options);
+}
+
+export async function closeMemory(
+  projectPath: string,
+  requestedName: string | undefined,
+  reason: string
+): Promise<MemoryCorrectionResult> {
+  return correctMemory(projectPath, requestedName, "close", {
+    outcome: "completed",
+    nextAction: null,
+    reason,
+  });
 }
 
 export function classifyMemoryExecutionMode(state: HammaTaskState, readiness: HandoffReadinessResult, drift: RepositoryDriftResult): { mode: MemoryExecutionMode; allowed: boolean } {
@@ -812,8 +1059,8 @@ export async function attachMemory(projectPath: string, requestedName: string | 
       : `Load context but do not execute automatically; execution mode is ${mode.mode}.`;
   const transportMarker = run ? `[HAMMA_ATTACH_ID:${run.id}]` : "[HAMMA_CONTEXT_LOAD]";
   const prompt = `${transportMarker} Attach Hamma repository memory '${inspection.manifest.name}'. Read only ${relativeBootstrap} as initial context. ${modeInstruction} Use hamma memory recall ${inspection.manifest.name} --query <text> only if deeper history is needed. Reconcile with live Git state; the repository wins on conflict.`;
-  const suggestedCommand = targetCli === "codex"
-    ? `hamma codex --memory ${JSON.stringify(inspection.manifest.name)} -- ${JSON.stringify(prompt)}`
+  const suggestedCommand = ["codex", "claude", "grok"].includes(targetCli)
+    ? `hamma ${targetCli} --memory ${JSON.stringify(inspection.manifest.name)} -- ${JSON.stringify(prompt)}`
     : `${targetCli} ${JSON.stringify(prompt)}`;
   const launchPromptBytes = Buffer.byteLength(prompt, "utf8"); const combinedBytes = bootstrapBytes + launchPromptBytes;
   const revisionPath = latest.revisionPath;
@@ -917,7 +1164,7 @@ export async function abandonMemory(
 }
 
 function queryTokens(query: string): string[] { return [...new Set(query.toLowerCase().match(/[a-z0-9_./-]{2,}/g) ?? [])]; }
-function recallScore(query: string, content: string, files: string[] = [], recency = 0): number {
+export function scoreMemoryRecall(query: string, content: string, files: string[] = [], recency = 0): number {
   const normalizedQuery = query.toLowerCase().trim(); const normalized = content.toLowerCase(); let score = recency;
   if (normalized.includes(normalizedQuery)) score += 100;
   for (const token of queryTokens(query)) { if (normalized.includes(token)) score += token.includes("/") || token.includes(".") ? 20 : 5; if (files.some((file) => file.toLowerCase().includes(token))) score += 30; }
@@ -929,8 +1176,8 @@ export async function recallMemory(projectPath: string, requestedName: string | 
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error("Recall limit must be an integer from 1 to 50.");
   const inspection = await inspectMemory(projectPath, requestedName); if (!inspection.latest) throw new Error(`Project memory '${inspection.manifest.name}' has no synchronized revision yet.`);
   const candidates: MemoryRecallResultItem[] = [];
-  inspection.latest.memoryState.knowledge.forEach((item, index) => candidates.push({ kind: "knowledge", score: recallScore(query, `${item.content} ${item.rationale ?? ""}`, item.files, index / 1000), content: item.content + (item.rationale ? ` Rationale: ${item.rationale}` : ""), category: item.category, files: item.files, sourceCli: item.provenance.at(-1)?.sourceCli, sourceSessionId: item.provenance.at(-1)?.sourceSessionId, timestamp: item.provenance.at(-1)?.capturedAt, revision: item.provenance.at(-1)?.revisionId }));
-  inspection.latest.memoryState.taskEpochs.forEach((epoch, index) => candidates.push({ kind: "epoch", score: recallScore(query, `${epoch.sessionSummary} ${epoch.goal ?? ""} ${epoch.nextAction ?? ""}`, epoch.taskState.filesMentioned, index / 100), content: `${epoch.outcome}: ${epoch.sessionSummary}`, files: epoch.taskState.filesMentioned, sourceCli: epoch.sourceCli, sourceSessionId: epoch.sourceSessionId, timestamp: epoch.updatedAt, revision: epoch.revisionIds.at(-1) }));
+  inspection.latest.memoryState.knowledge.forEach((item, index) => candidates.push({ kind: "knowledge", score: scoreMemoryRecall(query, `${item.content} ${item.rationale ?? ""}`, item.files, index / 1000), content: item.content + (item.rationale ? ` Rationale: ${item.rationale}` : ""), category: item.category, files: item.files, sourceCli: item.provenance.at(-1)?.sourceCli, sourceSessionId: item.provenance.at(-1)?.sourceSessionId, timestamp: item.provenance.at(-1)?.capturedAt, revision: item.provenance.at(-1)?.revisionId }));
+  inspection.latest.memoryState.taskEpochs.forEach((epoch, index) => candidates.push({ kind: "epoch", score: scoreMemoryRecall(query, `${epoch.sessionSummary} ${epoch.goal ?? ""} ${epoch.nextAction ?? ""}`, epoch.taskState.filesMentioned, index / 100), content: `${epoch.outcome}: ${epoch.sessionSummary}`, files: epoch.taskState.filesMentioned, sourceCli: epoch.sourceCli, sourceSessionId: epoch.sourceSessionId, timestamp: epoch.updatedAt, revision: epoch.revisionIds.at(-1) }));
   const root = await storeRoot(projectPath, false); const manifest = inspection.manifest;
   for (let index = 0; index < manifest.revisions.length; index += 1) {
     const revision = manifest.revisions[index]; const conversationPath = path.join(root, manifest.name, "revisions", revision.id, "conversation.jsonl");
@@ -939,7 +1186,7 @@ export async function recallMemory(projectPath: string, requestedName: string | 
       for (const line of (await fs.readFile(conversationPath, "utf8")).split("\n")) {
         if (!line.trim()) continue;
         const message = JSON.parse(line) as ArchivedMemoryMessage;
-        candidates.push({ kind: "conversation", score: recallScore(query, message.content, [], index / 100), content: message.content, sourceCli: message.sourceCli, sourceSessionId: message.sourceSessionId, timestamp: message.timestamp, revision: revision.id });
+        candidates.push({ kind: "conversation", score: scoreMemoryRecall(query, message.content, [], index / 100), content: message.content, sourceCli: message.sourceCli, sourceSessionId: message.sourceSessionId, timestamp: message.timestamp, revision: revision.id });
       }
     } catch (error: any) { if (error.code !== "ENOENT") throw error; }
   }

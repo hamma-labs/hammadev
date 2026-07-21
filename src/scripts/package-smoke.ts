@@ -8,6 +8,7 @@ import {
   INITIAL_CONTEXT_MAX_BYTES,
   TOOL_HISTORY_ARCHIVE_MAX_BYTES,
 } from "../core/artifact-policy.js";
+import { verifyCommandSurface } from "./command-surface.js";
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(
@@ -135,8 +136,20 @@ async function main(): Promise<void> {
     const packedPaths = new Set(packResult.files.map((file) => file.path));
     assert(packedPaths.has("dist/cli.js"), "Packed artifact is missing dist/cli.js.");
     assert(
+      packedPaths.has("product-contract.json"),
+      "Packed artifact is missing product-contract.json."
+    );
+    assert(
       packedPaths.has("dist/adapters/codex/runtime.js"),
       "Packed artifact is missing the Codex runtime recovery module."
+    );
+    assert(
+      packedPaths.has("dist/adapters/claude/runtime.js"),
+      "Packed artifact is missing the Claude runtime recovery module."
+    );
+    assert(
+      packedPaths.has("dist/adapters/grok/runtime.js"),
+      "Packed artifact is missing the Grok runtime recovery module."
     );
     assert(
       packedPaths.has("skills/hamma-handoff/SKILL.md"),
@@ -186,6 +199,7 @@ async function main(): Promise<void> {
       installedVersion === packageJson.version,
       `Installed CLI version ${installedVersion} does not match ${packageJson.version}.`
     );
+    await verifyCommandSurface(executable);
     const installedCodexHelp = await runInstalled(
       executable,
       ["codex", "--help"],

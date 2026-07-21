@@ -1,5 +1,5 @@
 import { ArrowUpRight, RefreshCw, ShieldCheck, Sparkles, Webhook } from 'lucide-react';
-import { PRODUCT_VERSION } from '../product';
+import { PRODUCT_COMMANDS, PRODUCT_VERSION } from '../product';
 
 const updates = [
   {
@@ -7,14 +7,14 @@ const updates = [
     label: 'Native lifecycle',
     title: 'Install reviewable hooks instead of relying on reminders.',
     copy: 'PreCompact checkpoints active memory. SessionStart restores bounded context where the agent supports it. Claude Code and Grok also checkpoint at session end.',
-    command: 'hamma hooks install',
+    command: PRODUCT_COMMANDS.hooksInstall,
   },
   {
     icon: ShieldCheck,
     label: 'Exact Codex exit',
     title: 'Checkpoint the session that actually exited.',
     copy: 'The Codex wrapper binds a launch to its native SessionStart ID, forwards terminal signals, and never guesses from the newest transcript.',
-    command: 'hamma codex',
+    command: PRODUCT_COMMANDS.codex,
   },
   {
     icon: RefreshCw,

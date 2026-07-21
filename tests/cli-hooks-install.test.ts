@@ -105,6 +105,38 @@ describe("hooks install CLI command", () => {
     await fs.access(path.join(allProject, ".grok", "hooks", "hamma-memory.json"));
   });
 
+  it("installs the Grok SessionStart hook by default and honors --no-session-start", async () => {
+    const grokProject = path.join(fixtureRoot, "grok-project");
+    await fs.mkdir(grokProject, { recursive: true });
+    const withStart = JSON.parse(await run([
+      "hooks", "install", "--agent", "grok", "--project", grokProject, "--json",
+    ]));
+    expect(withStart.installed.sort()).toEqual(["PreCompact", "SessionEnd", "SessionStart"]);
+    const settings = JSON.parse(await fs.readFile(withStart.settingsPath, "utf8"));
+    expect(settings.hooks.SessionStart[0].hooks[0].command).toBe(
+      "hamma bootstrap --hook-agent grok"
+    );
+
+    const optOutProject = path.join(fixtureRoot, "grok-no-start-project");
+    await fs.mkdir(optOutProject, { recursive: true });
+    const withoutStart = JSON.parse(await run([
+      "hooks", "install", "--agent", "grok", "--project", optOutProject,
+      "--no-session-start", "--json",
+    ]));
+    expect(withoutStart.installed.sort()).toEqual(["PreCompact", "SessionEnd"]);
+  });
+
+  it("prints the bootstrap-mode hint after a non-JSON install", async () => {
+    const hintProject = path.join(fixtureRoot, "hint-project");
+    await fs.mkdir(hintProject, { recursive: true });
+    const stdout = await run([
+      "hooks", "install", "--agent", "grok", "--project", hintProject,
+    ]);
+    expect(stdout).toContain("Session-start memory loading is 'manual'");
+    expect(stdout).toContain("hamma config set bootstrap automatic");
+    expect(stdout).toContain("For reliable Grok exit checkpoints, launch with `hamma grok`.");
+  });
+
   it("fails with INSTALL_ERROR on a corrupted settings file", async () => {
     const corruptProject = path.join(fixtureRoot, "corrupt-project");
     const target = path.join(corruptProject, ".claude", "settings.local.json");

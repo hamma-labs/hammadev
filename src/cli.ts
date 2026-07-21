@@ -50,6 +50,7 @@ import {
   abandonMemory,
   attachMemory,
   checkpointMemory,
+  closeMemory,
   finishMemory,
   formatMemoryInspection,
   formatMemoryList,
@@ -57,6 +58,7 @@ import {
   inspectMemory,
   listMemories,
   recallMemory,
+  repairMemory,
   resolveMemoryProjectPath,
   resumeMemory,
   startMemory,
@@ -68,7 +70,15 @@ import {
   simpleSave,
   simpleSwitch,
 } from "./core/simple-ux.js";
-import { buildBootstrapContext } from "./core/bootstrap-context.js";
+import { buildBootstrapContext, BootstrapContextResult } from "./core/bootstrap-context.js";
+import {
+  getBootstrapMode,
+  getBootstrapModeSafe,
+  parseBootstrapMode,
+  projectConfigPath,
+  readProjectConfig,
+  setBootstrapMode,
+} from "./core/project-config.js";
 import {
   HOOK_AGENTS,
   HookAgent,
@@ -82,6 +92,17 @@ import {
   recoverCodexLaunches,
   registerCodexSessionStart,
 } from "./adapters/codex/runtime.js";
+import {
+  launchClaudeWithRecovery,
+  recoverClaudeLaunches,
+  registerClaudeSessionStart,
+} from "./adapters/claude/runtime.js";
+import {
+  launchGrokWithRecovery,
+  recoverGrokLaunches,
+  registerGrokSessionStart,
+} from "./adapters/grok/runtime.js";
+import { AgentLauncherResult, launchIdEnvVar } from "./core/agent-launch.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -196,16 +217,16 @@ function failSimple(error: unknown): void {
   process.exitCode = 1;
 }
 
-function reportCodexLauncherResult(result: Awaited<ReturnType<typeof launchCodexWithRecovery>>): void {
+function reportLauncherResult(label: string, result: AgentLauncherResult): void {
   if (result.setupWarning) {
     console.error(pc.yellow(`Hamma warning: ${result.setupWarning}`));
   }
   if (result.checkpoint?.status === "updated") {
     console.error(pc.green(
-      `Hamma saved Codex session ${result.checkpoint.sessionId} to memory '${result.checkpoint.memory}'.`
+      `Hamma saved ${label} session ${result.checkpoint.sessionId} to memory '${result.checkpoint.memory}'.`
     ));
   } else if (result.checkpoint?.status === "unchanged") {
-    console.error(pc.dim("Hamma memory was already current when Codex exited."));
+    console.error(pc.dim(`Hamma memory was already current when ${label} exited.`));
   } else if (result.checkpoint && ["pending", "failed"].includes(result.checkpoint.status)) {
     console.error(pc.yellow(
       `Hamma exit checkpoint is pending: ${result.checkpoint.reason ?? "it will be retried at the next session start."}`
@@ -213,23 +234,26 @@ function reportCodexLauncherResult(result: Awaited<ReturnType<typeof launchCodex
   }
 }
 
-async function launchAttachedAgent(
-  command: string,
-  args: string[],
-  cwd: string
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { cwd, stdio: "inherit" });
-    child.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") {
-        reject(new Error(`${command} is not installed or is not on PATH.`));
-      } else reject(error);
-    });
-    child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${command} exited with code ${code ?? "unknown"}.`));
-    });
-  });
+function reportCodexLauncherResult(result: AgentLauncherResult): void {
+  reportLauncherResult("Codex", result);
+}
+
+function reportClaudeLauncherResult(
+  result: Awaited<ReturnType<typeof launchClaudeWithRecovery>>
+): void {
+  if (result.hooksWarning) {
+    console.error(pc.yellow(`Hamma warning: ${result.hooksWarning}`));
+  }
+  reportLauncherResult("Claude Code", result);
+}
+
+function reportGrokLauncherResult(
+  result: Awaited<ReturnType<typeof launchGrokWithRecovery>>
+): void {
+  if (result.hooksWarning) {
+    console.error(pc.yellow(`Hamma warning: ${result.hooksWarning}`));
+  }
+  reportLauncherResult("Grok", result);
 }
 
 async function simpleCommandAvailable(command: string): Promise<boolean> {
@@ -313,6 +337,8 @@ program
     "Simple workflow:",
     "  hamma save                 Save the current coding session",
     "  hamma codex                Launch Codex with reliable exit recovery",
+    "  hamma claude               Launch Claude Code with reliable exit recovery",
+    "  hamma grok                 Launch Grok with reliable exit recovery",
     "  hamma switch claude        Save and move the work to Claude",
     "  hamma done                 Mark the current work complete",
     "  hamma ask \"why SQLite?\"  Search project memory",
@@ -413,12 +439,24 @@ program
         });
         reportCodexLauncherResult(launched);
         process.exitCode = launched.exitCode;
+      } else if (result.target === "claude") {
+        const launched = await launchClaudeWithRecovery({
+          projectPath,
+          memory: result.memory,
+          command: result.attach.launch.command,
+          args: result.attach.launch.args,
+        });
+        reportClaudeLauncherResult(launched);
+        process.exitCode = launched.exitCode;
       } else {
-        await launchAttachedAgent(
-          result.attach.launch.command,
-          result.attach.launch.args,
-          projectPath
-        );
+        const launched = await launchGrokWithRecovery({
+          projectPath,
+          memory: result.memory,
+          command: result.attach.launch.command,
+          args: result.attach.launch.args,
+        });
+        reportGrokLauncherResult(launched);
+        process.exitCode = launched.exitCode;
       }
     } catch (err: any) {
       return failSimple(err);
@@ -482,6 +520,52 @@ program
         args: codexArgs ?? [],
       });
       reportCodexLauncherResult(result);
+      process.exitCode = result.exitCode;
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("claude [claudeArgs...]")
+  .option("--memory <name>", "Memory to checkpoint; defaults to the active memory")
+  .option("--project <path>", "Project directory and Claude Code working directory")
+  .option("--claude-bin <command>", "Claude Code executable to launch", "claude")
+  .allowUnknownOption(true)
+  .description("Launch Claude Code with native lifecycle hooks and exact-session exit checkpointing")
+  .action(async (claudeArgs: string[] | undefined, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await launchClaudeWithRecovery({
+        projectPath,
+        memory: options.memory,
+        command: options.claudeBin,
+        args: claudeArgs ?? [],
+      });
+      reportClaudeLauncherResult(result);
+      process.exitCode = result.exitCode;
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("grok [grokArgs...]")
+  .option("--memory <name>", "Memory to checkpoint; defaults to the active memory")
+  .option("--project <path>", "Project directory and Grok working directory")
+  .option("--grok-bin <command>", "Grok executable to launch", "grok")
+  .allowUnknownOption(true)
+  .description("Launch Grok with native lifecycle hooks and exact-session exit checkpointing")
+  .action(async (grokArgs: string[] | undefined, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await launchGrokWithRecovery({
+        projectPath,
+        memory: options.memory,
+        command: options.grokBin,
+        args: grokArgs ?? [],
+      });
+      reportGrokLauncherResult(result);
       process.exitCode = result.exitCode;
     } catch (err: any) {
       return failSimple(err);
@@ -1105,10 +1189,20 @@ program
           if (hookAgent === "codex" && hookEvent) {
             await registerCodexSessionStart(projectPath, hookEvent);
           }
-          const recoveries = await recoverCodexLaunches(projectPath);
+          if (hookAgent === "claude" && hookEvent) {
+            await registerClaudeSessionStart(projectPath, hookEvent);
+          }
+          if (hookAgent === "grok" && hookEvent) {
+            await registerGrokSessionStart(projectPath, hookEvent);
+          }
+          const recoveries = [
+            ...await recoverCodexLaunches(projectPath),
+            ...await recoverClaudeLaunches(projectPath),
+            ...await recoverGrokLaunches(projectPath),
+          ];
           for (const recovery of recoveries) {
             if (["pending", "failed"].includes(recovery.status)) {
-              cliLogger.warn("codex.recovery.pending", {
+              cliLogger.warn(`${recovery.agent}.recovery.pending`, {
                 launchId: recovery.launchId,
                 sessionId: recovery.sessionId,
                 reason: recovery.reason,
@@ -1118,10 +1212,19 @@ program
         } catch (runtimeError) {
           // Recovery is best-effort at startup. Existing frozen memory remains
           // useful even when a runtime marker is malformed or temporarily busy.
-          cliLogger.warn("codex.recovery.failed", { error: errorMessage(runtimeError) });
+          cliLogger.warn("launch.recovery.failed", { error: errorMessage(runtimeError) });
         }
       }
-      const result = await buildBootstrapContext(projectPath, { memory: options.memory });
+      // Manual bootstrap mode (the default) keeps plain agent starts free of
+      // memory context: only sessions spawned by a hamma wrapper carry the
+      // launch-id env var. Sync hooks are unaffected — saving always works.
+      const managedLaunch = !hookAgent || Boolean(process.env[launchIdEnvVar(hookAgent)]);
+      let result: BootstrapContextResult;
+      if (!managedLaunch && (await getBootstrapModeSafe(projectPath)) === "manual") {
+        result = { schemaVersion: 1, status: "skipped", reason: "manual-mode" };
+      } else {
+        result = await buildBootstrapContext(projectPath, { memory: options.memory });
+      }
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
         return;
@@ -1211,6 +1314,102 @@ memoryCommand
       process.stdout.write(`${formatMemoryInspection(inspection)}\n`);
     } catch (err: any) {
       return fail("HISTORY_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("review")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print machine-readable review state")
+  .description("Review reconstructed goal, outcome, next action, drift, and correction options")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const inspection = await inspectMemory(projectPath, name);
+      const memoryName = inspection.manifest.name;
+      const correctionCommands = {
+        repair: `hamma memory repair ${memoryName} --outcome actionable --next-action <text> --reason <text>`,
+        close: `hamma memory close ${memoryName} --reason <text>`,
+      };
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify({
+          schemaVersion: 2,
+          inspection,
+          correctionCommands,
+        }, null, 2)}\n`);
+        return;
+      }
+      process.stdout.write(`${formatMemoryInspection(inspection)}\n`);
+      console.log("");
+      console.log("Correction options:");
+      console.log(`- Repair extracted state: ${correctionCommands.repair}`);
+      console.log(`- Close completed work: ${correctionCommands.close}`);
+      console.log(pc.dim("Corrections create immutable revisions and retain the previous state."));
+    } catch (err: any) {
+      return fail("HISTORY_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("repair")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .option("--goal <text>", "Replace the reconstructed goal")
+  .option("--outcome <outcome>", "Replace outcome: actionable | completed | blocked | ambiguous")
+  .option("--next-action <text>", "Replace the reconstructed next action")
+  .option("--clear-next-action", "Remove the reconstructed next action")
+  .requiredOption("--reason <text>", "Audit reason for the correction")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print machine-readable correction metadata")
+  .description("Correct reconstructed memory state by creating an immutable revision")
+  .action(async (name, options) => {
+    try {
+      const outcomes = new Set(["actionable", "completed", "blocked", "ambiguous"]);
+      if (options.outcome && !outcomes.has(options.outcome)) {
+        throw new Error("Repair outcome must be actionable, completed, blocked, or ambiguous.");
+      }
+      if (options.nextAction && options.clearNextAction) {
+        throw new Error("Use either --next-action or --clear-next-action, not both.");
+      }
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await repairMemory(projectPath, name, {
+        goal: options.goal,
+        outcome: options.outcome,
+        nextAction: options.clearNextAction ? null : options.nextAction,
+        reason: options.reason,
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green(`Memory '${result.memory}' repaired in revision ${result.revision.id}.`));
+      console.log(`Outcome: ${result.previous.outcome} → ${result.current.outcome}`);
+      console.log(`Next action: ${result.current.nextAction ?? "not available"}`);
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
+    }
+  });
+
+memoryCommand
+  .command("close")
+  .argument("[name]", "Memory name; defaults to the active memory")
+  .requiredOption("--reason <text>", "Audit reason for closing the task")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print machine-readable correction metadata")
+  .description("Mark reconstructed work complete with no next action in an immutable revision")
+  .action(async (name, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await closeMemory(projectPath, name, options.reason);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green(`Memory '${result.memory}' closed in revision ${result.revision.id}.`));
+      console.log("Outcome: completed");
+      console.log("Next action: not available");
+    } catch (err: any) {
+      return fail("HANDOFF_ERROR", err);
     }
   });
 
@@ -1508,7 +1707,7 @@ hooksCommand
   .option("--agent <agent>", "Target agent: codex | claude | grok | all (default: detect installed agents)")
   .option("--project <path>", "Project directory")
   .option("--shared", "Claude: write committable .claude/settings.json instead of settings.local.json")
-  .option("--session-start", "Grok: also install a SessionStart bootstrap hook")
+  .option("--no-session-start", "Grok: skip the SessionStart bootstrap hook")
   .option("--force", "Replace differing hamma-managed hook entries")
   .option("--json", "Print a machine-readable install result")
   .description("Write Hamma lifecycle hooks into this project's agent settings files")
@@ -1523,7 +1722,7 @@ hooksCommand
           projectPath,
           force: Boolean(options.force),
           shared: Boolean(options.shared),
-          sessionStart: Boolean(options.sessionStart),
+          sessionStart: options.sessionStart,
         }));
       }
       if (options.json) {
@@ -1543,11 +1742,23 @@ hooksCommand
       }
       console.log("");
       console.log("Hooks stay no-ops until memory is enabled for this project (first `hamma save` or `hamma switch`).");
+      const bootstrapMode = await getBootstrapModeSafe(projectPath);
+      if (bootstrapMode === "manual") {
+        console.log("Session-start memory loading is 'manual': context loads only for hamma-launched sessions (`hamma codex|claude|grok`). Run `hamma config set bootstrap automatic` to load it in every session.");
+      } else {
+        console.log("Session-start memory loading is 'automatic': context loads in every session. Run `hamma config set bootstrap manual` to limit it to hamma-launched sessions.");
+      }
       if (results.some((result) => result.agent !== "claude")) {
         console.log("Codex and Grok project hooks require project trust in those agents.");
       }
       if (results.some((result) => result.agent === "codex")) {
         console.log("For reliable Codex exit checkpoints, trust these commands with `/hooks`, then launch with `hamma codex`.");
+      }
+      if (results.some((result) => result.agent === "claude")) {
+        console.log("For reliable Claude Code exit checkpoints, launch with `hamma claude`.");
+      }
+      if (results.some((result) => result.agent === "grok")) {
+        console.log("For reliable Grok exit checkpoints, launch with `hamma grok`.");
       }
     } catch (err: any) {
       return fail("INSTALL_ERROR", err);
@@ -1592,6 +1803,103 @@ hooksCommand
       }
     } catch (err: any) {
       return fail("INSTALL_ERROR", err);
+    }
+  });
+
+const configCommand = program
+  .command("config")
+  .description("Read and change per-project Hamma settings (.hamma/config.json)");
+
+const CONFIG_KEYS: Record<string, {
+  parse: (value: string) => string;
+  get: (projectPath: string) => Promise<string>;
+  set: (projectPath: string, value: string) => Promise<void>;
+  describe: (value: string) => string;
+}> = {
+  bootstrap: {
+    parse: parseBootstrapMode,
+    get: getBootstrapMode,
+    set: async (projectPath, value) => { await setBootstrapMode(projectPath, parseBootstrapMode(value)); },
+    describe: (value) => value === "automatic"
+      ? "memory context loads at the start of every agent session"
+      : "memory context loads only for sessions launched with `hamma codex|claude|grok`",
+  },
+};
+
+async function configReport(projectPath: string): Promise<Record<string, { value: string; source: "default" | "config" }>> {
+  const config = await readProjectConfig(projectPath);
+  const report: Record<string, { value: string; source: "default" | "config" }> = {};
+  for (const key of Object.keys(CONFIG_KEYS)) {
+    const stored = key === "bootstrap" ? config.bootstrapMode : undefined;
+    report[key] = stored
+      ? { value: String(stored), source: "config" }
+      : { value: await CONFIG_KEYS[key].get(projectPath), source: "default" };
+  }
+  return report;
+}
+
+configCommand
+  .command("get")
+  .argument("[key]", "Setting name (bootstrap). Omit to list all settings.")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable result")
+  .description("Show effective per-project settings and where each value comes from")
+  .action(async (key: string | undefined, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      if (key && !CONFIG_KEYS[key]) {
+        throw new Error(`Unknown setting '${key}'. Supported settings: ${Object.keys(CONFIG_KEYS).join(", ")}.`);
+      }
+      const report = await configReport(projectPath);
+      const selected = key ? { [key]: report[key] } : report;
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify({
+          schemaVersion: 1,
+          projectPath,
+          configPath: projectConfigPath(projectPath),
+          config: selected,
+        }, null, 2)}\n`);
+        return;
+      }
+      for (const [name, entry] of Object.entries(selected)) {
+        const suffix = entry.source === "default" ? pc.dim(" (default)") : "";
+        console.log(`${name}: ${entry.value}${suffix}`);
+      }
+    } catch (err: any) {
+      return fail("PROJECT_ERROR", err);
+    }
+  });
+
+configCommand
+  .command("set")
+  .argument("<key>", "Setting name (bootstrap)")
+  .argument("<value>", "New value (bootstrap: manual | automatic)")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable result")
+  .description("Change a per-project setting in .hamma/config.json")
+  .action(async (key: string, value: string, options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const entry = CONFIG_KEYS[key];
+      if (!entry) {
+        throw new Error(`Unknown setting '${key}'. Supported settings: ${Object.keys(CONFIG_KEYS).join(", ")}.`);
+      }
+      const parsed = entry.parse(value);
+      await entry.set(projectPath, parsed);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify({
+          schemaVersion: 1,
+          projectPath,
+          configPath: projectConfigPath(projectPath),
+          key,
+          value: parsed,
+        }, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.green(`✓ ${key} set to '${parsed}'`));
+      console.log(pc.dim(`  Now ${entry.describe(parsed)}.`));
+    } catch (err: any) {
+      return fail("PROJECT_ERROR", err);
     }
   });
 

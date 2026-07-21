@@ -42,8 +42,9 @@ What it writes per agent:
   hook. Requires project trust in Codex; review the installed commands with
   `/hooks`.
 - **Grok** — `.grok/hooks/hamma-memory.json` (a Hamma-owned file) with
-  `PreCompact` and `SessionEnd` checkpoints. Add `--session-start` to also
-  install a `SessionStart` bootstrap hook. Requires project trust in Grok.
+  `PreCompact` and `SessionEnd` checkpoints plus a `SessionStart` bootstrap
+  hook. Pass `--no-session-start` to skip the bootstrap hook. Requires project
+  trust in Grok.
 
 The install is idempotent and merge-safe: unrelated settings keys and
 non-Hamma hook groups are preserved, re-runs skip current entries, and only
@@ -72,9 +73,29 @@ an exact final checkpoint.
 ## Session-start context (`hamma bootstrap`)
 
 `hamma bootstrap` closes the read side of the loop: agents that inject
-`SessionStart` hook stdout into model context (Codex and Claude Code do)
-receive a bounded slice of the frozen latest memory revision at the start of
-every session, framed as untrusted historical state.
+`SessionStart` hook stdout into model context (Codex, Claude Code, and Grok
+do) receive a bounded slice of the frozen latest memory revision at session
+start, framed as untrusted historical state.
+
+### Bootstrap modes (`hamma config set bootstrap <manual|automatic>`)
+
+Which sessions receive that context is governed by a per-project setting in
+`.hamma/config.json`:
+
+- **`manual` (default)** — the `SessionStart` hook prints context only when
+  the session was launched through a hamma wrapper (`hamma codex`,
+  `hamma claude`, `hamma grok`, or `hamma switch <agent>`). A plainly-started
+  agent gets a completely normal session. The gate signal is the
+  `HAMMA_<AGENT>_LAUNCH_ID` environment variable the wrapper sets for its
+  child; hook subprocesses inherit it.
+- **`automatic`** — context is injected at the start of every session, the
+  historical always-on behavior.
+
+Only *loading* is gated. `PreCompact`/`SessionEnd` sync hooks keep
+checkpointing plain sessions in both modes, and an explicit `hamma bootstrap`
+at a terminal (without `--hook-agent`) is never gated. A corrupt
+`.hamma/config.json` fails closed to `manual`; `hamma config get` surfaces
+the parse error.
 
 - Read-only assembly: building the context loads the frozen revision's
   `bootstrap.md`, computes the execution mode and a one-line git drift verdict,
@@ -101,8 +122,9 @@ including skip reasons.
 
 1. `hamma hooks install` has written trusted native lifecycle hooks that
    invoke `hamma memory sync --hook-agent ...` and `hamma bootstrap`.
-2. Codex was launched through `hamma codex`, which checkpoints the exact bound
-   session when the child exits and leaves failed work for next-start recovery.
+2. Codex, Claude Code, or Grok was launched through `hamma codex` /
+   `hamma claude` / `hamma grok`, which checkpoint the exact bound session
+   when the child exits and leave failed work for next-start recovery.
 3. A hand-maintained native lifecycle hook invokes the same commands (see the
    reference JSON below).
 4. The installed `hamma-snap` skill invokes `hamma save` for the current agent.
@@ -237,10 +259,33 @@ context). `hamma hooks install --agent claude` writes the following into
 }
 ```
 
+### Reliable Claude Code process lifecycle
+
+Claude Code's native `SessionEnd` hook already covers clean exits, so
+`hamma claude` is a thinner wrapper than `hamma codex`: it adds the one
+guarantee hooks cannot give — an exact-session checkpoint observed at real
+process termination, including crashes and signals that skip `SessionEnd`.
+
+```bash
+hamma claude                          # forwards the normal terminal UI
+hamma claude -- --continue            # pass Claude Code options after --
+```
+
+It shares the Codex wrapper's launch-record machinery (records live under
+`.hamma/runtime/claude/`): the wrapper passes an opaque launch id, the native
+`SessionStart` hook binds the exact Claude `session_id`, and on child exit the
+wrapper checkpoints that bound session through any open attach claim. Ended
+launches whose checkpoint failed are retried at the next session start of any
+supported agent. When project memory is enabled, `hamma claude` also installs
+the native Claude lifecycle hooks best-effort before launching, so a first
+run is self-contained; differing hand-edited entries are never replaced
+(use `hamma hooks install --agent claude --force` explicitly). Runtime records
+are only created after project memory has been explicitly enabled.
+
 ### Grok Build
 
-Grok documents `PreCompact` and `SessionEnd` hooks. Project hook files require
-trust. Place a JSON hook file under `.grok/hooks/`:
+Grok documents `PreCompact`, `SessionEnd`, and `SessionStart` hooks. Project
+hook files require trust. Place a JSON hook file under `.grok/hooks/`:
 
 ```json
 {
@@ -266,20 +311,56 @@ trust. Place a JSON hook file under `.grok/hooks/`:
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hamma bootstrap --hook-agent grok",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
+### Reliable Grok process lifecycle
+
+`hamma grok` mirrors `hamma claude`: it launches the Grok CLI with an
+exact-session checkpoint observed at real process termination, including
+crashes and signals that skip `SessionEnd`.
+
+```bash
+hamma grok                            # forwards the normal terminal UI
+hamma grok -- --resume                # pass Grok options after --
+```
+
+It shares the same launch-record machinery (records live under
+`.hamma/runtime/grok/`): the wrapper passes an opaque launch id through
+`HAMMA_GROK_LAUNCH_ID`, the native `SessionStart` hook binds the exact Grok
+session id, and on child exit the wrapper checkpoints that bound session.
+Ended launches whose checkpoint failed are retried at the next session start
+of any supported agent. When project memory is enabled, `hamma grok` installs
+the native Grok hooks best-effort before launching. Because Grok only runs
+project hooks after the project is trusted, an untrusted project cannot bind
+the session — the exit checkpoint then reports `pending` with the reason.
+
 ## Operational limits
 
 - A killed process, disabled hook, untrusted project, unavailable `hamma`
   binary, or agent crash can prevent a checkpoint.
-- `hamma codex` recovers normal exits, non-zero exits, Ctrl-C, forwarded
-  termination signals, and wrapper failures discoverable on the next session
-  start. It cannot recover transcript bytes that Codex or the filesystem never
-  persisted, and a machine that never starts another trusted Hamma hook cannot
-  perform the deferred recovery.
+- `hamma codex`, `hamma claude`, and `hamma grok` recover normal exits,
+  non-zero exits, Ctrl-C, forwarded termination signals, and wrapper failures
+  discoverable on the next session start. They cannot recover transcript bytes
+  that the agent or the filesystem never persisted, and a machine that never
+  starts another trusted Hamma hook cannot perform the deferred recovery.
+- A nested agent started from a shell inside a hamma-launched session inherits
+  the `HAMMA_<AGENT>_LAUNCH_ID` variable and is treated as hamma-launched: in
+  manual mode it still receives bootstrap context, and its session-binding
+  attempt is rejected and logged as a warning. This is benign.
 - Hook-mode **sync** writes no stdout on success so agent hook protocols do
   not mistake Hamma's result object for hook control output. Add `--json` only
   for manual diagnostics. (`hamma bootstrap` is the deliberate exception: its

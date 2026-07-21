@@ -40,6 +40,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Semantic memory quality gate
+        run: pnpm quality:semantic
+
       - name: Packed npm artifact smoke
         run: pnpm smoke:package
 

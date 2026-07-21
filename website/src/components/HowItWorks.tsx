@@ -1,29 +1,30 @@
 import { Bot, FileCheck2, ScanText, Webhook } from 'lucide-react';
+import { PRODUCT_COMMANDS } from '../product';
 
 const steps = [
   {
     icon: ScanText,
     title: 'Enable memory explicitly',
     copy: 'Run hamma save once. Hamma detects the current project and exact agent session without asking for IDs or JSON files.',
-    command: 'hamma save',
+    command: PRODUCT_COMMANDS.save,
   },
   {
     icon: Webhook,
     title: 'Install trusted hooks',
     copy: 'Add native lifecycle checkpoints and bounded session-start context. Agent trust remains visible and under your control.',
-    command: 'hamma hooks install',
+    command: PRODUCT_COMMANDS.hooksInstall,
   },
   {
     icon: FileCheck2,
     title: 'Give Codex a real exit boundary',
     copy: 'Launch through Hamma for exact-session checkpoints on normal exit, failure, or forwarded terminal signals.',
-    command: 'hamma codex',
+    command: PRODUCT_COMMANDS.codex,
   },
   {
     icon: Bot,
     title: 'Switch or finish normally',
     copy: 'Move to Claude, Codex, or Grok with one command. Hamma reconciles Git and preserves task ownership automatically.',
-    command: 'hamma switch claude',
+    command: PRODUCT_COMMANDS.switchClaude,
   },
 ];
 

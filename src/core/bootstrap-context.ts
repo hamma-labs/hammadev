@@ -18,7 +18,8 @@ export type BootstrapSkipReason =
   | "memory-not-enabled"
   | "no-revision"
   | "open-attach-claim"
-  | "bootstrap-missing";
+  | "bootstrap-missing"
+  | "manual-mode";
 
 export interface BootstrapContextOptions {
   memory?: string;

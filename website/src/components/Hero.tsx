@@ -1,4 +1,5 @@
 import { ArrowRight, Check, Database, Download, ShieldCheck } from 'lucide-react';
+import { PRODUCT_COMMANDS } from '../product';
 
 export default function Hero() {
   return (
@@ -14,7 +15,7 @@ export default function Hero() {
           the next agent grounded in what actually happened.
         </p>
         <div className="hero-command-row" aria-label="HammaDev workflow commands">
-          <code>hamma save</code><span>→</span><code>hamma hooks install</code><span>→</span><code>hamma codex</code>
+          <code>{PRODUCT_COMMANDS.save}</code><span>→</span><code>{PRODUCT_COMMANDS.hooksInstall}</code><span>→</span><code>{PRODUCT_COMMANDS.codex}</code>
         </div>
 
         <div className="hero-actions">
