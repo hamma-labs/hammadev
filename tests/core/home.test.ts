@@ -60,13 +60,14 @@ function setup(overrides: Partial<SetupResult> = {}): SetupResult {
 
 function prompt(options: { confirm?: boolean; select?: "codex" | "claude" | "grok" } = {}) {
   const output: string[] = [];
-  const value: HammaHomePrompt & { output: string[]; select: ReturnType<typeof vi.fn> } = {
+  const value = {
     output,
     write: (message) => output.push(message),
     confirm: vi.fn(async () => options.confirm ?? true),
     select: vi.fn(async (_message: string, choices: HammaHomeChoice[]) =>
       options.select ?? choices.find((choice) => choice.recommended)?.value),
-  };
+    releaseInput: vi.fn((): void => undefined),
+  } satisfies HammaHomePrompt & { output: string[] };
   return value;
 }
 
@@ -137,6 +138,18 @@ describe("one-command Hamma home", () => {
     }
   });
 
+  it("releases terminal input idempotently", () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const terminal = new TerminalHammaPrompt(input, output);
+
+    expect(input.listenerCount("data")).toBeGreaterThan(0);
+    terminal.releaseInput();
+    expect(input.listenerCount("data")).toBe(0);
+    expect(() => terminal.releaseInput()).not.toThrow();
+    expect(() => terminal.close()).not.toThrow();
+  });
+
   it("asks once, applies setup, initializes memory, and opens the recommended alternate agent", async () => {
     const ui = prompt();
     const deps = dependencies({
@@ -164,6 +177,10 @@ describe("one-command Hamma home", () => {
       args: [],
       attachId: "123e4567-e89b-4def-8123-456789abcdef",
     }));
+    expect(ui.releaseInput).toHaveBeenCalledOnce();
+    expect(ui.releaseInput.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deps.launchAgent).mock.invocationCallOrder[0]
+    );
     expect(ui.output.join("")).toContain("Opening");
     expect(ui.output.join("")).toContain("Work saved");
   });
@@ -178,6 +195,7 @@ describe("one-command Hamma home", () => {
     expect(deps.applySetup).not.toHaveBeenCalled();
     expect(deps.startDefaultMemory).not.toHaveBeenCalled();
     expect(deps.launchAgent).not.toHaveBeenCalled();
+    expect(ui.releaseInput).not.toHaveBeenCalled();
     expect(ui.output.join("")).toContain("No changes were made");
   });
 

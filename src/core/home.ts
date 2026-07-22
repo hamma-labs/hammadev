@@ -31,6 +31,7 @@ export interface HammaHomePrompt {
   confirm(message: string): Promise<boolean>;
   select(message: string, choices: HammaHomeChoice[]): Promise<HammaHomeAgent | undefined>;
   write(message: string): void;
+  releaseInput(): void;
 }
 
 export interface HammaHomeDependencies {
@@ -206,6 +207,9 @@ export async function runHammaHome(
   }
 
   prompt.write(`${pc.cyan("Opening")} ${label(target)}…\n`);
+  // The launched agent inherits this terminal. Release readline before spawn
+  // so Hamma cannot consume keystrokes intended for the child process.
+  prompt.releaseInput();
   const launcher = await dependencies.launchAgent(
     target,
     launcherOptions(projectPath, switched?.memory ?? memory, switched)
@@ -228,6 +232,7 @@ export async function runHammaHome(
 
 export class TerminalHammaPrompt implements HammaHomePrompt {
   private readonly readline: Interface;
+  private inputReleased = false;
 
   constructor(
     input: Readable = process.stdin,
@@ -263,8 +268,14 @@ export class TerminalHammaPrompt implements HammaHomePrompt {
     }
   }
 
-  close(): void {
+  releaseInput(): void {
+    if (this.inputReleased) return;
+    this.inputReleased = true;
     this.readline.close();
+  }
+
+  close(): void {
+    this.releaseInput();
   }
 }
 
