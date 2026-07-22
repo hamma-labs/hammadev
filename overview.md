@@ -7,17 +7,25 @@ _Evidence refreshed 2026-07-22._
 HammaDev has two different current states that must not be conflated:
 
 - **Public alpha:** `hammadev@0.1.0-alpha.10`, installed with `hammadev@alpha`.
-- **Local release candidate:** an unreleased `0.1.0-alpha.11` worktree containing the next reliability, security, platform, and onboarding improvements.
+- **Beta release candidate:** an unreleased `0.1.0-beta.1` candidate pushed to `main`, containing the next reliability, security, platform, and onboarding improvements.
 
-The alpha.11 candidate implements the five priorities from the previous review: a larger versioned semantic corpus, a three-OS lifecycle CI matrix, deterministic fault injection, security/release artifacts, and guided setup. However, it has not been committed, run through remote macOS/Windows CI, tagged, or published. Those improvements must not yet be attributed to the npm package.
+The beta.1 candidate implements the five priorities from the previous review: a larger versioned semantic corpus, a three-OS lifecycle CI matrix, deterministic fault injection, security/release artifacts, and guided setup. Release preparation and the final Windows fixes are commits `2ad31bd`, `1edc2c5`, and `3e20b2a`. All nine jobs passed in [`hamma-labs/hammadev` CI run 29931074657](https://github.com/hamma-labs/hammadev/actions/runs/29931074657). The candidate is not yet tagged or published, so those improvements must not yet be attributed to the npm package.
 
 - Product idea: **9/10**
-- Local alpha.11 candidate: **8.5/10**
+- Verified beta.1 candidate: **8.8/10**
 - Public alpha.10: **7.8/10**
-- Broad production readiness if alpha.11 passes CI: **7/10**
+- Broad production readiness after beta.1 registry verification: **7/10**
 - Recommendation today: **controlled early-adopter use with human review**
 
 These scores are subjective judgments. The verification facts and limitations below matter more than the numbers.
+
+## Repository migration status
+
+The OpenAI Build Week deadline has ended, so the former submission repository at `xayrullonematov/hammadev` is treated as frozen. It remains referenced only where this document cites historical CI runs that actually occurred there. No future push should target that repository.
+
+Active development has moved to [`hamma-labs/hammadev`](https://github.com/hamma-labs/hammadev). The local `origin` fetch and push URLs both point exclusively to that repository, and active package, README, issue, homepage, troubleshooting, website, and vulnerability-reporting metadata now use the organization repository.
+
+`main` is pushed through `3e20b2a`. The installed GitHub CLI credential remains invalid, but Git transport and the connected GitHub integration provided the push, job status, and log evidence needed to complete the CI gate.
 
 ## Public alpha.10
 
@@ -31,9 +39,9 @@ The previous release mismatch remains fixed for the currently advertised public 
 
 The successful alpha.10 registry verification is [GitHub Actions run 29844189826](https://github.com/xayrullonematov/hammadev/actions/runs/29844189826). Final alpha.10 main-branch CI is [run 29844160028](https://github.com/xayrullonematov/hammadev/actions/runs/29844160028).
 
-The `latest` tag intentionally remains behind because the OIDC publishing relationship authorizes `npm publish`, not a separate authenticated `npm dist-tag` operation. Documentation, the website source, tests, and the product contract now consistently require `@alpha`. Older prereleases are explicitly unsupported in `SECURITY.md`.
+The `alpha` tag is intentionally frozen at the hackathon submission. The beta candidate's documentation, website source, tests, and product contract consistently require `@beta`; `latest` will remain unchanged during the beta release.
 
-## Unreleased alpha.11 candidate
+## Verified but unpublished beta.1 candidate
 
 ### 1. Semantic evaluation is larger and more informative
 
@@ -70,7 +78,7 @@ This is substantially better regression coverage than six cases. It is still not
 
 The extractor also gained narrow Spanish and French completion, blocking, instruction, and next-action patterns. That is useful fixture coverage, not general multilingual understanding.
 
-### 2. Cross-platform lifecycle coverage is configured
+### 2. Cross-platform lifecycle coverage is verified
 
 CI now defines a portable lifecycle matrix for:
 
@@ -85,11 +93,13 @@ CI now defines a portable lifecycle matrix for:
 - Project paths containing spaces
 - Packed npm artifact smoke
 
-The new portable lifecycle suite has 11 tests and passed locally on Ubuntu. The macOS and Windows jobs have **not run remotely yet**, so cross-platform proof remains configured rather than established. The full website suite remains on Ubuntu to avoid multiplying browser jobs unnecessarily.
+The 11-test portable lifecycle suite passed on Ubuntu, macOS, and Windows with Node 22.12 and Node 24. Both Ubuntu full-verification jobs and the Ubuntu website job also passed in run 29931074657.
 
-Package and registry smoke now invoke both the installed Hamma CLI and npm's JavaScript entry point through Node instead of relying on platform-specific executable shims. Four resolver tests cover an explicit override, the Windows-adjacent npm layout, the Unix `lib` layout, and an actionable missing-npm failure. This removes a concrete `.cmd` portability risk, but the complete smoke still needs to execute on Windows CI.
+Package and registry smoke now invoke both the installed Hamma CLI and npm's JavaScript entry point through Node instead of relying on platform-specific executable shims. Four resolver tests cover an explicit override, the Windows-adjacent npm layout, the Unix `lib` layout, and an actionable missing-npm failure. The packed artifact smoke passed in every lifecycle and full-verification job.
 
-Project paths are now canonicalized without rejecting ordinary symlinked ancestors such as macOS `/var` and `/tmp`, while a symlink at the project root or inside managed memory, runtime, handoff, or hook directories remains rejected. Focused tests cover the same canonical project reached through lexical and real paths for memory, handoff, hooks, and launch records. Remote macOS execution is still the authoritative platform gate.
+Project paths are now canonicalized without rejecting ordinary symlinked ancestors such as macOS `/var` and `/tmp`, while a symlink at the project root or inside managed memory, runtime, handoff, or hook directories remains rejected. Focused tests cover the same canonical project reached through lexical and real paths for memory, handoff, hooks, and launch records. Both macOS matrix jobs passed.
+
+Windows uncovered a second package-smoke issue after the original SBOM gate cleared: Claude discovery relied on a synthetic home override and absolute backslash glob patterns. The final implementation honors `CLAUDE_HOME` and evaluates separator-neutral relative globs under that root. Both Windows packed-artifact jobs then passed.
 
 ### 3. Fault recovery is now explicitly testable
 
@@ -109,7 +119,7 @@ The candidate adds coverage for:
 
 The implementation now records lock ownership, preserves live locks, recovers only stale dead-owner locks, removes unreferenced revision directories, and cleans managed temporary artifacts under the synchronization lock.
 
-Twelve focused fault/recovery tests passed before the final orphan-cleanup case was added. The final case typechecks but has not received a fresh executable test result in this environment because nested test processes were denied by the sandbox. Remote CI is still required before claiming the complete fault gate is green.
+All focused fault/recovery tests passed locally and in both Ubuntu full-verification jobs.
 
 Injected exceptions are not identical to killing power at every machine instruction. Filesystem-specific durability behavior, disk-full conditions, antivirus interference, and network filesystems remain outside the evidence.
 
@@ -145,7 +155,7 @@ hamma setup --apply --agent detected --bootstrap manual
 
 `--check` reads the environment and previews exact hook events, settings paths, bootstrap changes, and `.gitignore` coverage without creating project files. `--apply` is explicit consent to write those changes and then re-read them for verification.
 
-Before applying any selected hook, setup now parses and validates every selected agent settings file. A malformed later settings file therefore stops the operation before an earlier agent hook is written. The new atomic-preflight case typechecks but still needs a process-enabled test run.
+Before applying any selected hook, setup now parses and validates every selected agent settings file. A malformed later settings file therefore stops the operation before an earlier agent hook is written. The atomic-preflight case passed in the complete local and remote test suites.
 
 Setup supports detected agents, all agents, or a comma-separated list; manual or automatic bootstrap; Claude shared settings; and guarded `--force` replacement. It reports unsupported Node, missing Git, non-Git projects, missing selected agent binaries, hook conflicts, and ignore failures.
 
@@ -160,7 +170,7 @@ The website now consumes the install command from `product-contract.json` and pr
 
 ## Updated scorecard
 
-| Area | Public alpha.10 | Local alpha.11 candidate | Honest assessment |
+| Area | Public alpha.10 | Verified beta.1 candidate | Honest assessment |
 | --- | ---: | ---: | --- |
 | Product idea | 9/10 | 9/10 | Project-owned, local continuity remains a strong abstraction. |
 | Feature completeness | 8.2/10 | 8.8/10 | The candidate adds guided setup, platform gates, fault recovery, and security artifacts. Team synchronization remains absent. |
@@ -169,57 +179,46 @@ The website now consumes the install command from `product-contract.json` and pr
 | Exact-session and crash mechanics | 8.5/10 | 9/10 | The candidate adds explicit fault boundaries, stale-lock ownership, orphan cleanup, and concurrency tests. |
 | Git and concurrency safety | 8.5/10 | 9/10 | One-writer semantics and cleanup behavior are now directly exercised. |
 | Security posture | 6/10 | 7.5/10 | Policy, threat model, SBOM, incident process, and provenance checks exist. Best-effort redaction and local artifact exposure remain. |
-| Release engineering | 8.5/10 | 9/10 candidate | The candidate checks SBOM freshness and registry provenance, but it has not itself passed CI or been released. |
-| Cross-platform proof | 5.5/10 | 6.5/10 configured | Three-OS jobs and portable tests exist; only Ubuntu has executed locally. |
-| Automated testing | 9/10 | 9/10 candidate | Coverage is broader. A complete local run was attempted but was not green because child processes are denied; the remote matrix is still pending. |
+| Release engineering | 8.5/10 | 9/10 candidate | SBOM freshness, package contents, and the complete CI matrix pass; tag, OIDC publication, and registry provenance remain. |
+| Cross-platform proof | 5.5/10 | 8/10 verified | The lifecycle and packed-artifact contract passed on all three operating systems with both supported Node lines. |
+| Automated testing | 9/10 | 9.2/10 candidate | The complete local suite and both remote Ubuntu full-verification jobs passed, alongside six lifecycle jobs and the website job. |
 | Team use | 3/10 | 3/10 | Memory remains intentionally local to one machine. |
 | Adoption proof | 4/10 | 4/10 | No verified retention or production-use evidence was added. |
 
 ## Candidate verification evidence
 
-Established in the current environment:
+Established locally:
 
-- Package identity is `0.1.0-alpha.11`, preventing collision with public alpha.10.
-- Vitest discovers 424 candidate tests across 60 files; discovery is not
-  being counted as execution.
-- TypeScript typecheck passed after the latest npm portability, setup-preflight, cleanup-scope, and canonical-path changes.
-- CLI build passed after those changes.
-- Website typecheck and production build passed.
-- The 18-case semantic gate passed with the metrics listed above.
-- A current sandbox-safe focused run passed 55 semantic, state, hook, SBOM, command-contract, and npm-resolution tests across six files.
-- Four focused canonical-path tests passed across memory, handoff, hook, and launch-record behavior; one hook case overlaps the 54-test run above.
-- The 11-test portable lifecycle suite passed locally on Ubuntu before the final documentation/setup adjustments.
-- Twelve focused fault/recovery tests passed before the final orphan-cleanup test was added.
-- The built alpha.11 CLI completed setup preview/apply/recheck behavior manually.
-- The built CLI reports `0.1.0-alpha.11` and exposes the guided setup command surface.
-- npm resolution found the current installation's `npm-cli.js` without invoking a shell shim.
-- `npm pack --dry-run` reported 93 allowlisted entries and a 2,003,716-byte tarball containing the CLI, setup module, npm resolver, product contract, SBOM, and security policy, with no source, test, audio, video, or unrelated video-submission files.
-- JSON parsing passed for package, product contract, SBOM, and semantic corpus.
+- Package identity, product contract, website, SBOM, and CLI report `0.1.0-beta.1` and use the `beta` installation channel.
+- Typecheck, CLI build, website typecheck/build, SBOM regeneration/freshness, fault injection, and the 18-case semantic gate passed.
+- The complete Vitest run passed 426 tests across 60 files before the final Claude path changes; the final focused Claude path/discovery/resolve run passed 25 tests.
+- The 11-test portable lifecycle suite passed locally.
+- The installed-tarball smoke passed after every final path change. The final tarball measured 2,003,966 bytes and contained the CLI, setup module, npm resolver, product contract, SBOM, security policy, and handoff skill while excluding source, tests, local evidence, and generated media.
+- The website Chromium suite passed all nine tests.
 - `git diff --check` passed.
+
+Established remotely for final commit `3e20b2a`:
+
+- [`CI run 29931074657`](https://github.com/hamma-labs/hammadev/actions/runs/29931074657) passed all nine jobs.
+- Both Ubuntu full-verification jobs passed the full test, fault, semantic, SBOM, and package gates.
+- All six Ubuntu/macOS/Windows lifecycle jobs passed on Node 22.12 and Node 24.
+- Both Windows packed-artifact smokes passed after the explicit Claude home and relative-glob fixes.
+- The Ubuntu website job passed typecheck, production build, and all nine Chromium tests.
 
 Not established yet:
 
-- A green complete Vitest run after every candidate change. The latest complete attempt, before seven later path-safety and npm-resolution tests were added, discovered 417 tests and reported 279 passed, 111 failed, and 27 skipped across 59 files. All 25 failing files depend on child processes: 101 failures contain direct sandbox `EPERM` evidence, while 10 are downstream expectation failures or timeouts after their CLI children did not start. That explains the environment result but does not make it a pass.
-- Execution of the final orphan-cleanup test.
-- Execution of the new multi-agent setup atomic-preflight test; its suite was stopped by `git` process denial during fixture setup.
-- macOS or Windows CI success.
-- A fresh SBOM byte-for-byte regeneration check; its nested `pnpm list` process is denied locally even though the SBOM structural test passes.
-- The full installed-tarball smoke after the final changes; nested npm processes were denied locally by the execution sandbox.
-- A successful GitHub Actions run for alpha.11.
-- A commit, tag, npm publication, registry round trip, or deployed website for alpha.11.
+- An annotated `v0.1.0-beta.1` tag.
+- npm OIDC publication from `hamma-labs/hammadev`.
+- A registry round trip proving the exact beta artifact and SLSA provenance.
+- The npm `beta` distribution tag. The existing `alpha` and `latest` tags remain unchanged.
 
-The environment denial is not evidence of a product failure, but it is also not permission to claim the missing checks passed.
+## What remains before releasing beta.1
 
-## What remains before releasing alpha.11
-
-1. Review the worktree changes and confirm no unrelated local files are included.
-2. Commit the candidate under its alpha.11 identity.
-3. Push it and require the full Ubuntu suite plus all six portable OS/Node jobs to pass.
-4. Confirm the package smoke includes and installs the SBOM, security policy, setup command, and exact product contract.
-5. Fix any platform-specific failure rather than weakening or skipping the lifecycle assertions.
-6. Create an annotated `v0.1.0-alpha.11` tag only after main CI is green.
-7. Publish through the OIDC workflow and verify the exact registry artifact, SLSA provenance, and `alpha` dist-tag.
-8. Update this document with the actual CI and release URLs; do not convert configured coverage into proven coverage prematurely.
+1. Confirm the npm Trusted Publisher entry authorizes `hamma-labs/hammadev` and `publish.yml`.
+2. Commit and push this evidence refresh, then require the final main-branch CI run to pass.
+3. Create and push annotated tag `v0.1.0-beta.1`.
+4. Require the publish workflow to verify the exact registry artifact, SLSA provenance, and `beta` dist-tag.
+5. Confirm `alpha` remains `0.1.0-alpha.10` and `latest` remains unchanged.
 
 ## What remains before broad production use
 
@@ -234,10 +233,10 @@ The environment denial is not evidence of a product failure, but it is also not 
 
 ## Recommendation
 
-Public alpha.10 remains reasonable for technically capable solo developers who inspect reconstructed state. The alpha.11 candidate is a meaningful improvement but should be described as unreleased and incompletely verified until remote CI and registry evidence exist.
+Public alpha.10 remains the frozen hackathon artifact. The beta.1 candidate is materially stronger and has complete local and three-OS CI evidence, but it should still be described as unpublished until the npm OIDC and registry round trip pass.
 
 HammaDev is still not recommended for unattended autonomous execution, sensitive enterprise repositories, regulated environments, or teams expecting shared memory.
 
 The most accurate current description is:
 
-> HammaDev is a well-engineered local-first continuity subsystem with a credible public alpha and a stronger unreleased candidate. Its mechanical recovery is increasingly well tested, while semantic, cross-platform, security, and adoption evidence still need broader real-world proof.
+> HammaDev is a well-engineered local-first continuity subsystem with a frozen public alpha and a three-OS-verified beta candidate. Its mechanical recovery is well tested, while semantic, security, and adoption evidence still need broader real-world proof.
