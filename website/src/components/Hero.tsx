@@ -10,12 +10,11 @@ export default function Hero() {
           Your agents remember <span>where the work stopped.</span>
         </h1>
         <p>
-          HammaDev is the local continuity layer for Codex, Claude Code, and Grok.
-          Trusted lifecycle hooks, exact session binding, and repository memory keep
-          the next agent grounded in what actually happened.
+          Hamma is the local continuity layer for Codex, Claude Code, and Grok.
+          Run one command, choose an agent, and continue with exact project context.
         </p>
         <div className="hero-command-row" aria-label="HammaDev workflow commands">
-          <code>{PRODUCT_COMMANDS.save}</code><span>→</span><code>{PRODUCT_COMMANDS.hooksInstall}</code><span>→</span><code>{PRODUCT_COMMANDS.codex}</code>
+          <code>{PRODUCT_COMMANDS.start}</code><span>→</span><strong>choose an agent</strong><span>→</span><strong>continue</strong>
         </div>
 
         <div className="hero-actions">

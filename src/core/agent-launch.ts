@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { constants as osConstants } from "node:os";
 import path from "node:path";
 import {
+  bindMemoryRunSession,
   checkpointMemory,
   inspectMemory,
   MemorySyncResult,
@@ -54,6 +55,7 @@ export interface AgentLaunchRecord {
   id: string;
   projectPath: string;
   memory: string;
+  attachId?: string;
   wrapperPid: number;
   wrapperIdentity?: string;
   childPid?: number;
@@ -78,6 +80,8 @@ export interface AgentSessionRegistrationResult {
   status: "registered" | "unmanaged" | "skipped";
   launchId?: string;
   sessionId?: string;
+  attachId?: string;
+  memory?: string;
   reason?: string;
 }
 
@@ -94,6 +98,7 @@ export interface AgentCheckpointResult {
 export interface AgentLauncherOptions {
   projectPath: string;
   memory?: string;
+  attachId?: string;
   command?: string;
   args?: string[];
   env?: NodeJS.ProcessEnv;
@@ -196,6 +201,7 @@ function validateRecord(agent: LaunchAgent, value: unknown, target: string): Age
     record.schemaVersion !== RUNTIME_SCHEMA_VERSION ||
     typeof record.projectPath !== "string" ||
     typeof record.memory !== "string" ||
+    (record.attachId !== undefined && !LAUNCH_ID.test(record.attachId)) ||
     !Number.isInteger(record.wrapperPid) ||
     !["waiting", "running", "checkpointing", "failed"].includes(record.state) ||
     typeof record.createdAt !== "string" ||
@@ -363,9 +369,12 @@ async function checkpointExactSession(
 export async function prepareAgentLaunch(
   agent: LaunchAgent,
   projectPath: string,
-  options: { memory?: string; wrapperPid?: number } = {}
+  options: { memory?: string; attachId?: string; wrapperPid?: number } = {}
 ): Promise<AgentLaunchPreparation> {
   const project = await canonicalProjectDirectory(projectPath);
+  if (options.attachId && !LAUNCH_ID.test(options.attachId)) {
+    throw new Error(`Invalid attach id '${options.attachId}'.`);
+  }
   let memory: string;
   try {
     memory = (await inspectMemory(project, options.memory)).manifest.name;
@@ -386,6 +395,7 @@ export async function prepareAgentLaunch(
     id: randomUUID(),
     projectPath: project,
     memory,
+    ...(options.attachId ? { attachId: options.attachId } : {}),
     wrapperPid: options.wrapperPid ?? process.pid,
     wrapperIdentity: await processIdentity(options.wrapperPid ?? process.pid),
     state: "waiting",
@@ -443,7 +453,7 @@ export async function registerAgentSessionStart(
   assertSessionId(agent, sessionId);
   const project = await canonicalProjectDirectory(projectPath);
   const root = await runtimeRoot(agent, project, false);
-  return withRuntimeLock(root, async () => {
+  const registered = await withRuntimeLock(root, async () => {
     const record = await readRecord(agent, root, launchId);
     if (record.projectPath !== project) {
       throw new Error(`${AGENT_LABELS[agent]} launch record belongs to a different project.`);
@@ -461,8 +471,18 @@ export async function registerAgentSessionStart(
       lastError: undefined,
     };
     await writeRecord(agent, root, updated);
-    return { status: "registered", launchId, sessionId };
+    return {
+      status: "registered" as const,
+      launchId,
+      sessionId,
+      attachId: updated.attachId,
+      memory: updated.memory,
+    };
   });
+  if (registered.attachId) {
+    await bindMemoryRunSession(project, registered.memory, registered.attachId, agent, sessionId);
+  }
+  return registered;
 }
 
 async function claimCheckpoint(
@@ -683,6 +703,7 @@ export async function launchAgentWithRecovery(
   try {
     preparation = await prepareAgentLaunch(agent, project, {
       memory: options.memory,
+      attachId: options.attachId,
       wrapperPid: options.wrapperPid,
     });
   } catch (error) {

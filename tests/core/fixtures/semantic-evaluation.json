@@ -1,7 +1,29 @@
 {
   "schemaVersion": 2,
-  "corpusVersion": "2026-07-21.1",
+  "corpusVersion": "2026-07-22.1",
   "cases": [
+    {
+      "id": "codex-next-logical-step-epoch",
+      "provenance": "sanitized-real-session",
+      "dimensions": ["actionable", "explicit-next-action", "task-epoch"],
+      "session": {
+        "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-7", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Does this support Windows, macOS, and Linux through one unified npm package?" },
+          { "role": "assistant", "content": "Yes. One package supports all three operating systems." },
+          { "role": "user", "content": "So what is the next logical step based on overview.md?" },
+          { "role": "assistant", "content": "The next logical step is a controlled @beta early-adopter pilot, not promotion to latest." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "actionable",
+        "nextActionContains": "controlled @beta early-adopter pilot",
+        "recall": [{ "query": "promotion latest", "answerContains": "not promotion to latest" }]
+      }
+    },
     {
       "id": "claude-complete-before-skill-injection",
       "provenance": "sanitized-real-session",

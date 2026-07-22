@@ -33,8 +33,8 @@ identity will fail only when the OIDC publish is attempted.
 3. Create and push an annotated matching tag, for example:
 
    ```bash
-   git tag -a v0.1.0-beta.1 -m "HammaDev 0.1.0-beta.1"
-   git push origin v0.1.0-beta.1
+   git tag -a v0.1.0-beta.2 -m "HammaDev 0.1.0-beta.2"
+   git push origin v0.1.0-beta.2
    ```
 
 The tag starts `.github/workflows/publish.yml`. The job:
@@ -53,7 +53,7 @@ The tag starts `.github/workflows/publish.yml`. The job:
 For a tag created before the workflow existed, dispatch the workflow manually:
 
 ```bash
-gh workflow run publish.yml -f release_tag=v0.1.0-beta.1
+gh workflow run publish.yml -f release_tag=v0.1.0-beta.2
 ```
 
 ## Distribution-tag policy

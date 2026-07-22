@@ -5,12 +5,20 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  discardAgentLaunch,
+  prepareAgentLaunch,
+  registerAgentSessionStart,
+} from "../src/core/agent-launch.js";
+import { buildBootstrapContext } from "../src/core/bootstrap-context.js";
+import { inspectMemory } from "../src/core/memory.js";
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = path.join(ROOT, "src", "cli.ts");
 const TSX = path.join(ROOT, "node_modules", ".bin", "tsx");
 const SESSION_ID = "bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb";
+const DEAD_PID = 2_147_483_647;
 let fixtureRoot = "";
 let projectPath = "";
 let fakeHome = "";
@@ -196,6 +204,61 @@ describe("bootstrap CLI", () => {
       await run([
         "memory", "abandon", "bootstrap-thread",
         "--attach", attached.attachId, "--reason", "test cleanup", "--json",
+      ]);
+    }
+  }, 20_000);
+
+  it("binds a managed attach at SessionStart and authorizes hidden hook context", async () => {
+    await run(["memory", "start", "hidden-thread", "--json", "--no-gitignore"]);
+    await run([
+      "memory", "sync", "hidden-thread", "--source", `claude:${SESSION_ID}`,
+      "--json", "--no-gitignore",
+    ]);
+    const attached = JSON.parse(await run([
+      "memory", "attach", "hidden-thread", "--to", "claude", "--no-sync", "--json",
+    ]));
+    const prepared = await prepareAgentLaunch("claude", projectPath, {
+      memory: "hidden-thread",
+      attachId: attached.attachId,
+      wrapperPid: DEAD_PID,
+    });
+    try {
+      const registration = await registerAgentSessionStart(
+        "claude",
+        projectPath,
+        { session_id: SESSION_ID },
+        prepared.launch!.id
+      );
+      expect(registration).toMatchObject({
+        status: "registered",
+        attachId: attached.attachId,
+        memory: "hidden-thread",
+      });
+      const inspection = await inspectMemory(projectPath, "hidden-thread");
+      expect(inspection.openRuns).toEqual([
+        expect.objectContaining({
+          id: attached.attachId,
+          status: "running",
+          targetSessionId: SESSION_ID,
+        }),
+      ]);
+      expect(await buildBootstrapContext(projectPath, { memory: "hidden-thread" }))
+        .toMatchObject({ status: "skipped", reason: "open-attach-claim" });
+      const authorized = await buildBootstrapContext(projectPath, {
+        memory: "hidden-thread",
+        authorizedAttachId: attached.attachId,
+      });
+      expect(authorized).toMatchObject({ status: "ready", memory: "hidden-thread" });
+      expect(authorized.context).toContain("Hamma Repository Memory");
+    } finally {
+      await discardAgentLaunch("claude", projectPath, prepared.launch!.id);
+      await run([
+        "memory", "abandon", "hidden-thread", "--attach", attached.attachId,
+        "--reason", "test cleanup", "--json",
+      ]);
+      await run([
+        "memory", "sync", "bootstrap-thread", "--source", `claude:${SESSION_ID}`,
+        "--json", "--no-gitignore",
       ]);
     }
   }, 20_000);

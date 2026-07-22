@@ -195,6 +195,7 @@ describe("hamma claude", () => {
     const switchProject = path.join(fixtureRoot, "switch-project");
     const codexSessionId = "cli-switch-source-codex";
     const claudeSessionId = "aaaaaaaa-0003-4aaa-8aaa-aaaaaaaaaaaa";
+    const argsFile = path.join(fixtureRoot, "switch-claude-args.json");
     await initGitProject(switchProject, "switch fixture");
     const codexPath = path.join(
       codexHome,
@@ -231,10 +232,12 @@ describe("hamma claude", () => {
         env: environment({
           PATH: `${path.dirname(fakeClaudeBin)}:${process.env.PATH ?? ""}`,
           HAMMA_TEST_SESSION_ID: claudeSessionId,
+          HAMMA_TEST_ARGS_FILE: argsFile,
         }),
       }
     );
     expect(result.stderr).toContain(`Hamma saved Claude Code session ${claudeSessionId}`);
+    expect(JSON.parse(await fs.readFile(argsFile, "utf8"))).toEqual([]);
     const inspection = JSON.parse(await run([
       "memory", "show", "switch-native", "--project", switchProject, "--json",
     ], switchProject));

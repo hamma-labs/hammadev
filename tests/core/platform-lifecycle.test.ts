@@ -21,6 +21,7 @@ import {
 
 const agents = ["claude", "codex", "grok"] as const;
 const deadPid = 2_147_483_647;
+const portableAttachId = "123e4567-e89b-4def-8123-456789abcdef";
 
 let fixtureRoot = "";
 let projectPath = "";
@@ -106,5 +107,20 @@ describe("portable lifecycle contract", () => {
 
     await discardAgentLaunch(agent, projectPath, prepared.launch!.id);
     expect(await listAgentLaunches(agent, projectPath)).toEqual([]);
+  });
+
+  it.each(agents)("persists hidden %s attach metadata without command-line transport", async (agent) => {
+    const prepared = await prepareAgentLaunch(agent, projectPath, {
+      attachId: portableAttachId,
+      wrapperPid: deadPid,
+    });
+    expect(prepared.launch).toMatchObject({
+      memory: "default",
+      attachId: portableAttachId,
+    });
+    expect(await listAgentLaunches(agent, projectPath)).toEqual([
+      expect.objectContaining({ attachId: portableAttachId }),
+    ]);
+    await discardAgentLaunch(agent, projectPath, prepared.launch!.id);
   });
 });

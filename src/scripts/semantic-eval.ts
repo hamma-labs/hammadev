@@ -30,7 +30,7 @@ function countThreshold(name: string, fallback: number): number {
 async function main(): Promise<void> {
   const report = await evaluateSemanticDatasetFile(DATASET);
   const minimums = {
-    cases: countThreshold("cases", 18),
+    cases: countThreshold("cases", 19),
     taskStateAccuracy: threshold("task-state", 0.95),
     nextActionAccuracy: threshold("next-action", 0.90),
     recallUsefulness: threshold("recall", 0.90),
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
     falseCompleteRate: threshold("false-complete", 0.05),
   };
   const corpusMinimums = {
-    sanitizedRealSessionCases: 6,
+    sanitizedRealSessionCases: 7,
     syntheticStressCases: 12,
   };
   process.stdout.write(`${JSON.stringify({ ...report, minimums, maximums, corpusMinimums }, null, 2)}\n`);

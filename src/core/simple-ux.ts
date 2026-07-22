@@ -351,11 +351,6 @@ export async function simpleSwitch(
   let transferredClaim = false;
 
   if (openRun) {
-    if (openRun.targetCli === target) {
-      throw new Error(
-        `This task is already attached to ${target}. Continue there, then run \`hamma save\` or \`hamma done\`.`
-      );
-    }
     source = await detectSimpleSource(projectPath, {
       preferredAgent: options.from,
       expectedRun: openRun,

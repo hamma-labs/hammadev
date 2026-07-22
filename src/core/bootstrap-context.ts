@@ -24,6 +24,7 @@ export type BootstrapSkipReason =
 export interface BootstrapContextOptions {
   memory?: string;
   maxBytes?: number;
+  authorizedAttachId?: string;
 }
 
 export interface BootstrapContextResult {
@@ -148,7 +149,14 @@ export async function buildBootstrapContext(
   if (!inspection) return skipped("memory-not-enabled");
   const name = inspection.manifest.name;
   if (!inspection.latest) return skipped("no-revision", name);
-  if (inspection.openRuns.length > 0) return skipped("open-attach-claim", name);
+  if (inspection.openRuns.length > 0) {
+    const authorized = options.authorizedAttachId
+      ? inspection.openRuns.find((run) => run.id === options.authorizedAttachId)
+      : undefined;
+    if (!authorized || authorized.memory !== name || authorized.baseRevision !== inspection.latest.revision.id) {
+      return skipped("open-attach-claim", name);
+    }
+  }
 
   const latest = inspection.latest;
   const bootstrapContent = await readBootstrapFile(latest.bootstrapPath);

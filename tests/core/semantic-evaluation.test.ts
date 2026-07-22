@@ -11,11 +11,11 @@ describe("semantic memory evaluation", () => {
     const report = await evaluateSemanticDatasetFile(DATASET);
 
     expect(report.schemaVersion).toBe(2);
-    expect(report.cases).toBeGreaterThanOrEqual(18);
-    expect(report.recallQueries).toBeGreaterThanOrEqual(18);
-    expect(report.sourceCliCounts).toMatchObject({ claude: 6, codex: 6, grok: 6 });
+    expect(report.cases).toBeGreaterThanOrEqual(19);
+    expect(report.recallQueries).toBeGreaterThanOrEqual(19);
+    expect(report.sourceCliCounts).toMatchObject({ claude: 6, codex: 7, grok: 6 });
     expect(report.provenanceCounts).toEqual({
-      "sanitized-real-session": 6,
+      "sanitized-real-session": 7,
       "synthetic-stress": 12,
     });
     expect(report.outcomeCounts.completed).toBeGreaterThanOrEqual(6);

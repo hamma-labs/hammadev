@@ -19,7 +19,7 @@ function requestedVersion(): string {
 
 async function installFromRegistry(version: string, root: string): Promise<void> {
   let lastError: unknown;
-  const maximumAttempts = 36;
+  const maximumAttempts = 60;
   for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
     try {
       await runNpm([
@@ -27,6 +27,7 @@ async function installFromRegistry(version: string, root: string): Promise<void>
         "--ignore-scripts",
         "--no-audit",
         "--no-fund",
+        "--prefer-online",
         "--prefix",
         root,
         `hammadev@${version}`,
@@ -34,8 +35,11 @@ async function installFromRegistry(version: string, root: string): Promise<void>
       return;
     } catch (error) {
       lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = /(?:ETARGET|E404|ECONNRESET|EAI_AGAIN|ENOTFOUND|\b50[234]\b|No matching version|not in this registry)/i.test(message);
+      if (!retryable) throw error;
       if (attempt < maximumAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        await new Promise((resolve) => setTimeout(resolve, 10_000));
       }
     }
   }

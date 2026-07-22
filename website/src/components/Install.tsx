@@ -15,8 +15,8 @@ export default function Install() {
     <section id="install" className="install-section" aria-labelledby="install-heading">
       <div>
         <div className="section-kicker"><PackageCheck size={14} /> Start locally</div>
-        <h2 id="install-heading" className="section-title">From install to native continuity in minutes.</h2>
-        <p className="install-intro">Requires Node.js 22.12+; Node 24 is recommended. The package is <code>hammadev</code> and the CLI is <code>hamma</code>.</p>
+        <h2 id="install-heading" className="section-title">Install once. Then just run Hamma.</h2>
+        <p className="install-intro">Requires Node.js 22.12+; Node 24 is recommended. Hamma asks once before configuring detected agents and your project.</p>
       </div>
 
       <div className="install-panel">
@@ -30,10 +30,10 @@ export default function Install() {
         </div>
         <ol className="install-steps">
           {[
-            ['01', 'Preview every project change', PRODUCT_COMMANDS.setupCheck],
-            ['02', 'Apply and verify setup', PRODUCT_COMMANDS.setupApply],
-            ['03', 'Enable project memory explicitly', PRODUCT_COMMANDS.save],
-            ['04', 'Launch with exact-session recovery', PRODUCT_COMMANDS.codex],
+            ['01', 'Open your Git project', 'cd your-project'],
+            ['02', 'Start Hamma', PRODUCT_COMMANDS.start],
+            ['03', 'Choose an installed agent', 'Codex · Claude · Grok'],
+            ['04', 'Approve setup once', 'Hamma opens and saves automatically'],
           ].map(([number, label, command]) => (
             <li key={command}>
               <span>{number}</span>

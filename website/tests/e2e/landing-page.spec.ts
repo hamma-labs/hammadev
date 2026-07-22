@@ -21,20 +21,17 @@ test('presents the current product identity and supported agents accurately', as
     }),
   ).toBeVisible();
 
-  await expect(page.getByText('Codex · Claude · Grok', { exact: true })).toBeVisible();
-  await expect(page.getByText('hamma save', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('hamma hooks install', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('hamma codex', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Codex · Claude · Grok', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('hamma', { exact: true }).first()).toBeVisible();
   await expect(page.getByText(VERSION_LABEL, { exact: true }).first()).toBeVisible();
   await expect(page.getByText('SessionStart context ready', { exact: true })).toBeVisible();
 });
 
 test('explains the native continuity workflow and safety boundaries', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'How it works' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Enable memory explicitly' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Install trusted hooks' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Give Codex a real exit boundary' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Switch or finish normally' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Run one command' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your agent' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Continue normally' })).toBeVisible();
 
   await expect(page.getByText('Native lifecycle', { exact: true })).toBeVisible();
   await expect(page.getByText('Exact Codex exit', { exact: true })).toBeVisible();

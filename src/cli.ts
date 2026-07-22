@@ -104,6 +104,7 @@ import {
 } from "./adapters/grok/runtime.js";
 import { AgentLauncherResult, launchIdEnvVar } from "./core/agent-launch.js";
 import { parseSetupAgents, runSetup } from "./core/setup.js";
+import { runTerminalHammaHome } from "./core/home.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -328,14 +329,20 @@ program
   .version(pkg.version)
   .action(async () => {
     try {
-      await runQuickstart(process.cwd());
+      if (process.stdin.isTTY && process.stdout.isTTY) {
+        const result = await runTerminalHammaHome(process.cwd());
+        process.exitCode = result.launcher?.exitCode ?? 0;
+      } else {
+        await runQuickstart(process.cwd());
+      }
     } catch (error: unknown) {
-      fail("PROJECT_ERROR", error);
+      failSimple(error);
     }
   })
   .addHelpText("after", [
     "",
     "Simple workflow:",
+    "  hamma                      Choose an agent and continue",
     "  hamma save                 Save the current coding session",
     "  hamma codex                Launch Codex with reliable exit recovery",
     "  hamma claude               Launch Claude Code with reliable exit recovery",
@@ -436,7 +443,8 @@ program
           projectPath,
           memory: result.memory,
           command: result.attach.launch.command,
-          args: result.attach.launch.args,
+          args: [],
+          attachId: result.attach.attachId,
         });
         reportCodexLauncherResult(launched);
         process.exitCode = launched.exitCode;
@@ -445,7 +453,8 @@ program
           projectPath,
           memory: result.memory,
           command: result.attach.launch.command,
-          args: result.attach.launch.args,
+          args: [],
+          attachId: result.attach.attachId,
         });
         reportClaudeLauncherResult(launched);
         process.exitCode = launched.exitCode;
@@ -454,7 +463,8 @@ program
           projectPath,
           memory: result.memory,
           command: result.attach.launch.command,
-          args: result.attach.launch.args,
+          args: [],
+          attachId: result.attach.attachId,
         });
         reportGrokLauncherResult(launched);
         process.exitCode = launched.exitCode;
@@ -1180,6 +1190,7 @@ program
     try {
       let hookAgent: "codex" | "claude" | "grok" | undefined;
       let hookEvent: Record<string, unknown> | undefined;
+      let authorizedAttachId: string | undefined;
       if (options.hookAgent) {
         hookAgent = parseContinuationAgent(options.hookAgent);
         hookEvent = await readOptionalJsonStdin();
@@ -1188,13 +1199,13 @@ program
       if (hookAgent) {
         try {
           if (hookAgent === "codex" && hookEvent) {
-            await registerCodexSessionStart(projectPath, hookEvent);
+            authorizedAttachId = (await registerCodexSessionStart(projectPath, hookEvent)).attachId;
           }
           if (hookAgent === "claude" && hookEvent) {
-            await registerClaudeSessionStart(projectPath, hookEvent);
+            authorizedAttachId = (await registerClaudeSessionStart(projectPath, hookEvent)).attachId;
           }
           if (hookAgent === "grok" && hookEvent) {
-            await registerGrokSessionStart(projectPath, hookEvent);
+            authorizedAttachId = (await registerGrokSessionStart(projectPath, hookEvent)).attachId;
           }
           const recoveries = [
             ...await recoverCodexLaunches(projectPath),
@@ -1224,7 +1235,10 @@ program
       if (!managedLaunch && (await getBootstrapModeSafe(projectPath)) === "manual") {
         result = { schemaVersion: 1, status: "skipped", reason: "manual-mode" };
       } else {
-        result = await buildBootstrapContext(projectPath, { memory: options.memory });
+        result = await buildBootstrapContext(projectPath, {
+          memory: options.memory,
+          authorizedAttachId,
+        });
       }
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

@@ -465,6 +465,42 @@ async function transitionMemoryRun(
   return updated;
 }
 
+export async function bindMemoryRunSession(
+  projectPath: string,
+  requestedName: string | undefined,
+  attachId: string,
+  targetCli: string,
+  sessionId: string
+): Promise<HammaMemoryRun> {
+  const project = await canonicalProject(projectPath);
+  const root = await storeRoot(project, false);
+  const name = await resolveMemoryName(root, requestedName);
+  const directory = memoryPath(root, name);
+  const lock = await acquireLock(directory);
+  try {
+    const run = await readMemoryRun(directory, attachId);
+    if (!isOpenRun(run)) throw new Error(`Attach run '${attachId}' is already ${run.status}.`);
+    if (run.projectPath !== project || run.memory !== name) {
+      throw new Error(`Attach run '${attachId}' belongs to a different project memory.`);
+    }
+    if (run.targetCli !== targetCli) {
+      throw new Error(`Attach run '${attachId}' targets ${run.targetCli}, not ${targetCli}.`);
+    }
+    if (run.targetSessionId && run.targetSessionId !== sessionId) {
+      throw new Error(
+        `Attach run '${attachId}' is already bound to session ${run.targetSessionId}; refusing session ${sessionId}.`
+      );
+    }
+    if (run.status === "running" && run.targetSessionId === sessionId) return run;
+    return transitionMemoryRun(directory, attachId, "running", {
+      sourceCli: targetCli,
+      sourceSessionId: sessionId,
+    });
+  } finally {
+    await fs.rm(lock, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 export async function startMemory(projectPath: string, name: string, goal?: string, useGitignore = true): Promise<ProjectMemoryManifest> {
   assertMemoryName(name);
   const project = await canonicalProject(projectPath);

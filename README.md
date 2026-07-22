@@ -62,34 +62,29 @@ HammaDev requires Node.js 22.12 or newer.
 npm install -g hammadev@beta
 
 cd /path/to/project
-hamma setup --check
-hamma setup --apply --agent detected --bootstrap manual
+hamma
 ```
 
-`hamma setup --check` previews every hook, bootstrap, and `.gitignore` change
-without writing files. `--apply` is explicit consent to apply those changes and
-then verify the effective configuration. Running `hamma` with no subcommand
-remains a read-only diagnosis of runtime, Git, sessions, and memory state.
+Hamma detects the project and installed agents, lets you choose where to
+continue, and summarizes its first-time setup in one confirmation. After you
+approve, it installs the detected lifecycle hooks, enables automatic context,
+keeps `.hamma/` out of Git, and opens the selected agent. Run `hamma quickstart`
+for the detailed read-only diagnosis or use `hamma setup --check` to inspect
+every planned file change.
 
 ### The everyday workflow
 
 ```bash
-# Save whatever you are doing now. Hamma detects the current agent.
-hamma save
+# Choose an installed agent, save current work, and continue.
+hamma
 
-# Save and move the task. In an interactive terminal, Claude opens automatically.
+# Optional explicit controls remain available.
+hamma save
 hamma switch claude
-
-# In the receiving agent, save a checkpoint or close the work.
-hamma save
 hamma done
 
 # Ask the project memory a question.
 hamma ask "why did we choose sqlite"
-
-# Optional: make it automatic. Installs native agent hooks so memory
-# checkpoints on supported lifecycle events.
-hamma hooks install
 
 # Codex: also checkpoint on normal exit, Ctrl-C, or child-process failure.
 hamma codex
@@ -100,16 +95,14 @@ hamma claude
 # Grok: same reliable exit checkpointing, native hooks auto-installed.
 hamma grok
 
-# Optional: load memory context in every session, not just hamma-launched ones.
-hamma config set bootstrap automatic
+# Inspect setup without changing anything.
+hamma setup --check
 ```
 
-By default session-start memory loading is **manual**: a plain `codex`,
-`claude`, or `grok` start is a completely normal session, and memory context is
-injected only when the session is launched through `hamma codex`,
-`hamma claude`, or `hamma grok` (or `hamma switch <agent>`). Saving is never
-gated — installed checkpoint hooks keep recording plain sessions too. Set
-`hamma config set bootstrap automatic` to restore always-on loading.
+The guided `hamma` flow enables automatic session-start context after explicit
+consent. Advanced users can change that policy with
+`hamma config set bootstrap manual`, which limits context loading to sessions
+launched through Hamma. Saving remains active through installed lifecycle hooks.
 
 That is the complete normal workflow. Hamma detects the current project session,
 creates the default memory, remembers the active task claim, generates the
@@ -203,7 +196,8 @@ and structured logs stay off stdout, so JSON consumers remain safe.
 
 | Command | Purpose |
 | --- | --- |
-| `hamma` | Guided project diagnosis and exact next step. |
+| `hamma` | Set up once, choose an installed agent, save current work, and continue. |
+| `hamma quickstart` | Detailed read-only project, agent, session, and memory diagnosis. |
 | `hamma setup --check\|--apply` | Preview, apply, and verify agent hooks, bootstrap mode, and `.hamma/` ignore safety. |
 | `hamma save [--agent <agent>]` | Detect and save the current session, or checkpoint the active transferred run. |
 | `hamma switch <agent>` | Save current work, prepare safe context, and open the destination agent. |

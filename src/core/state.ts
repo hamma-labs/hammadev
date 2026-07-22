@@ -93,7 +93,7 @@ export interface HammaTaskState {
 }
 
 const IMPORTANT_USER_WORDS =
-  /\b(audit|assess|commit|deploy|fix|build|implement|install|proceed|publish|push|release|resume|continue|task|test|update|verify|use mcp|minimize|do not|implementar|corregir|continuar|verificar|publicar|tarea|implémenter|corriger|continuer|vérifier|publier|tâche)\b/i;
+  /\b(audit|assess|commit|deploy|fix|build|implement|install|next|proceed|publish|push|release|resume|continue|task|test|update|verify|use mcp|minimize|do not|implementar|corregir|continuar|verificar|publicar|tarea|implémenter|corriger|continuer|vérifier|publier|tâche)\b/i;
 
 const COMPLETED_PATTERNS: RegExp[] = [
   /Task #?(\d+)\s+completed/gi,
@@ -112,7 +112,7 @@ const REMAINING_PATTERNS: RegExp[] = [
 ];
 
 const EXPLICIT_NEXT_ACTION =
-  /\b(?:next action|next step|siguiente (?:acción|paso)|prochaine étape)\s*:\s*([^\n]+)/i;
+  /\b(?:next (?:logical )?(?:action|step)|siguiente (?:acción|paso)|prochaine étape)\s*(?::|is)\s*([^\n]+)/i;
 
 const BARE_CONTINUATION_INSTRUCTION =
   /^(?:please\s+)?(?:resume|continue|proceed|keep going)(?:\s+(?:the\s+)?(?:task|work))?[.!]?$/i;
@@ -512,7 +512,7 @@ function explicitNextAction(text: string): string | undefined {
   const match = text.match(EXPLICIT_NEXT_ACTION);
   if (!match) return undefined;
   const [firstClause] = splitClauses(match[1]);
-  const action = truncate(firstClause ?? match[1], 240);
+  const action = truncate((firstClause ?? match[1]).replace(/^to\s+/i, ""), 240);
   return action || undefined;
 }
 

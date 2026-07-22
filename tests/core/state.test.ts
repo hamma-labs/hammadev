@@ -83,6 +83,31 @@ describe("handoff outcome extraction", () => {
     expect(state.nextAction).toBe("Implement the remaining parser fix.");
   });
 
+  it("starts a new epoch for a next-step question and uses the answered action", () => {
+    const state = extract([
+      {
+        role: "user",
+        content: "Does this support Windows, macOS, and Linux through one unified npm package?",
+      },
+      {
+        role: "assistant",
+        content: "Yes. One package supports all three operating systems.",
+      },
+      {
+        role: "user",
+        content: "So what is the next logical step based on overview.md?",
+      },
+      {
+        role: "assistant",
+        content: "The next logical step is a controlled @beta early-adopter pilot, not promotion to latest.",
+      },
+    ]);
+
+    expect(state.goal).toBe("So what is the next logical step based on overview.md?");
+    expect(state.outcome).toBe("actionable");
+    expect(state.nextAction).toContain("controlled @beta early-adopter pilot");
+  });
+
   it("classifies a reported blocker and records its resolution action", () => {
     const state = extract([
       { role: "user", content: "resume" },
@@ -185,7 +210,7 @@ describe("handoff outcome extraction", () => {
     ]);
 
     expect(state.outcome).toBe("actionable");
-    expect(state.nextAction).toBe("Automate npm publishing with GitHub Actions.");
+    expect(state.nextAction).toBe("fix the failing package smoke test.");
   });
 
   it("does not interpret negated remaining-work language as unresolved work", () => {

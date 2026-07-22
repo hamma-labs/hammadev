@@ -21,8 +21,9 @@ describe("public command surface contract", () => {
     for (const command of Object.values(contract.websiteCommands)) {
       const [binary, topLevel] = command.split(/\s+/);
       expect(binary).toBe("hamma");
-      expect(contract.topLevelCommands).toContain(topLevel);
+      if (topLevel !== undefined) expect(contract.topLevelCommands).toContain(topLevel);
     }
+    expect(contract.websiteCommands.start).toBe("hamma");
   });
 
   it("keeps every public install surface pinned to the supported beta tag", async () => {

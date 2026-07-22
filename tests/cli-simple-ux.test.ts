@@ -124,6 +124,26 @@ describe("simple CLI UX", () => {
     expect(finished).toMatchObject({ outcome: "completed", run: { status: "completed" } });
   }, 20_000);
 
+  it("can reopen the same attached agent by checkpointing and transferring its claim", async () => {
+    const first = JSON.parse(await run([
+      "switch", "claude", "--memory", "same-agent", "--no-launch", "--json",
+    ]));
+    await setClaudeAttachMarker(first.attach.attachId);
+
+    const reopened = JSON.parse(await run([
+      "switch", "claude", "--memory", "same-agent", "--no-launch", "--json",
+    ]));
+    expect(reopened).toMatchObject({
+      target: "claude",
+      saved: true,
+      transferredClaim: true,
+      attach: { executionMode: "continue_work" },
+    });
+    expect(reopened.attach.attachId).not.toBe(first.attach.attachId);
+    await setClaudeAttachMarker(reopened.attach.attachId);
+    await run(["done", "--memory", "same-agent", "--json"]);
+  }, 20_000);
+
   it("records a blocker in plain language", async () => {
     await run(["save", "--agent", "codex", "--memory", "blocked-work", "--json"]);
     const blocked = JSON.parse(await run([

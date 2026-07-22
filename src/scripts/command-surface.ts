@@ -63,7 +63,10 @@ export async function verifyCommandSurface(
   }
   for (const command of Object.values(contract.websiteCommands)) {
     const [binary, topLevel] = command.split(/\s+/);
-    if (binary !== "hamma" || !contract.topLevelCommands.includes(topLevel)) {
+    if (
+      binary !== "hamma" ||
+      (topLevel !== undefined && !contract.topLevelCommands.includes(topLevel))
+    ) {
       throw new Error(`Website command '${command}' is not represented by the CLI contract.`);
     }
   }

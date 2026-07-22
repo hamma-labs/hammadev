@@ -1,6 +1,6 @@
 {
   "name": "hammadev",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "Local handoff and shared-memory CLI for Codex, Claude Code, and Grok",
   "main": "dist/cli.js",
   "files": [

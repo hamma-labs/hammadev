@@ -38,6 +38,7 @@
   ],
   "installCommand": "npm install -g hammadev@beta",
   "websiteCommands": {
+    "start": "hamma",
     "save": "hamma save",
     "hooksInstall": "hamma hooks install",
     "codex": "hamma codex",
