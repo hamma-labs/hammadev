@@ -14,7 +14,7 @@ export default function Roadmap() {
           <div className="section-kicker">On the path</div>
           <h2 id="roadmap-heading" className="section-title">What comes next.</h2>
         </div>
-        <p>The alpha stays local and auditable while the handoff model gets deeper.</p>
+        <p>The beta stays local and auditable while the handoff model gets deeper.</p>
       </div>
       <div className="roadmap-track">
         {roadmapItems.map(([phase, title, copy], index) => (

@@ -7,7 +7,7 @@ export default function Safety() {
       <div className="safety-copy">
         <div className="section-kicker light"><ShieldCheck size={14} /> Local-first by design</div>
         <h2 id="safety-heading">Your session never needs to leave your machine.</h2>
-        <p>HammaDev reads agent session files locally and writes memory, hook settings, and recovery records inside your project. There is no backend, account, cloud sync, or telemetry in the alpha.</p>
+        <p>HammaDev reads agent session files locally and writes memory, hook settings, and recovery records inside your project. There is no backend, account, cloud sync, or telemetry in the beta.</p>
         <div className="safety-note"><Eye size={17} /><span><strong>Review before sharing.</strong> Redaction is best-effort, not a privacy guarantee.</span></div>
       </div>
       <div className="safety-points">

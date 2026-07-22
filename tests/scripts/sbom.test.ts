@@ -2,10 +2,28 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { sbomTextMatches } from "../../src/scripts/sbom-text.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 describe("CycloneDX SBOM", () => {
+  it("treats CRLF and LF SBOM text as equivalent", () => {
+    const generated = '{\n  "version": "0.1.0-beta.1"\n}\n';
+    expect(sbomTextMatches(generated.replace(/\n/g, "\r\n"), generated)).toBe(true);
+  });
+
+  it("rejects changed application versions and dependencies", () => {
+    const generated = JSON.stringify({
+      metadata: { component: { version: "0.1.0-beta.1" } },
+      components: [{ name: "commander", version: "15.0.0" }],
+    }, null, 2);
+    const changedVersion = generated.replace("0.1.0-beta.1", "0.1.0-beta.2");
+    const changedDependency = generated.replace("15.0.0", "15.1.0");
+
+    expect(sbomTextMatches(changedVersion, generated)).toBe(false);
+    expect(sbomTextMatches(changedDependency, generated)).toBe(false);
+  });
+
   it("describes the application and a closed production dependency graph", async () => {
     const [bom, packageJson] = await Promise.all([
       fs.readFile(path.join(ROOT, "sbom.cdx.json"), "utf8").then(JSON.parse),

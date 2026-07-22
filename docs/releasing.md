@@ -12,7 +12,7 @@ An npm package owner must establish the trust relationship once:
 2. Under **Trusted Publisher**, choose **GitHub Actions**.
 3. Enter these values exactly:
 
-   - Organization or user: `xayrullonematov`
+   - Organization or user: `hamma-labs`
    - Repository: `hammadev`
    - Workflow filename: `publish.yml`
    - Environment: leave blank
@@ -21,6 +21,11 @@ An npm package owner must establish the trust relationship once:
 The workflow filename is case-sensitive. npm does not validate the relationship
 until a publish is attempted.
 
+Before creating the first tag from `hamma-labs/hammadev`, confirm that the npm
+Trusted Publisher entry names `hamma-labs` rather than the former repository
+owner. This migration is a pre-tag requirement because a mismatched repository
+identity will fail only when the OIDC publish is attempted.
+
 ## Release process
 
 1. Update and commit the version in `package.json`.
@@ -28,8 +33,8 @@ until a publish is attempted.
 3. Create and push an annotated matching tag, for example:
 
    ```bash
-   git tag -a v0.1.0-alpha.9 -m "HammaDev 0.1.0-alpha.9"
-   git push origin v0.1.0-alpha.9
+   git tag -a v0.1.0-beta.1 -m "HammaDev 0.1.0-beta.1"
+   git push origin v0.1.0-beta.1
    ```
 
 The tag starts `.github/workflows/publish.yml`. The job:
@@ -48,23 +53,25 @@ The tag starts `.github/workflows/publish.yml`. The job:
 For a tag created before the workflow existed, dispatch the workflow manually:
 
 ```bash
-gh workflow run publish.yml -f release_tag=v0.1.0-alpha.6
+gh workflow run publish.yml -f release_tag=v0.1.0-beta.1
 ```
 
 ## Distribution-tag policy
 
-Prerelease versions containing `-` publish to `alpha`. Stable versions publish
-to `latest`. During the alpha series, the canonical installation command is:
+Versions with an `-alpha.` prerelease identifier publish to `alpha`; versions
+with `-beta.` publish to `beta`. Stable versions publish to `latest`. The
+submitted alpha channel remains frozen at `0.1.0-alpha.10`, and the canonical
+installation command for ongoing prerelease testing is:
 
 ```bash
-npm install -g hammadev@alpha
+npm install -g hammadev@beta
 ```
 
 npm Trusted Publishing currently authorizes `npm publish`, not `npm dist-tag`.
 The workflow therefore does not keep a long-lived write token merely to mirror
-an alpha release onto `latest`. If mirroring is intentionally required, an npm
-owner must perform that separate authenticated operation and record it in the
-release notes.
+a prerelease onto `latest`. The `latest` tag remains unchanged during the beta
+release. If promotion is intentionally required later, an npm owner must perform
+that separate authenticated operation and record it in the release notes.
 
 ## Security boundaries
 

@@ -2,13 +2,12 @@
 
 ## Supported versions
 
-HammaDev is currently an alpha. Security fixes are provided only for the newest
-version on the npm `alpha` distribution tag. Older prereleases, including the
-version on `latest` while `latest` intentionally remains behind `alpha`, are not
-supported.
+HammaDev is currently a beta. Security fixes are provided only for the newest
+version on the npm `beta` distribution tag. Older prereleases, including the
+versions on `alpha` and `latest`, are not supported.
 
 There is no long-term-support channel or guaranteed response SLA. Do not use the
-alpha as an unattended security boundary or in a regulated environment without
+beta as an unattended security boundary or in a regulated environment without
 an independent review.
 
 ## Reporting a vulnerability
@@ -32,7 +31,7 @@ channel. Never paste credentials or real agent transcripts into that issue.
 The maintainer will acknowledge the report when available, reproduce and assess
 it, prepare a fix and regression test, publish a new prerelease, and document
 impact and upgrade guidance. Exact response times are not promised during the
-alpha.
+beta.
 
 See [docs/threat-model.md](docs/threat-model.md) for security boundaries and
 [docs/incident-response.md](docs/incident-response.md) for the incident runbook.

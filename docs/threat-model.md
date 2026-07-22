@@ -59,6 +59,6 @@ unattended actions.
 - Inspect `hamma memory review` before continuing sensitive work.
 - Use `hamma memory repair` or `hamma memory close` when extraction is wrong.
 - Do not store production credentials in agent prompts or transcripts.
-- Upgrade to the newest `hammadev@alpha` after a security release.
+- Upgrade to the newest `hammadev@beta` after a security release.
 - Treat unexpected hook changes, provenance failures, or revision corruption as
   an incident and follow [incident-response.md](incident-response.md).

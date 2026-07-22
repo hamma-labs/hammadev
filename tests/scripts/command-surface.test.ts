@@ -25,12 +25,12 @@ describe("public command surface contract", () => {
     }
   });
 
-  it("keeps every public install surface pinned to the supported alpha tag", async () => {
+  it("keeps every public install surface pinned to the supported beta tag", async () => {
     const contract = await loadProductContract();
-    expect(contract.installCommand).toBe("npm install -g hammadev@alpha");
+    expect(contract.installCommand).toBe("npm install -g hammadev@beta");
     const readme = await fs.readFile(path.join(ROOT, "README.md"), "utf8");
     expect(readme).toContain(contract.installCommand);
-    expect(readme).not.toMatch(/npm install -g hammadev(?:\s|`|$)(?!@alpha)/);
+    expect(readme).not.toMatch(/npm install -g hammadev(?:\s|`|$)(?!@beta)/);
     const installComponent = await fs.readFile(
       path.join(ROOT, "website", "src", "components", "Install.tsx"),
       "utf8"

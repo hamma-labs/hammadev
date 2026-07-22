@@ -23,7 +23,7 @@ export async function loadProductContract(
     contract.schemaVersion !== 1 ||
     !Array.isArray(contract.topLevelCommands) ||
     !Array.isArray(contract.requiredCommandPaths) ||
-    contract.installCommand !== "npm install -g hammadev@alpha" ||
+    contract.installCommand !== "npm install -g hammadev@beta" ||
     !contract.websiteCommands
   ) {
     throw new Error("product-contract.json has an unsupported shape.");

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
-const INSTALL_COMMAND = 'npm install -g hammadev@alpha';
+const INSTALL_COMMAND = 'npm install -g hammadev@beta';
 const ROOT_PACKAGE = JSON.parse(
   readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'),
 ) as { version: string };
@@ -47,7 +47,7 @@ test('explains the native continuity workflow and safety boundaries', async ({ p
   await expect(page.getByText(/Redaction is best-effort, not a privacy guarantee/i)).toBeVisible();
 });
 
-test('copies the documented alpha install command', async ({ page, context }) => {
+test('copies the documented beta install command', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
   const install = page.locator('#install');
@@ -71,7 +71,7 @@ test('uses safe external links and valid destinations', async ({ page }) => {
     const href = await link.getAttribute('href');
     const rel = await link.getAttribute('rel');
 
-    expect(href).toMatch(/^https:\/\/(github\.com\/xayrullonematov\/hammadev|www\.npmjs\.com\/package\/hammadev)/);
+    expect(href).toMatch(/^https:\/\/(github\.com\/hamma-labs\/hammadev|www\.npmjs\.com\/package\/hammadev)/);
     expect(rel).toContain('noopener');
     expect(rel).toContain('noreferrer');
   }

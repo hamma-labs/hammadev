@@ -59,7 +59,7 @@ The core rule is deliberately simple:
 HammaDev requires Node.js 22.12 or newer.
 
 ```bash
-npm install -g hammadev@alpha
+npm install -g hammadev@beta
 
 cd /path/to/project
 hamma setup --check
@@ -366,7 +366,7 @@ The optional project-level Kiro quality hook runs `pnpm quality:report` after
 TypeScript source saves and records a local, content-safe validation report. See
 [the hook notes](.kiro/hooks/handoff-quality-guard.md).
 
-## Current alpha boundaries
+## Current beta boundaries
 
 - Codex, Claude Code, and Grok are the supported native source adapters.
 - Task reconstruction, evidence classification, and redaction remain heuristic.

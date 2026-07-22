@@ -24,6 +24,7 @@ const deadPid = 2_147_483_647;
 
 let fixtureRoot = "";
 let projectPath = "";
+let canonicalProjectPath = "";
 let noMemoryProject = "";
 
 beforeAll(async () => {
@@ -34,6 +35,7 @@ beforeAll(async () => {
     fs.mkdir(projectPath, { recursive: true }),
     fs.mkdir(noMemoryProject, { recursive: true }),
   ]);
+  canonicalProjectPath = await fs.realpath(projectPath);
   execFileSync("git", ["init", "--quiet"], { cwd: projectPath });
   execFileSync("git", ["config", "user.email", "platform@example.test"], { cwd: projectPath });
   execFileSync("git", ["config", "user.name", "Platform Test"], { cwd: projectPath });
@@ -88,7 +90,7 @@ describe("portable lifecycle contract", () => {
       wrapperPid: deadPid,
     });
     expect(prepared.enabled).toBe(true);
-    expect(prepared.launch?.projectPath).toBe(projectPath);
+    expect(prepared.launch?.projectPath).toBe(canonicalProjectPath);
 
     const sessionId = `${agent}-platform-session`;
     const registered = await registerAgentSessionStart(

@@ -24,13 +24,13 @@ export default function Hero() {
             target="_blank"
             rel="noopener noreferrer"
             className="primary-button"
-            aria-label="npm install HammaDev alpha"
+            aria-label="npm install HammaDev beta"
           >
             <Download size={18} />
-            Install the alpha
+            Install the beta
           </a>
           <a
-            href="https://github.com/xayrullonematov/hammadev"
+            href="https://github.com/hamma-labs/hammadev"
             target="_blank"
             rel="noopener noreferrer"
             className="secondary-button"

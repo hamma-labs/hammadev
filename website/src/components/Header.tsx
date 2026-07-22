@@ -12,7 +12,7 @@ export default function Header() {
           {PRODUCT_VERSION_LABEL}
         </span>
         <a
-          href="https://github.com/xayrullonematov/hammadev"
+          href="https://github.com/hamma-labs/hammadev"
           target="_blank"
           rel="noopener noreferrer"
           className="icon-button"

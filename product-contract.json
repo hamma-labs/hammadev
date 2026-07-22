@@ -36,7 +36,7 @@
     "setup",
     "skill install"
   ],
-  "installCommand": "npm install -g hammadev@alpha",
+  "installCommand": "npm install -g hammadev@beta",
   "websiteCommands": {
     "save": "hamma save",
     "hooksInstall": "hamma hooks install",

@@ -8,7 +8,7 @@ export type ErrorCategory =
   | "INSTALL_ERROR";
 
 const TROUBLESHOOTING_BASE_URL =
-  "https://github.com/xayrullonematov/hammadev/blob/main/docs/troubleshooting.md";
+  "https://github.com/hamma-labs/hammadev/blob/main/docs/troubleshooting.md";
 
 export function troubleshootingUrl(category: ErrorCategory): string {
   return `${TROUBLESHOOTING_BASE_URL}#${category.toLowerCase()}`;

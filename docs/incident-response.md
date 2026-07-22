@@ -31,7 +31,7 @@ issue. Follow [../SECURITY.md](../SECURITY.md) for private reporting.
 
 ## 3. Eradicate and recover
 
-- Upgrade to the fixed supported alpha when available.
+- Upgrade to the fixed supported beta when available.
 - Repair incorrect state with an immutable `hamma memory repair` revision, or
   close falsely actionable work with `hamma memory close`.
 - Reinstall reviewed hooks and run `hamma doctor` plus `hamma setup --check`

@@ -12,7 +12,7 @@ export default function Limitations() {
   return (
     <section className="limitations-section" aria-labelledby="limitations-heading">
       <div>
-        <div className="section-kicker"><AlertTriangle size={14} /> Honest alpha boundaries</div>
+        <div className="section-kicker"><AlertTriangle size={14} /> Honest beta boundaries</div>
         <h2 id="limitations-heading">Useful today.<br />Still deliberately narrow.</h2>
       </div>
       <ul>

@@ -28,7 +28,7 @@ skill remains the explicit cross-agent path.
 
 1. Resolve project root: `git rev-parse --show-toplevel` (or cwd if no git).
 
-2. Ensure hamma is available: `command -v hamma`. If missing, tell user to `npm install -g hammadev@alpha && hamma skill install --force` then restart you.
+2. Ensure hamma is available: `command -v hamma`. If missing, tell user to `npm install -g hammadev@beta && hamma skill install --force` then restart you.
 
 3. Load the active/default repository memory through the simple switch command
    (THIS is your own CLI name):

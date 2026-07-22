@@ -47,7 +47,7 @@ export default function Updates() {
           </article>
         ))}
       </div>
-      <a href="https://github.com/xayrullonematov/hammadev#current-alpha-capabilities" target="_blank" rel="noopener noreferrer" className="text-link mt-8">
+      <a href="https://github.com/hamma-labs/hammadev#current-beta-boundaries" target="_blank" rel="noopener noreferrer" className="text-link mt-8">
         Read the release capabilities <ArrowUpRight size={16} />
       </a>
     </section>

@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sbomTextMatches } from "./sbom-text.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TARGET = path.join(ROOT, "sbom.cdx.json");
@@ -134,7 +135,7 @@ async function main(): Promise<void> {
       }
       throw error;
     }
-    if (existing !== generated) {
+    if (!sbomTextMatches(existing, generated)) {
       throw new Error("sbom.cdx.json is stale; run pnpm security:sbom and commit the result.");
     }
     process.stdout.write("sbom.cdx.json matches the installed production dependency tree.\n");
