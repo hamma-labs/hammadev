@@ -100,7 +100,12 @@ async function runInstalled(
 ): Promise<string> {
   const result = await execFileAsync(executable, [...executableArgs, ...args], {
     cwd: projectPath,
-    env: { ...process.env, HOME: fakeHome, USERPROFILE: fakeHome },
+    env: {
+      ...process.env,
+      HOME: fakeHome,
+      USERPROFILE: fakeHome,
+      CLAUDE_HOME: path.join(fakeHome, ".claude"),
+    },
     maxBuffer: 4 * 1024 * 1024,
   });
   return result.stdout;

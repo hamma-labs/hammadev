@@ -2,10 +2,11 @@ import os from "node:os";
 import path from "node:path";
 
 export function defaultClaudeHome(): string {
-  return path.join(os.homedir(), ".claude");
+  return process.env.CLAUDE_HOME ?? path.join(os.homedir(), ".claude");
 }
 
 export function candidateClaudeHomes(): string[] {
+  if (process.env.CLAUDE_HOME) return [process.env.CLAUDE_HOME];
   const home = os.homedir();
   return [
     path.join(home, ".claude"),
