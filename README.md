@@ -336,7 +336,7 @@ No committed example contains a real user session or credential.
 Requirements: Node.js 22.12+ and pnpm 10.15+.
 
 ```bash
-git clone https://github.com/xayrullonematov/hammadev.git
+git clone https://github.com/hamma-labs/hammadev.git
 cd hammadev
 pnpm install
 pnpm typecheck

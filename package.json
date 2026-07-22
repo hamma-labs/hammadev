@@ -24,12 +24,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xayrullonematov/hammadev.git"
+    "url": "git+https://github.com/hamma-labs/hammadev.git"
   },
   "bugs": {
-    "url": "https://github.com/xayrullonematov/hammadev/issues"
+    "url": "https://github.com/hamma-labs/hammadev/issues"
   },
-  "homepage": "https://github.com/xayrullonematov/hammadev#readme",
+  "homepage": "https://github.com/hamma-labs/hammadev#readme",
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsc -p tsconfig.build.json",

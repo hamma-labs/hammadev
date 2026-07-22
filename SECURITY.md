@@ -15,7 +15,7 @@ an independent review.
 
 Do not open a public issue containing an exploit, secret, private transcript, or
 repository data. Use GitHub's private vulnerability reporting for
-`xayrullonematov/hammadev`. Include:
+`hamma-labs/hammadev`. Include:
 
 - affected version and operating system;
 - the smallest sanitized reproduction available;
