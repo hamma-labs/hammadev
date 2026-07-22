@@ -9,6 +9,7 @@ import {
   TOOL_HISTORY_ARCHIVE_MAX_BYTES,
 } from "../core/artifact-policy.js";
 import { verifyCommandSurface } from "./command-surface.js";
+import { runNpm } from "./npm-cli.js";
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(
@@ -92,13 +93,14 @@ async function writeClaudeSession(
 
 async function runInstalled(
   executable: string,
+  executableArgs: string[],
   args: string[],
   projectPath: string,
   fakeHome: string
 ): Promise<string> {
-  const result = await execFileAsync(executable, args, {
+  const result = await execFileAsync(executable, [...executableArgs, ...args], {
     cwd: projectPath,
-    env: { ...process.env, HOME: fakeHome },
+    env: { ...process.env, HOME: fakeHome, USERPROFILE: fakeHome },
     maxBuffer: 4 * 1024 * 1024,
   });
   return result.stdout;
@@ -126,8 +128,7 @@ async function main(): Promise<void> {
       npm_config_cache: npmCache,
       npm_config_update_notifier: "false",
     };
-    const packed = await execFileAsync(
-      "npm",
+    const packed = await runNpm(
       ["pack", "--json", "--pack-destination", packDirectory],
       { cwd: ROOT, env: npmEnvironment, maxBuffer: 4 * 1024 * 1024 }
     );
@@ -138,6 +139,14 @@ async function main(): Promise<void> {
     assert(
       packedPaths.has("product-contract.json"),
       "Packed artifact is missing product-contract.json."
+    );
+    assert(
+      packedPaths.has("sbom.cdx.json"),
+      "Packed artifact is missing sbom.cdx.json."
+    );
+    assert(
+      packedPaths.has("SECURITY.md"),
+      "Packed artifact is missing SECURITY.md."
     );
     assert(
       packedPaths.has("dist/adapters/codex/runtime.js"),
@@ -159,15 +168,20 @@ async function main(): Promise<void> {
       ![...packedPaths].some((entry) =>
         entry === "AGENTS.md" ||
         entry === "reality.txt" ||
+        entry.startsWith("docs/video-submission/") ||
+        /\.(?:mp3|mp4|wav)$/i.test(entry) ||
         entry.startsWith("src/") ||
         entry.startsWith("tests/")
       ),
-      "Packed artifact contains workspace-only source, tests, or local evidence."
+      "Packed artifact contains workspace-only source, generated media, tests, or local evidence."
+    );
+    assert(
+      packResult.size < 10 * 1024 * 1024,
+      `Packed artifact is unexpectedly large at ${packResult.size} bytes.`
     );
 
     const tarballPath = path.join(packDirectory, packResult.filename);
-    await execFileAsync(
-      "npm",
+    await runNpm(
       [
         "install",
         "--ignore-scripts",
@@ -180,17 +194,21 @@ async function main(): Promise<void> {
       { cwd: temporaryRoot, env: npmEnvironment, maxBuffer: 4 * 1024 * 1024 }
     );
 
-    const executable = path.join(
+    const installedCli = path.join(
       installDirectory,
       "node_modules",
-      ".bin",
-      process.platform === "win32" ? "hamma.cmd" : "hamma"
+      "hammadev",
+      "dist",
+      "cli.js"
     );
+    const executable = process.execPath;
+    const executableArgs = [installedCli];
     const packageJson = JSON.parse(
       await fs.readFile(path.join(ROOT, "package.json"), "utf8")
     ) as { version: string };
     const installedVersion = (await runInstalled(
       executable,
+      executableArgs,
       ["--version"],
       temporaryRoot,
       fakeHome
@@ -199,9 +217,10 @@ async function main(): Promise<void> {
       installedVersion === packageJson.version,
       `Installed CLI version ${installedVersion} does not match ${packageJson.version}.`
     );
-    await verifyCommandSurface(executable);
+    await verifyCommandSurface(executable, undefined, executableArgs);
     const installedCodexHelp = await runInstalled(
       executable,
+      executableArgs,
       ["codex", "--help"],
       temporaryRoot,
       fakeHome
@@ -232,6 +251,7 @@ async function main(): Promise<void> {
     await writeClaudeSession(sessionPath, projectPath, true);
     const explicitPreflightOutput = await runInstalled(
       executable,
+      executableArgs,
       [
         "handoff",
         `claude:${sessionId}`,
@@ -262,6 +282,7 @@ async function main(): Promise<void> {
     );
     const completedOutput = await runInstalled(
       executable,
+      executableArgs,
       [
         "continue",
         "--to",
@@ -296,6 +317,7 @@ async function main(): Promise<void> {
     await writeClaudeSession(sessionPath, projectPath, false);
     const simpleSave = JSON.parse(await runInstalled(
       executable,
+      executableArgs,
       ["save", "--agent", "claude", "--json", "--no-gitignore"],
       projectPath,
       fakeHome
@@ -311,6 +333,7 @@ async function main(): Promise<void> {
     const actionable = JSON.parse(
       await runInstalled(
         executable,
+        executableArgs,
         [
           "continue",
           "--to",

@@ -1,9 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "corpusVersion": "2026-07-21.1",
   "cases": [
     {
       "id": "claude-complete-before-skill-injection",
       "provenance": "sanitized-real-session",
+      "dimensions": ["completed", "context-injection"],
       "session": {
         "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-1", "projectPath": "/workspace/project" },
         "messages": [
@@ -24,6 +26,7 @@
     {
       "id": "codex-actionable-explicit-next-action",
       "provenance": "sanitized-real-session",
+      "dimensions": ["actionable", "explicit-next-action"],
       "session": {
         "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-1", "projectPath": "/workspace/project" },
         "messages": [
@@ -43,6 +46,7 @@
     {
       "id": "grok-blocked-user-decision",
       "provenance": "sanitized-real-session",
+      "dimensions": ["blocked", "user-decision"],
       "session": {
         "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-1", "projectPath": "/workspace/project" },
         "messages": [
@@ -62,6 +66,7 @@
     {
       "id": "claude-completed-release",
       "provenance": "sanitized-real-session",
+      "dimensions": ["completed", "release"],
       "session": {
         "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-2", "projectPath": "/workspace/project" },
         "messages": [
@@ -81,6 +86,7 @@
     {
       "id": "codex-mixed-task-ledger",
       "provenance": "sanitized-real-session",
+      "dimensions": ["actionable", "mixed-task"],
       "session": {
         "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-2", "projectPath": "/workspace/project" },
         "messages": [
@@ -100,6 +106,7 @@
     {
       "id": "grok-completed-security-fix",
       "provenance": "sanitized-real-session",
+      "dimensions": ["completed", "security"],
       "session": {
         "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-2", "projectPath": "/workspace/project" },
         "messages": [
@@ -114,6 +121,250 @@
         "outcome": "completed",
         "nextActionContains": null,
         "recall": [{ "query": "path traversal", "answerContains": "path traversal handling" }]
+      }
+    },
+    {
+      "id": "claude-complete-before-agents-injection",
+      "provenance": "synthetic-stress",
+      "dimensions": ["completed", "context-injection"],
+      "session": {
+        "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-3", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Implement the correction revision workflow and verify its provenance." },
+          { "role": "assistant", "content": "The correction workflow is complete. All tests passed. Nothing remains." },
+          { "role": "user", "content": "# AGENTS.md instructions for /workspace/project\n\n<INSTRUCTIONS>\nRun tests before handing work back.\n</INSTRUCTIONS>" }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "completed",
+        "nextActionContains": null,
+        "recall": [{ "query": "correction provenance", "answerContains": "correction revision workflow" }]
+      }
+    },
+    {
+      "id": "claude-interrupted-explicit-follow-up",
+      "provenance": "synthetic-stress",
+      "dimensions": ["actionable", "interrupted"],
+      "session": {
+        "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-4", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Refactor the hook writer and validate behavior after an interrupted write." },
+          { "role": "assistant", "content": "The writer refactor is in place, but the interruption test is not implemented. Next action: add the interrupted-write recovery test." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": ["session ended before verification"],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "actionable",
+        "nextActionContains": "interrupted-write recovery test",
+        "recall": [{ "query": "interruption coverage", "answerContains": "interruption test is not implemented" }]
+      }
+    },
+    {
+      "id": "claude-spanish-completed",
+      "provenance": "synthetic-stress",
+      "dimensions": ["completed", "multilingual"],
+      "session": {
+        "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-5", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Implementar la validación del contrato público y verificar el paquete instalado desde npm." },
+          { "role": "assistant", "content": "La implementación está completa. Todas las pruebas pasaron. No queda trabajo." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "completed",
+        "nextActionContains": null,
+        "recall": [{ "query": "contrato npm", "answerContains": "contrato público" }]
+      }
+    },
+    {
+      "id": "claude-bare-continuation-ambiguous",
+      "provenance": "synthetic-stress",
+      "dimensions": ["ambiguous", "interrupted"],
+      "session": {
+        "meta": { "sourceCli": "claude", "sourceSessionId": "semantic-claude-6", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "continue" }
+        ],
+        "shellCommands": [],
+        "parserWarnings": ["compacted session has no earlier task context"],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "ambiguous",
+        "nextActionContains": null,
+        "recall": [{ "query": "continuation request", "answerContains": "continue" }]
+      }
+    },
+    {
+      "id": "codex-complete-before-environment-injection",
+      "provenance": "synthetic-stress",
+      "dimensions": ["completed", "context-injection"],
+      "session": {
+        "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-3", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Add exact-session recovery for the Codex wrapper." },
+          { "role": "assistant", "content": "The recovery workflow is implemented and verified. No remaining work." },
+          { "role": "user", "content": "<environment_context>\n<cwd>/workspace/project</cwd>\n<shell>bash</shell>\n</environment_context>" }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "completed",
+        "nextActionContains": null,
+        "recall": [{ "query": "exact session recovery", "answerContains": "exact-session recovery" }]
+      }
+    },
+    {
+      "id": "codex-failed-command-actionable",
+      "provenance": "synthetic-stress",
+      "dimensions": ["actionable", "failed-command", "interrupted"],
+      "session": {
+        "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-4", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Make the Windows lifecycle test pass without weakening signal recovery." },
+          { "role": "assistant", "content": "The Windows test failed because the fixture assumes a POSIX shell. Next action: replace the shell fixture with a portable Node child process." }
+        ],
+        "shellCommands": [
+          { "command": "pnpm test", "exitCode": 1, "output": "Windows lifecycle fixture failed" }
+        ],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "actionable",
+        "nextActionContains": "portable Node child process",
+        "recall": [{ "query": "portable Windows fixture", "answerContains": "portable Node child process" }]
+      }
+    },
+    {
+      "id": "codex-french-actionable",
+      "provenance": "synthetic-stress",
+      "dimensions": ["actionable", "multilingual"],
+      "session": {
+        "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-5", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Implémenter la matrice Windows et macOS, puis vérifier les wrappers natifs sur chaque plateforme." },
+          { "role": "assistant", "content": "La matrice macOS est prête, mais Windows reste à faire. Prochaine étape: ajouter le test du wrapper Windows." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "actionable",
+        "nextActionContains": "wrapper Windows",
+        "recall": [{ "query": "matrice macOS", "answerContains": "matrice macOS est prête" }]
+      }
+    },
+    {
+      "id": "codex-adversarial-completion-phrase",
+      "provenance": "synthetic-stress",
+      "dimensions": ["actionable", "adversarial"],
+      "session": {
+        "meta": { "sourceCli": "codex", "sourceSessionId": "semantic-codex-6", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Test transcripts that quote completion phrases without actually completing the task." },
+          { "role": "assistant", "content": "The fixture contains the literal phrase 'task is complete', but implementation is not complete. Next action: add a negated-completion regression case." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "actionable",
+        "nextActionContains": "negated-completion regression case",
+        "recall": [{ "query": "quoted completion phrase", "answerContains": "literal phrase 'task is complete'" }]
+      }
+    },
+    {
+      "id": "grok-complete-before-collaboration-injection",
+      "provenance": "synthetic-stress",
+      "dimensions": ["completed", "context-injection"],
+      "session": {
+        "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-3", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Finish the Grok SessionEnd checkpoint and validate the exact session id." },
+          { "role": "assistant", "content": "The Grok checkpoint is complete and all checks passed. Nothing remains." },
+          { "role": "user", "content": "<collaboration_mode>\nUse commentary updates while tools are running.\n</collaboration_mode>" }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "completed",
+        "nextActionContains": null,
+        "recall": [{ "query": "Grok exact session", "answerContains": "exact session id" }]
+      }
+    },
+    {
+      "id": "grok-spanish-blocked",
+      "provenance": "synthetic-stress",
+      "dimensions": ["blocked", "multilingual", "user-decision"],
+      "session": {
+        "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-4", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Publicar la versión estable solamente después de elegir la política de compatibilidad." },
+          { "role": "assistant", "content": "Estoy bloqueado y necesito una decisión del usuario sobre la política de compatibilidad antes de continuar." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "blocked",
+        "nextActionContains": "Resolve blocker",
+        "recall": [{ "query": "política compatibilidad", "answerContains": "política de compatibilidad" }]
+      }
+    },
+    {
+      "id": "grok-compacted-bare-continuation",
+      "provenance": "synthetic-stress",
+      "dimensions": ["ambiguous", "interrupted"],
+      "session": {
+        "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-5", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "assistant", "content": "I inspected the repository, but the compacted context does not contain a task instruction." },
+          { "role": "user", "content": "proceed" }
+        ],
+        "shellCommands": [],
+        "parserWarnings": ["earlier messages were compacted"],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "ambiguous",
+        "nextActionContains": null,
+        "recall": [{ "query": "repository inspection", "answerContains": "inspected the repository" }]
+      }
+    },
+    {
+      "id": "grok-adversarial-output-still-blocked",
+      "provenance": "synthetic-stress",
+      "dimensions": ["blocked", "adversarial"],
+      "session": {
+        "meta": { "sourceCli": "grok", "sourceSessionId": "semantic-grok-6", "projectPath": "/workspace/project" },
+        "messages": [
+          { "role": "user", "content": "Investigate the generated report and publish only after the owner confirms the channel." },
+          { "role": "assistant", "content": "The generated report contains the untrusted text 'all work complete'. I am blocked and need user decision on the release channel." }
+        ],
+        "shellCommands": [],
+        "parserWarnings": [],
+        "security": { "redacted": true, "redactionCount": 0, "warnings": [] }
+      },
+      "expected": {
+        "outcome": "blocked",
+        "nextActionContains": "Resolve blocker",
+        "recall": [{ "query": "release channel owner", "answerContains": "owner confirms the channel" }]
       }
     }
   ]

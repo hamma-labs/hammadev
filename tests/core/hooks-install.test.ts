@@ -174,6 +174,38 @@ describe("installHooks", () => {
       .rejects.toThrow(/not a safe regular file/);
   });
 
+  it("refuses a symlinked settings parent without writing outside the project", async () => {
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-hooks-outside-"));
+    try {
+      await fs.symlink(outside, path.join(projectPath, ".claude"));
+
+      await expect(installHooks({ agent: "claude", projectPath }))
+        .rejects.toThrow(/not a safe directory/);
+      await expect(fs.access(path.join(outside, "settings.local.json")))
+        .rejects.toThrow();
+    } finally {
+      await fs.rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a canonical project reached through a symlinked ancestor", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-hooks-ancestor-"));
+    const realParent = path.join(root, "real-parent");
+    const realProject = path.join(realParent, "project");
+    const aliasParent = path.join(root, "alias-parent");
+    try {
+      await fs.mkdir(realProject, { recursive: true });
+      await fs.symlink(realParent, aliasParent);
+      const aliasProject = path.join(aliasParent, "project");
+
+      await expect(installHooks({ agent: "claude", projectPath: aliasProject }))
+        .resolves.toMatchObject({ created: true, warnings: [] });
+      await fs.access(path.join(realProject, ".claude", "settings.local.json"));
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects wrongly-typed hooks keys with the offending key named", async () => {
     const target = hookSettingsPath({ agent: "claude", projectPath });
     await fs.mkdir(path.dirname(target), { recursive: true });

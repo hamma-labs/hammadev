@@ -119,6 +119,28 @@ describe("project memory storage", () => {
     }
   });
 
+  it("canonicalizes a project reached through a symlinked ancestor", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-memory-ancestor-"));
+    const realParent = path.join(root, "real-parent");
+    const realProject = path.join(realParent, "project");
+    const aliasParent = path.join(root, "alias-parent");
+    try {
+      await fs.mkdir(realProject, { recursive: true });
+      await fs.symlink(realParent, aliasParent);
+
+      const manifest = await startMemory(
+        path.join(aliasParent, "project"),
+        "canonical",
+        undefined,
+        false
+      );
+      expect(manifest.projectPath).toBe(await fs.realpath(realProject));
+      await fs.access(path.join(realProject, ".hamma", "memories", "canonical"));
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("uses the Git top level for project-scoped memory", async () => {
     const nested = path.join(projectPath, "packages", "app");
     await fs.mkdir(nested, { recursive: true });

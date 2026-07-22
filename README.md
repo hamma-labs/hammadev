@@ -62,12 +62,14 @@ HammaDev requires Node.js 22.12 or newer.
 npm install -g hammadev@alpha
 
 cd /path/to/project
-hamma
+hamma setup --check
+hamma setup --apply --agent detected --bootstrap manual
 ```
 
-Running `hamma` with no subcommand performs guided, read-only onboarding. It
-checks the runtime, Git project, supported agent installations, project sessions,
-and `.hamma/` ignore coverage, then prints the safest next command.
+`hamma setup --check` previews every hook, bootstrap, and `.gitignore` change
+without writing files. `--apply` is explicit consent to apply those changes and
+then verify the effective configuration. Running `hamma` with no subcommand
+remains a read-only diagnosis of runtime, Git, sessions, and memory state.
 
 ### The everyday workflow
 
@@ -202,6 +204,7 @@ and structured logs stay off stdout, so JSON consumers remain safe.
 | Command | Purpose |
 | --- | --- |
 | `hamma` | Guided project diagnosis and exact next step. |
+| `hamma setup --check\|--apply` | Preview, apply, and verify agent hooks, bootstrap mode, and `.hamma/` ignore safety. |
 | `hamma save [--agent <agent>]` | Detect and save the current session, or checkpoint the active transferred run. |
 | `hamma switch <agent>` | Save current work, prepare safe context, and open the destination agent. |
 | `hamma done [--blocked --next <text>]` | Save and close the current task without exposing attach IDs or update files. |
@@ -290,6 +293,12 @@ Adding another agent should require a new input adapter—not a new task schema.
 
 ## Local-first security model
 
+HammaDev is local-first, but local memory and agent transcripts can contain
+sensitive repository context. Secret redaction is best effort, not a security
+boundary. Review the [security policy](SECURITY.md),
+[threat model](docs/threat-model.md), and
+[incident-response runbook](docs/incident-response.md) before sensitive use.
+
 The HammaDev CLI makes no network calls and does not modify native session
 files, but local-only does not mean risk-free:
 
@@ -313,6 +322,9 @@ handoff with the repository.
 - [Sanitized source-session fixtures](examples/sessions/)
 - [Example-data notes](examples/README.md)
 - [Named-memory hooks](docs/memory-hooks.md)
+- [Security policy](SECURITY.md)
+- [Threat model](docs/threat-model.md)
+- [Incident response](docs/incident-response.md)
 - [Release automation](docs/releasing.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [OpenAI Build Week engineering log](docs/build-week-2026.md)
@@ -331,6 +343,9 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm quality:semantic
+pnpm test:platform
+pnpm test:faults
+pnpm security:sbom:check
 pnpm smoke:cli
 pnpm smoke:package
 ```
@@ -338,11 +353,14 @@ pnpm smoke:package
 The CLI is strict TypeScript and ESM. Tests use synthetic sessions and temporary
 Git repositories. `smoke:package` packs and installs the actual npm tarball in a
 temporary environment, then checks completed/no-op and actionable/bounded
-continuation paths. `quality:semantic` evaluates sanitized real-session-shaped
-Claude, Codex, and Grok cases for task-state accuracy, next-action accuracy, and
-recall usefulness. The publish workflow then installs the exact version back
-from npm and compares its command surface with the shared website contract. CI
-validates Node 22.12 and Node 24.
+continuation paths. `quality:semantic` evaluates six sanitized real-session
+derivatives plus twelve labeled synthetic stress cases across Claude, Codex,
+and Grok. It measures task-state and next-action accuracy, top-three recall,
+recall MRR, false-actionable rate, and false-complete rate. The publish workflow
+then installs the exact version back from npm, requires its SLSA provenance,
+and compares its command surface with the shared website contract. CI runs the
+full suite on Ubuntu and a portable lifecycle contract on Ubuntu, macOS, and
+Windows for Node 22.12 and Node 24.
 
 The optional project-level Kiro quality hook runs `pnpm quality:report` after
 TypeScript source saves and records a local, content-safe validation report. See
@@ -352,6 +370,8 @@ TypeScript source saves and records a local, content-safe validation report. See
 
 - Codex, Claude Code, and Grok are the supported native source adapters.
 - Task reconstruction, evidence classification, and redaction remain heuristic.
+- The semantic corpus is regression coverage, not a statistical estimate of
+  production accuracy.
 - Named-memory hooks are opt-in; explicit sync is the portable fallback.
 - Memory is project-local on one machine; there is no cloud or team backend.
 - The readiness result helps a developer decide whether to continue—it does not

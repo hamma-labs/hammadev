@@ -41,6 +41,12 @@ const MEMORY_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const REVISION_ID = /^\d{6}-\d{4}-\d{2}-\d{2}T[0-9-]+Z-[a-z0-9_-]+$/;
 const ATTACH_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const RECALL_MAX_OUTPUT_BYTES = 32 * 1024;
+const MEMORY_LOCK_STALE_MS = 5 * 60 * 1000;
+
+export type MemoryFaultStage =
+  | "after-lock-acquired"
+  | "after-revision-files-written"
+  | "after-revision-published";
 
 export interface MemoryRevisionSummary {
   id: string;
@@ -121,6 +127,8 @@ export interface MemorySyncOptions {
   attachId?: string;
   forcedOutcome?: HammaTaskState["outcome"];
   forcedNextAction?: string | null;
+  /** Deterministic test-only fault hook; production callers should omit it. */
+  faultInjector?: (stage: MemoryFaultStage) => void | Promise<void>;
 }
 
 export interface MemorySyncResult {
@@ -292,8 +300,11 @@ async function assertSafeDirectory(directory: string, parent?: string): Promise<
 
 async function canonicalProject(projectPath: string): Promise<string> {
   const resolved = path.resolve(projectPath);
-  await assertSafeDirectory(resolved);
-  return resolved;
+  const stats = await fs.lstat(resolved);
+  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+    throw new Error(`Memory project root is not a safe directory: ${resolved}`);
+  }
+  return fs.realpath(resolved);
 }
 
 export function resolveMemoryProjectPath(projectPath: string): string {
@@ -621,7 +632,84 @@ function renderMemoryHandoff(state: HammaTaskState, memoryName: string): string 
 
 async function acquireLock(directory: string): Promise<string> {
   const lock = path.join(directory, ".sync-lock");
-  try { await fs.mkdir(lock); return lock; } catch (error: any) { if (error.code === "EEXIST") throw new Error("This memory is already being synchronized by another process."); throw error; }
+  try {
+    await fs.mkdir(lock);
+    await fs.writeFile(
+      path.join(lock, "owner.json"),
+      `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+      { encoding: "utf8", flag: "wx" }
+    );
+    return lock;
+  } catch (error: any) {
+    if (error.code !== "EEXIST") {
+      await fs.rm(lock, { recursive: true, force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  const stats = await fs.lstat(lock);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error(`Memory synchronization lock is not a safe directory: ${lock}`);
+  }
+  let ownerPid: number | undefined;
+  try {
+    const owner = JSON.parse(await fs.readFile(path.join(lock, "owner.json"), "utf8")) as {
+      pid?: unknown;
+    };
+    if (Number.isInteger(owner.pid) && Number(owner.pid) > 0) ownerPid = Number(owner.pid);
+  } catch (error: any) {
+    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+  }
+  let ownerAlive = false;
+  if (ownerPid) {
+    try {
+      process.kill(ownerPid, 0);
+      ownerAlive = true;
+    } catch (error: any) {
+      ownerAlive = error.code === "EPERM";
+    }
+  }
+  if (Date.now() - stats.mtimeMs <= MEMORY_LOCK_STALE_MS || ownerAlive) {
+    throw new Error("This memory is already being synchronized by another process.");
+  }
+  await fs.rm(lock, { recursive: true, force: true });
+  await fs.mkdir(lock);
+  await fs.writeFile(
+    path.join(lock, "owner.json"),
+    `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), recoveredStaleLock: true })}\n`,
+    { encoding: "utf8", flag: "wx" }
+  );
+  return lock;
+}
+
+async function cleanupInterruptedRevisionWrites(
+  directory: string,
+  manifest: ProjectMemoryManifest
+): Promise<void> {
+  const revisionsRoot = path.join(directory, "revisions");
+  let entries;
+  try {
+    entries = await fs.readdir(revisionsRoot, { withFileTypes: true });
+  } catch (error: any) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  const referenced = new Set(manifest.revisions.map((revision) => revision.id));
+  await Promise.all(entries
+    .filter((entry) =>
+      entry.isDirectory() &&
+      (entry.name.startsWith(".tmp-") || (REVISION_ID.test(entry.name) && !referenced.has(entry.name)))
+    )
+    .map((entry) => fs.rm(path.join(revisionsRoot, entry.name), {
+      recursive: true,
+      force: true,
+    })));
+  const memoryEntries = await fs.readdir(directory, { withFileTypes: true });
+  await Promise.all(memoryEntries
+    .filter((entry) =>
+      entry.isFile() && /^memory\.json\.tmp-\d+-\d+$/.test(entry.name)
+    )
+    .map((entry) => fs.rm(path.join(directory, entry.name), { force: true })));
 }
 
 function renderConversation(messages: ArchivedMemoryMessage[]): string {
@@ -685,7 +773,9 @@ export async function syncMemory(projectPath: string, requestedName?: string, op
   }
   const lock = await acquireLock(directory);
   try {
+    await options.faultInjector?.("after-lock-acquired");
     const manifest = await readManifest(root, name);
+    await cleanupInterruptedRevisionWrites(directory, manifest);
     const previous = await latestState(root, manifest);
     let session = await loadSession(options.source, { projectPath: project });
     if (attachedRun && session.meta.sourceCli !== attachedRun.targetCli) {
@@ -774,6 +864,7 @@ export async function syncMemory(projectPath: string, requestedName?: string, op
     const revision: MemoryRevisionSummary = { id: revisionId, parentRevision: manifest.latestRevision, createdAt: timestamp, sourceCli: session.meta.sourceCli, sourceSessionId: session.meta.sourceSessionId, sourceLastUpdatedAt: session.meta.lastUpdatedAt, sourceContentFingerprint: contentFingerprint, sourceFingerprint: fingerprint, driftFromParent: parentDrift?.categories ?? ["none"], warnings, kind: "sync" };
     const revisionsRoot = path.join(directory, "revisions"); const finalRevisionPath = path.join(revisionsRoot, revisionId); const temporaryRevisionPath = path.join(revisionsRoot, `.tmp-${revisionId}`);
     await fs.mkdir(temporaryRevisionPath);
+    let revisionPublished = false;
     try {
       await Promise.all([
         writeJsonAtomic(path.join(temporaryRevisionPath, "state.json"), extracted),
@@ -784,10 +875,20 @@ export async function syncMemory(projectPath: string, requestedName?: string, op
         fs.writeFile(path.join(temporaryRevisionPath, "conversation.jsonl"), renderConversation(delta.messages), "utf8"),
         fs.writeFile(path.join(temporaryRevisionPath, "tool_history.jsonl"), renderToolHistoryJsonl(session), "utf8"),
       ]);
+      await options.faultInjector?.("after-revision-files-written");
       await fs.rename(temporaryRevisionPath, finalRevisionPath);
-    } catch (error) { await fs.rm(temporaryRevisionPath, { recursive: true, force: true }).catch(() => undefined); throw error; }
-    const updatedManifest: ProjectMemoryManifest = { ...manifest, schemaVersion: 2, goal: manifest.goal ?? extracted.goal, updatedAt: timestamp, latestRevision: revisionId, revisionCount: revisionNumber, revisions: [...manifest.revisions, revision] };
-    await writeJsonAtomic(path.join(directory, "memory.json"), updatedManifest); await setActive(root, name); if (options.useGitignore !== false) await ensureGitignore(project);
+      revisionPublished = true;
+      await options.faultInjector?.("after-revision-published");
+      const updatedManifest: ProjectMemoryManifest = { ...manifest, schemaVersion: 2, goal: manifest.goal ?? extracted.goal, updatedAt: timestamp, latestRevision: revisionId, revisionCount: revisionNumber, revisions: [...manifest.revisions, revision] };
+      await writeJsonAtomic(path.join(directory, "memory.json"), updatedManifest);
+    } catch (error) {
+      await fs.rm(temporaryRevisionPath, { recursive: true, force: true }).catch(() => undefined);
+      if (revisionPublished) {
+        await fs.rm(finalRevisionPath, { recursive: true, force: true }).catch(() => undefined);
+      }
+      throw error;
+    }
+    await setActive(root, name); if (options.useGitignore !== false) await ensureGitignore(project);
     return { schemaVersion: 2, updated: true, memory: name, projectPath: project, revision, revisionPath: finalRevisionPath, bootstrapPath: path.join(finalRevisionPath, "bootstrap.md"), memoryStatePath: path.join(finalRevisionPath, "memory-state.json"), statePath: path.join(finalRevisionPath, "state.json"), handoffPath: path.join(finalRevisionPath, "handoff.md"), conversationPath: path.join(finalRevisionPath, "conversation.jsonl"), toolHistoryPath: path.join(finalRevisionPath, "tool_history.jsonl"), contextBudget: { initialArtifacts: ["bootstrap.md"], bytes: initialContextBytes, maxBytes: INITIAL_CONTEXT_MAX_BYTES, withinBudget: initialContextBytes <= INITIAL_CONTEXT_MAX_BYTES, sourceBytes: sourceContextBytes, continuationLargerThanSource: initialContextBytes > sourceContextBytes }, selection: { mode: selectionMode, sourceCli: session.meta.sourceCli, sourceSessionId: session.meta.sourceSessionId, explanation }, warnings };
   } finally { await fs.rm(lock, { recursive: true, force: true }).catch(() => undefined); }
 }

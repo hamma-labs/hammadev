@@ -84,11 +84,6 @@ async function validateProjectPath(projectPath: string): Promise<string> {
   try {
     await assertDirectoryNotSymlink(resolved, "projectPath");
     const canonical = await fs.realpath(resolved);
-    if (canonical !== resolved) {
-      throw new Error(
-        `Cannot create handoff: projectPath contains symbolic-link components (${projectPath}).`
-      );
-    }
     return canonical;
   } catch (error: any) {
     if (error.message?.startsWith("Cannot create handoff:")) throw error;

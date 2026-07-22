@@ -1,15 +1,19 @@
 {
   "name": "hammadev",
-  "version": "0.1.0-alpha.10",
+  "version": "0.1.0-alpha.11",
   "description": "Local handoff and shared-memory CLI for Codex, Claude Code, and Grok",
   "main": "dist/cli.js",
   "files": [
     "dist",
     "skills",
-    "docs",
+    "docs/*.md",
+    "docs/assets",
+    "docs/generated",
     "examples",
     "product-contract.json",
+    "sbom.cdx.json",
     "README.md",
+    "SECURITY.md",
     "LICENSE"
   ],
   "bin": {
@@ -36,7 +40,11 @@
     "typecheck": "tsc --noEmit",
     "quality:semantic": "tsx src/scripts/semantic-eval.ts",
     "quality:report": "tsx src/scripts/handoff-quality-guard.ts",
+    "security:sbom": "tsx src/scripts/generate-sbom.ts",
+    "security:sbom:check": "tsx src/scripts/generate-sbom.ts --check",
     "test": "vitest run",
+    "test:platform": "vitest run tests/core/platform-lifecycle.test.ts",
+    "test:faults": "vitest run tests/core/memory-fault-injection.test.ts tests/adapters/codex/runtime.test.ts",
     "test:watch": "vitest",
     "website:build": "pnpm --dir website build",
     "website:typecheck": "pnpm --dir website typecheck",

@@ -335,6 +335,25 @@ describe("atomic and safe handoff output", () => {
     );
   });
 
+  it("canonicalizes a project reached through a symlinked ancestor", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-handoff-ancestor-"));
+    const realParent = path.join(root, "real-parent");
+    const realProject = path.join(realParent, "project");
+    const aliasParent = path.join(root, "alias-parent");
+    const session = await parseClaudeSession(FIXTURE);
+    try {
+      await fs.mkdir(realProject, { recursive: true });
+      await fs.symlink(realParent, aliasParent);
+      session.meta.projectPath = path.join(aliasParent, "project");
+
+      const result = await createHandoff(session, "codex", false);
+      expect(result.handoffPath.startsWith(`${await fs.realpath(realProject)}${path.sep}`))
+        .toBe(true);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a symbolic-link .hamma output directory", async () => {
     const isolatedProject = await fs.mkdtemp(
       path.join(os.tmpdir(), "hamma-symlink-project-")

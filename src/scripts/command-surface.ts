@@ -11,6 +11,7 @@ export interface ProductContract {
   schemaVersion: 1;
   topLevelCommands: string[];
   requiredCommandPaths: string[];
+  installCommand: string;
   websiteCommands: Record<string, string>;
 }
 
@@ -22,6 +23,7 @@ export async function loadProductContract(
     contract.schemaVersion !== 1 ||
     !Array.isArray(contract.topLevelCommands) ||
     !Array.isArray(contract.requiredCommandPaths) ||
+    contract.installCommand !== "npm install -g hammadev@alpha" ||
     !contract.websiteCommands
   ) {
     throw new Error("product-contract.json has an unsupported shape.");
@@ -40,10 +42,11 @@ export function parseTopLevelCommands(help: string): string[] {
 
 export async function verifyCommandSurface(
   executable: string,
-  suppliedContract?: ProductContract
+  suppliedContract?: ProductContract,
+  executableArgs: string[] = []
 ): Promise<{ topLevelCommands: string[]; requiredCommandPaths: string[] }> {
   const contract = suppliedContract ?? await loadProductContract();
-  const help = (await execFileAsync(executable, ["--help"], {
+  const help = (await execFileAsync(executable, [...executableArgs, "--help"], {
     maxBuffer: 4 * 1024 * 1024,
   })).stdout;
   const actual = parseTopLevelCommands(help);
@@ -54,7 +57,7 @@ export async function verifyCommandSurface(
     );
   }
   for (const commandPath of contract.requiredCommandPaths) {
-    await execFileAsync(executable, [...commandPath.split(" "), "--help"], {
+    await execFileAsync(executable, [...executableArgs, ...commandPath.split(" "), "--help"], {
       maxBuffer: 4 * 1024 * 1024,
     });
   }

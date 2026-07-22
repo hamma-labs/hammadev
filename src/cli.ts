@@ -103,6 +103,7 @@ import {
   registerGrokSessionStart,
 } from "./adapters/grok/runtime.js";
 import { AgentLauncherResult, launchIdEnvVar } from "./core/agent-launch.js";
+import { parseSetupAgents, runSetup } from "./core/setup.js";
 
 function truncate(s: string | undefined, max: number): string | undefined {
   if (!s) return s;
@@ -1665,6 +1666,64 @@ program
   .action(async () => {
     const code = await runDoctor();
     process.exitCode = code;
+  });
+
+program
+  .command("setup")
+  .option("--check", "Preview setup and verify the current installation (default)")
+  .option("--apply", "Apply the displayed hook, bootstrap, and .gitignore changes")
+  .option("--agent <agents>", "detected | all | comma-separated claude,codex,grok", "detected")
+  .option("--bootstrap <mode>", "Session-start mode: manual | automatic", "manual")
+  .option("--shared", "Claude: use committable .claude/settings.json")
+  .option("--force", "Replace differing hamma-managed hook entries")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print the complete setup plan and verification result")
+  .description("Preview, apply, and verify guided Hamma project setup")
+  .action(async (options) => {
+    try {
+      if (options.check && options.apply) {
+        throw new Error("Use either --check or --apply, not both.");
+      }
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const result = await runSetup(projectPath, {
+        agents: parseSetupAgents(options.agent),
+        bootstrapMode: parseBootstrapMode(options.bootstrap),
+        apply: Boolean(options.apply),
+        force: Boolean(options.force),
+        sharedClaude: Boolean(options.shared),
+      });
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        return;
+      }
+      console.log(pc.bold(`HammaDev setup ${result.mode === "apply" ? "result" : "check"}\n`));
+      console.log(`Project: ${result.projectPath}`);
+      console.log(`Node: ${result.environment.node.ok ? "ready" : "unsupported"} (${result.environment.node.version})`);
+      console.log(`Git repository: ${result.environment.gitRepository ? "yes" : "no"}`);
+      console.log(`Selected agents: ${result.selectedAgents.join(", ") || "none"}`);
+      console.log(`Bootstrap mode: ${result.bootstrap.previous}${result.bootstrap.changed ? ` → ${result.bootstrap.requested}` : ""}`);
+      console.log("\nLifecycle hooks:");
+      if (result.hooks.length === 0) console.log("  No supported agents selected.");
+      for (const hook of result.hooks) {
+        const actions = [
+          ...hook.installed.map((event) => `add ${event}`),
+          ...hook.replaced.map((event) => `replace ${event}`),
+        ];
+        console.log(`  ${hook.agent}: ${actions.join(", ") || "already configured"}`);
+        console.log(pc.dim(`    ${hook.settingsPath}`));
+      }
+      for (const warning of result.warnings) console.log(pc.yellow(`Warning: ${warning}`));
+      console.log("");
+      if (result.ready) console.log(pc.green("Setup verified. This project is ready for Hamma."));
+      else if (result.nextCommand) {
+        console.log("Review the changes above, then apply them explicitly:");
+        console.log(`  ${result.nextCommand}`);
+      } else {
+        console.log(pc.yellow("Setup is not ready; resolve the warnings above and run `hamma setup --check`."));
+      }
+    } catch (error: unknown) {
+      fail("INSTALL_ERROR", error);
+    }
   });
 
 program

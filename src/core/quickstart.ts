@@ -111,7 +111,7 @@ function nextCommands(
     commands.push("# Install Codex, Claude Code, or Grok, then run `hamma save` from your project.");
   }
   if (status.isGitRepo && status.hammaIgnored === false) {
-    commands.push("printf '\n.hamma/\n' >> .gitignore");
+    commands.push("hamma setup --check");
   }
   if (
     status.codexProjectSessionCount === 0 &&

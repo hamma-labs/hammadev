@@ -19,6 +19,7 @@
     "memory",
     "quickstart",
     "save",
+    "setup",
     "show",
     "skill",
     "status",
@@ -32,8 +33,10 @@
     "memory close",
     "memory repair",
     "memory review",
+    "setup",
     "skill install"
   ],
+  "installCommand": "npm install -g hammadev@alpha",
   "websiteCommands": {
     "save": "hamma save",
     "hooksInstall": "hamma hooks install",
@@ -41,6 +44,8 @@
     "switchClaude": "hamma switch claude",
     "skillInstall": "hamma skill install",
     "doctor": "hamma doctor",
+    "setupCheck": "hamma setup --check",
+    "setupApply": "hamma setup --apply --agent detected --bootstrap manual",
     "hooksInstallCodex": "hamma hooks install --agent codex",
     "codexModel": "hamma codex -- --model gpt-5.4"
   }

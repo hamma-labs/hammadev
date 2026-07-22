@@ -20,6 +20,8 @@ export interface HookInstallOptions {
   shared?: boolean;
   /** Grok only: set false to skip the SessionStart bootstrap hook (installed by default). */
   sessionStart?: boolean;
+  /** Preview the managed-hook delta without creating directories or files. */
+  dryRun?: boolean;
 }
 
 export interface HookInstallResult {
@@ -27,6 +29,8 @@ export interface HookInstallResult {
   agent: HookAgent;
   settingsPath: string;
   created: boolean;
+  dryRun: boolean;
+  wouldCreate: boolean;
   installed: string[];
   replaced: string[];
   skipped: string[];
@@ -128,6 +132,59 @@ function deepEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function isWithin(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+}
+
+async function validateHookParent(
+  projectPath: string,
+  target: string,
+  create: boolean
+): Promise<void> {
+  const project = path.resolve(projectPath);
+  const parent = path.dirname(target);
+  if (!isWithin(project, parent)) {
+    throw new Error(`Hook settings path escapes the project: ${target}`);
+  }
+  const projectStats = await fs.lstat(project);
+  if (projectStats.isSymbolicLink() || !projectStats.isDirectory()) {
+    throw new Error(`Hook project root is not a safe directory: ${project}`);
+  }
+  const canonicalProject = await fs.realpath(project);
+
+  const relative = path.relative(project, parent);
+  let current = project;
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    if (create) {
+      try {
+        await fs.mkdir(current);
+      } catch (error: any) {
+        if (error.code !== "EEXIST") throw error;
+      }
+    }
+    let stats;
+    try {
+      stats = await fs.lstat(current);
+    } catch (error: any) {
+      if (!create && error.code === "ENOENT") return;
+      throw error;
+    }
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new Error(`Hook settings parent is not a safe directory: ${current}`);
+    }
+    const canonical = await fs.realpath(current);
+    if (!isWithin(canonicalProject, canonical)) {
+      throw new Error(`Hook settings parent escapes the project: ${current}`);
+    }
+  }
+}
+
 async function readSettingsFile(target: string): Promise<{ value: JsonObject; created: boolean }> {
   let stats;
   try {
@@ -184,7 +241,7 @@ function eventArray(hooks: JsonObject, event: string, target: string): unknown[]
 
 export async function installHooks(options: HookInstallOptions): Promise<HookInstallResult> {
   const target = hookSettingsPath(options);
-  await fs.mkdir(path.dirname(target), { recursive: true });
+  await validateHookParent(options.projectPath, target, false);
   const { value: settings, created } = await readSettingsFile(target);
   const desired = desiredHooks(options);
   const installed: string[] = [];
@@ -217,14 +274,18 @@ export async function installHooks(options: HookInstallOptions): Promise<HookIns
     replaced.push(event);
   }
 
-  if (installed.length > 0 || replaced.length > 0) {
+  const changed = installed.length > 0 || replaced.length > 0;
+  if (changed && !options.dryRun) {
+    await validateHookParent(options.projectPath, target, true);
     await writeSettingsFile(target, settings);
   }
   return {
     schemaVersion: 1,
     agent: options.agent,
     settingsPath: target,
-    created: created && (installed.length > 0 || replaced.length > 0),
+    created: !options.dryRun && created && changed,
+    dryRun: Boolean(options.dryRun),
+    wouldCreate: created && changed,
     installed,
     replaced,
     skipped,
@@ -236,6 +297,7 @@ export async function uninstallHooks(
   options: Pick<HookInstallOptions, "agent" | "projectPath" | "shared">
 ): Promise<HookUninstallResult> {
   const target = hookSettingsPath(options);
+  await validateHookParent(options.projectPath, target, false);
   const { value: settings, created } = await readSettingsFile(target);
   if (created || !isPlainObject(settings.hooks)) {
     return { schemaVersion: 1, agent: options.agent, settingsPath: target, removed: [], fileDeleted: false };

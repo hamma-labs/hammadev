@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { verifyCommandSurface } from "./command-surface.js";
+import { runNpm } from "./npm-cli.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -21,7 +22,7 @@ async function installFromRegistry(version: string, root: string): Promise<void>
   const maximumAttempts = 36;
   for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
     try {
-      await execFileAsync("npm", [
+      await runNpm([
         "install",
         "--ignore-scripts",
         "--no-audit",
@@ -46,22 +47,42 @@ async function main(): Promise<void> {
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hamma-registry-smoke-"));
   try {
     await installFromRegistry(version, temporaryRoot);
-    const executable = path.join(
+    const installedCli = path.join(
       temporaryRoot,
       "node_modules",
-      ".bin",
-      process.platform === "win32" ? "hamma.cmd" : "hamma"
+      "hammadev",
+      "dist",
+      "cli.js"
     );
-    const installedVersion = (await execFileAsync(executable, ["--version"])).stdout.trim();
+    const executable = process.execPath;
+    const executableArgs = [installedCli];
+    const installedVersion = (await execFileAsync(executable, [...executableArgs, "--version"])).stdout.trim();
     if (installedVersion !== version) {
       throw new Error(`Registry installed ${installedVersion}; expected ${version}.`);
     }
-    const surface = await verifyCommandSurface(executable);
+    const attestationRaw = (await runNpm([
+      "view",
+      `hammadev@${version}`,
+      "dist.attestations",
+      "--json",
+    ])).stdout;
+    const attestations = JSON.parse(attestationRaw) as {
+      url?: string;
+      provenance?: { predicateType?: string };
+    };
+    if (
+      !attestations.url ||
+      attestations.provenance?.predicateType !== "https://slsa.dev/provenance/v1"
+    ) {
+      throw new Error(`Registry package hammadev@${version} is missing npm SLSA provenance.`);
+    }
+    const surface = await verifyCommandSurface(executable, undefined, executableArgs);
     process.stdout.write(`${JSON.stringify({
       schemaVersion: 1,
       package: `hammadev@${version}`,
       source: "npm-registry",
       installedVersion,
+      provenance: attestations,
       ...surface,
     }, null, 2)}\n`);
   } finally {

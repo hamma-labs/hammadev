@@ -1,14 +1,12 @@
 import { Check, Copy, PackageCheck } from 'lucide-react';
 import { useState } from 'react';
-import { PRODUCT_COMMANDS } from '../product';
-
-const INSTALL_COMMAND = 'npm install -g hammadev@alpha';
+import { PRODUCT_COMMANDS, PRODUCT_INSTALL_COMMAND } from '../product';
 
 export default function Install() {
   const [copied, setCopied] = useState(false);
 
   async function copyInstallCommand() {
-    await navigator.clipboard.writeText(INSTALL_COMMAND);
+    await navigator.clipboard.writeText(PRODUCT_INSTALL_COMMAND);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
   }
@@ -24,7 +22,7 @@ export default function Install() {
       <div className="install-panel">
         <div className="install-command">
           <span>$</span>
-          <code>{INSTALL_COMMAND}</code>
+          <code>{PRODUCT_INSTALL_COMMAND}</code>
           <button type="button" onClick={copyInstallCommand} aria-label="Copy install command">
             {copied ? <Check size={17} /> : <Copy size={17} />}
             <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -32,11 +30,10 @@ export default function Install() {
         </div>
         <ol className="install-steps">
           {[
-            ['01', 'Install the agent skill', PRODUCT_COMMANDS.skillInstall],
-            ['02', 'Check your environment', PRODUCT_COMMANDS.doctor],
+            ['01', 'Preview every project change', PRODUCT_COMMANDS.setupCheck],
+            ['02', 'Apply and verify setup', PRODUCT_COMMANDS.setupApply],
             ['03', 'Enable project memory explicitly', PRODUCT_COMMANDS.save],
-            ['04', 'Install native lifecycle hooks', PRODUCT_COMMANDS.hooksInstall],
-            ['05', 'Codex: trust /hooks, then launch', PRODUCT_COMMANDS.codex],
+            ['04', 'Launch with exact-session recovery', PRODUCT_COMMANDS.codex],
           ].map(([number, label, command]) => (
             <li key={command}>
               <span>{number}</span>

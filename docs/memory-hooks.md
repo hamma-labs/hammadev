@@ -16,7 +16,28 @@ Hooks are an optional checkpoint layer. They do not replace explicit sync, and
 they must be reviewed and trusted in each agent. HammaDev never edits native
 agent sessions. Hook input is used only to select the exact current session.
 
-## One-command setup
+## Guided setup
+
+Preview all managed hook, bootstrap-mode, and `.gitignore` changes without
+writing project files:
+
+```bash
+hamma setup --check
+```
+
+After reviewing the exact settings paths and lifecycle events, apply them with
+explicit consent and verify the resulting files:
+
+```bash
+hamma setup --apply --agent detected --bootstrap manual
+```
+
+Use `--agent all` or a comma-separated list such as `--agent claude,codex` when
+agent auto-detection is not appropriate. Use `--shared` only when the Claude
+hook file should be committed as `.claude/settings.json`. Setup never replaces
+a differing Hamma-managed entry unless `--force` is also supplied.
+
+## Direct hook setup
 
 `hamma hooks install` writes the documented hook entries into this project's
 agent settings files:

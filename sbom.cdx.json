@@ -1,0 +1,448 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "tools": [
+      {
+        "vendor": "HammaDev",
+        "name": "generate-sbom",
+        "version": "1"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "hammadev",
+      "version": "0.1.0-alpha.11",
+      "purl": "pkg:npm/hammadev@0.1.0-alpha.11",
+      "bom-ref": "pkg:npm/hammadev@0.1.0-alpha.11",
+      "licenses": [
+        {
+          "license": {
+            "id": "ISC"
+          }
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "@nodelib/fs.scandir",
+      "version": "2.1.5",
+      "purl": "pkg:npm/%40nodelib/fs.scandir@2.1.5",
+      "bom-ref": "pkg:npm/%40nodelib/fs.scandir@2.1.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@nodelib/fs.stat",
+      "version": "2.0.5",
+      "purl": "pkg:npm/%40nodelib/fs.stat@2.0.5",
+      "bom-ref": "pkg:npm/%40nodelib/fs.stat@2.0.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@nodelib/fs.walk",
+      "version": "1.2.8",
+      "purl": "pkg:npm/%40nodelib/fs.walk@1.2.8",
+      "bom-ref": "pkg:npm/%40nodelib/fs.walk@1.2.8",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "braces",
+      "version": "3.0.3",
+      "purl": "pkg:npm/braces@3.0.3",
+      "bom-ref": "pkg:npm/braces@3.0.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "commander",
+      "version": "15.0.0",
+      "purl": "pkg:npm/commander@15.0.0",
+      "bom-ref": "pkg:npm/commander@15.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fast-glob",
+      "version": "3.3.3",
+      "purl": "pkg:npm/fast-glob@3.3.3",
+      "bom-ref": "pkg:npm/fast-glob@3.3.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fastq",
+      "version": "1.20.1",
+      "purl": "pkg:npm/fastq@1.20.1",
+      "bom-ref": "pkg:npm/fastq@1.20.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "ISC"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fill-range",
+      "version": "7.1.1",
+      "purl": "pkg:npm/fill-range@7.1.1",
+      "bom-ref": "pkg:npm/fill-range@7.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "glob-parent",
+      "version": "5.1.2",
+      "purl": "pkg:npm/glob-parent@5.1.2",
+      "bom-ref": "pkg:npm/glob-parent@5.1.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "ISC"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "is-extglob",
+      "version": "2.1.1",
+      "purl": "pkg:npm/is-extglob@2.1.1",
+      "bom-ref": "pkg:npm/is-extglob@2.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "is-glob",
+      "version": "4.0.3",
+      "purl": "pkg:npm/is-glob@4.0.3",
+      "bom-ref": "pkg:npm/is-glob@4.0.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "is-number",
+      "version": "7.0.0",
+      "purl": "pkg:npm/is-number@7.0.0",
+      "bom-ref": "pkg:npm/is-number@7.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "merge2",
+      "version": "1.4.1",
+      "purl": "pkg:npm/merge2@1.4.1",
+      "bom-ref": "pkg:npm/merge2@1.4.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "micromatch",
+      "version": "4.0.8",
+      "purl": "pkg:npm/micromatch@4.0.8",
+      "bom-ref": "pkg:npm/micromatch@4.0.8",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "picocolors",
+      "version": "1.1.1",
+      "purl": "pkg:npm/picocolors@1.1.1",
+      "bom-ref": "pkg:npm/picocolors@1.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "ISC"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "picomatch",
+      "version": "2.3.2",
+      "purl": "pkg:npm/picomatch@2.3.2",
+      "bom-ref": "pkg:npm/picomatch@2.3.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "queue-microtask",
+      "version": "1.2.3",
+      "purl": "pkg:npm/queue-microtask@1.2.3",
+      "bom-ref": "pkg:npm/queue-microtask@1.2.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "reusify",
+      "version": "1.1.0",
+      "purl": "pkg:npm/reusify@1.1.0",
+      "bom-ref": "pkg:npm/reusify@1.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "run-parallel",
+      "version": "1.2.0",
+      "purl": "pkg:npm/run-parallel@1.2.0",
+      "bom-ref": "pkg:npm/run-parallel@1.2.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "to-regex-range",
+      "version": "5.0.1",
+      "purl": "pkg:npm/to-regex-range@5.0.1",
+      "bom-ref": "pkg:npm/to-regex-range@5.0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "zod",
+      "version": "4.4.3",
+      "purl": "pkg:npm/zod@4.4.3",
+      "bom-ref": "pkg:npm/zod@4.4.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:npm/%40nodelib/fs.scandir@2.1.5",
+      "dependsOn": [
+        "pkg:npm/%40nodelib/fs.stat@2.0.5",
+        "pkg:npm/run-parallel@1.2.0"
+      ]
+    },
+    {
+      "ref": "pkg:npm/%40nodelib/fs.stat@2.0.5",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/%40nodelib/fs.walk@1.2.8",
+      "dependsOn": [
+        "pkg:npm/%40nodelib/fs.scandir@2.1.5",
+        "pkg:npm/fastq@1.20.1"
+      ]
+    },
+    {
+      "ref": "pkg:npm/braces@3.0.3",
+      "dependsOn": [
+        "pkg:npm/fill-range@7.1.1"
+      ]
+    },
+    {
+      "ref": "pkg:npm/commander@15.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/fast-glob@3.3.3",
+      "dependsOn": [
+        "pkg:npm/%40nodelib/fs.stat@2.0.5",
+        "pkg:npm/%40nodelib/fs.walk@1.2.8",
+        "pkg:npm/glob-parent@5.1.2",
+        "pkg:npm/merge2@1.4.1",
+        "pkg:npm/micromatch@4.0.8"
+      ]
+    },
+    {
+      "ref": "pkg:npm/fastq@1.20.1",
+      "dependsOn": [
+        "pkg:npm/reusify@1.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:npm/fill-range@7.1.1",
+      "dependsOn": [
+        "pkg:npm/to-regex-range@5.0.1"
+      ]
+    },
+    {
+      "ref": "pkg:npm/glob-parent@5.1.2",
+      "dependsOn": [
+        "pkg:npm/is-glob@4.0.3"
+      ]
+    },
+    {
+      "ref": "pkg:npm/hammadev@0.1.0-alpha.11",
+      "dependsOn": [
+        "pkg:npm/commander@15.0.0",
+        "pkg:npm/fast-glob@3.3.3",
+        "pkg:npm/picocolors@1.1.1",
+        "pkg:npm/zod@4.4.3"
+      ]
+    },
+    {
+      "ref": "pkg:npm/is-extglob@2.1.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/is-glob@4.0.3",
+      "dependsOn": [
+        "pkg:npm/is-extglob@2.1.1"
+      ]
+    },
+    {
+      "ref": "pkg:npm/is-number@7.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/merge2@1.4.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/micromatch@4.0.8",
+      "dependsOn": [
+        "pkg:npm/braces@3.0.3",
+        "pkg:npm/picomatch@2.3.2"
+      ]
+    },
+    {
+      "ref": "pkg:npm/picocolors@1.1.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/picomatch@2.3.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/queue-microtask@1.2.3",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/reusify@1.1.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/run-parallel@1.2.0",
+      "dependsOn": [
+        "pkg:npm/queue-microtask@1.2.3"
+      ]
+    },
+    {
+      "ref": "pkg:npm/to-regex-range@5.0.1",
+      "dependsOn": [
+        "pkg:npm/is-number@7.0.0"
+      ]
+    },
+    {
+      "ref": "pkg:npm/zod@4.4.3",
+      "dependsOn": []
+    }
+  ]
+}

@@ -39,8 +39,11 @@ The tag starts `.github/workflows/publish.yml`. The job:
 - uses Node 24 and a pinned OIDC-capable npm CLI;
 - installs the frozen lockfile, typechecks, tests, and exercises the packed npm
   artifact in an isolated environment;
+- verifies that `sbom.cdx.json` matches the installed production dependency
+  tree and includes it in the package;
 - refuses to overwrite an existing registry version; and
-- publishes with npm OIDC and automatic provenance.
+- publishes with npm OIDC and automatic provenance, then requires the registry
+  metadata to expose an SLSA v1 provenance attestation.
 
 For a tag created before the workflow existed, dispatch the workflow manually:
 
@@ -72,8 +75,17 @@ release notes.
 - The concurrency guard prevents overlapping publishes.
 - The package allowlist and installed-package smoke protect against shipping
   workspace-only source, tests, `AGENTS.md`, or local diagnostic evidence.
+- The committed CycloneDX SBOM is regenerated with `pnpm security:sbom` and
+  checked in CI with `pnpm security:sbom:check`; dependency or version changes
+  cannot pass with a stale SBOM.
+- The registry round trip rejects a package without npm SLSA provenance.
 - Tag protection or a GitHub deployment environment can add an approval layer
   without reintroducing an npm token.
+
+Supported-version and vulnerability reporting policy is defined in
+[`SECURITY.md`](../SECURITY.md). The operational response procedure is in
+[`docs/incident-response.md`](incident-response.md), and trust assumptions are
+documented in [`docs/threat-model.md`](threat-model.md).
 
 References: [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/),
 [npm provenance](https://docs.npmjs.com/generating-provenance-statements/), and

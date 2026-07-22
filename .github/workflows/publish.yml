@@ -77,11 +77,17 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify committed CycloneDX SBOM
+        run: pnpm security:sbom:check
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Test
         run: pnpm test
+
+      - name: Fault-injection and recovery tests
+        run: pnpm test:faults
 
       - name: Semantic memory quality gate
         run: pnpm quality:semantic

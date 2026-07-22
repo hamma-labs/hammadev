@@ -8,12 +8,13 @@ const rootPackage = JSON.parse(
 ) as { version: string };
 const productContract = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../product-contract.json'), 'utf8'),
-) as { websiteCommands: Record<string, string> };
+) as { installCommand: string; websiteCommands: Record<string, string> };
 
 export default defineConfig({
   plugins: [react()],
   define: {
     __HAMMA_VERSION__: JSON.stringify(rootPackage.version),
+    __HAMMA_INSTALL_COMMAND__: JSON.stringify(productContract.installCommand),
     __HAMMA_WEBSITE_COMMANDS__: JSON.stringify(productContract.websiteCommands),
   },
   resolve: {

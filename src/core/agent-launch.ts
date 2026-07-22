@@ -146,9 +146,17 @@ async function ensureSafeDirectory(directory: string, parent: string): Promise<v
   await assertSafeDirectory(directory, parent);
 }
 
+async function canonicalProjectDirectory(projectPath: string): Promise<string> {
+  const resolved = path.resolve(projectPath);
+  const stats = await fs.lstat(resolved);
+  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+    throw new Error(`Launch project root is not a safe directory: ${resolved}`);
+  }
+  return fs.realpath(resolved);
+}
+
 async function runtimeRoot(agent: LaunchAgent, projectPath: string, create: boolean): Promise<string> {
-  const project = path.resolve(projectPath);
-  await assertSafeDirectory(project);
+  const project = await canonicalProjectDirectory(projectPath);
   const hammaRoot = path.join(project, ".hamma");
   await assertSafeDirectory(hammaRoot, project);
   const runtime = path.join(hammaRoot, "runtime");
@@ -357,7 +365,7 @@ export async function prepareAgentLaunch(
   projectPath: string,
   options: { memory?: string; wrapperPid?: number } = {}
 ): Promise<AgentLaunchPreparation> {
-  const project = path.resolve(projectPath);
+  const project = await canonicalProjectDirectory(projectPath);
   let memory: string;
   try {
     memory = (await inspectMemory(project, options.memory)).manifest.name;
@@ -433,7 +441,7 @@ export async function registerAgentSessionStart(
   }
   const sessionId = rawSessionId.trim();
   assertSessionId(agent, sessionId);
-  const project = path.resolve(projectPath);
+  const project = await canonicalProjectDirectory(projectPath);
   const root = await runtimeRoot(agent, project, false);
   return withRuntimeLock(root, async () => {
     const record = await readRecord(agent, root, launchId);
@@ -515,7 +523,7 @@ export async function checkpointAgentLaunch(
   projectPath: string,
   launchId: string
 ): Promise<AgentCheckpointResult> {
-  const project = path.resolve(projectPath);
+  const project = await canonicalProjectDirectory(projectPath);
   let root: string;
   try {
     root = await runtimeRoot(agent, project, false);
@@ -604,7 +612,7 @@ export async function recoverAgentLaunches(
   agent: LaunchAgent,
   projectPath: string
 ): Promise<AgentCheckpointResult[]> {
-  const project = path.resolve(projectPath);
+  const project = await canonicalProjectDirectory(projectPath);
   let records: AgentLaunchRecord[];
   try {
     records = await listAgentLaunches(agent, project);
@@ -650,16 +658,24 @@ export async function discardAgentLaunch(
   await withRuntimeLock(root, () => fs.rm(recordPath(agent, root, launchId), { force: true }));
 }
 
-function signalExitCode(signal: NodeJS.Signals | undefined): number {
+export function signalExitCode(signal: NodeJS.Signals | undefined): number {
   if (!signal) return 1;
   return 128 + (osConstants.signals[signal] ?? 0);
+}
+
+export function forwardedSignalsForPlatform(
+  platform: NodeJS.Platform = process.platform
+): NodeJS.Signals[] {
+  return platform === "win32"
+    ? ["SIGINT", "SIGTERM"]
+    : ["SIGINT", "SIGTERM", "SIGHUP"];
 }
 
 export async function launchAgentWithRecovery(
   agent: LaunchAgent,
   options: AgentLauncherOptions
 ): Promise<AgentLauncherResult> {
-  const project = path.resolve(options.projectPath);
+  const project = await canonicalProjectDirectory(options.projectPath);
   const command = options.command ?? agent;
   const args = options.args ?? [];
   let preparation: AgentLaunchPreparation;
@@ -698,9 +714,7 @@ export async function launchAgentWithRecovery(
     }
   );
 
-  const forwardedSignals: NodeJS.Signals[] = process.platform === "win32"
-    ? ["SIGINT", "SIGTERM"]
-    : ["SIGINT", "SIGTERM", "SIGHUP"];
+  const forwardedSignals = forwardedSignalsForPlatform();
   const handlers = new Map<NodeJS.Signals, () => void>();
   for (const signal of forwardedSignals) {
     const handler = () => {
