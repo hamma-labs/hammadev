@@ -7,14 +7,14 @@ _Evidence refreshed 2026-07-22._
 HammaDev has two different current states that must not be conflated:
 
 - **Public alpha:** `hammadev@0.1.0-alpha.10`, installed with `hammadev@alpha`.
-- **Beta release candidate:** an unreleased `0.1.0-beta.1` candidate pushed to `main`, containing the next reliability, security, platform, and onboarding improvements.
+- **Public beta:** `hammadev@0.1.0-beta.1`, installed with `hammadev@beta`.
 
-The beta.1 candidate implements the five priorities from the previous review: a larger versioned semantic corpus, a three-OS lifecycle CI matrix, deterministic fault injection, security/release artifacts, and guided setup. Release preparation and the final Windows fixes are commits `2ad31bd`, `1edc2c5`, and `3e20b2a`. All nine jobs passed in [`hamma-labs/hammadev` CI run 29931074657](https://github.com/hamma-labs/hammadev/actions/runs/29931074657). The candidate is not yet tagged or published, so those improvements must not yet be attributed to the npm package.
+Beta.1 implements the five priorities from the previous review: a larger versioned semantic corpus, a three-OS lifecycle CI matrix, deterministic fault injection, security/release artifacts, and guided setup. Release preparation and the final Windows fixes are commits `2ad31bd`, `1edc2c5`, and `3e20b2a`; annotated tag `v0.1.0-beta.1` points to final green release commit `f04d881`.
 
 - Product idea: **9/10**
-- Verified beta.1 candidate: **8.8/10**
+- Public beta.1: **8.8/10**
 - Public alpha.10: **7.8/10**
-- Broad production readiness after beta.1 registry verification: **7/10**
+- Broad production readiness: **7/10**
 - Recommendation today: **controlled early-adopter use with human review**
 
 These scores are subjective judgments. The verification facts and limitations below matter more than the numbers.
@@ -39,9 +39,9 @@ The previous release mismatch remains fixed for the currently advertised public 
 
 The successful alpha.10 registry verification is [GitHub Actions run 29844189826](https://github.com/xayrullonematov/hammadev/actions/runs/29844189826). Final alpha.10 main-branch CI is [run 29844160028](https://github.com/xayrullonematov/hammadev/actions/runs/29844160028).
 
-The `alpha` tag is intentionally frozen at the hackathon submission. The beta candidate's documentation, website source, tests, and product contract consistently require `@beta`; `latest` will remain unchanged during the beta release.
+The `alpha` tag is intentionally frozen at the hackathon submission. Beta.1's documentation, website source, tests, and product contract consistently require `@beta`; `latest` remained unchanged during the release.
 
-## Verified but unpublished beta.1 candidate
+## Released beta.1
 
 ### 1. Semantic evaluation is larger and more informative
 
@@ -63,7 +63,7 @@ The gate now reports:
 - Per-dimension results
 - Agent, outcome, and provenance counts
 
-Current candidate results are:
+Current beta.1 results are:
 
 | Metric | Result | Gate |
 | --- | ---: | ---: |
@@ -105,7 +105,7 @@ Windows uncovered a second package-smoke issue after the original SBOM gate clea
 
 Memory synchronization now supports deterministic test-only fault stages around lock acquisition, revision-file completion, and revision publication. Production callers do not enable them.
 
-The candidate adds coverage for:
+Beta.1 adds coverage for:
 
 - Simulated failure before revision publication
 - Simulated failure after revision publication but before manifest update
@@ -125,7 +125,7 @@ Injected exceptions are not identical to killing power at every machine instruct
 
 ### 4. Security and release artifacts now exist
 
-The candidate adds:
+Beta.1 adds:
 
 - A deterministic CycloneDX 1.5 production-dependency SBOM (`sbom.cdx.json`)
 - SBOM freshness checking against the installed pnpm production tree
@@ -146,7 +146,7 @@ The hook installer now validates every existing parent directory and refuses a s
 
 ### 5. Setup is guided, previewable, and explicit
 
-The candidate adds:
+Beta.1 adds:
 
 ```bash
 hamma setup --check
@@ -170,18 +170,18 @@ The website now consumes the install command from `product-contract.json` and pr
 
 ## Updated scorecard
 
-| Area | Public alpha.10 | Verified beta.1 candidate | Honest assessment |
+| Area | Public alpha.10 | Public beta.1 | Honest assessment |
 | --- | ---: | ---: | --- |
 | Product idea | 9/10 | 9/10 | Project-owned, local continuity remains a strong abstraction. |
-| Feature completeness | 8.2/10 | 8.8/10 | The candidate adds guided setup, platform gates, fault recovery, and security artifacts. Team synchronization remains absent. |
+| Feature completeness | 8.2/10 | 8.8/10 | Beta.1 adds guided setup, platform gates, fault recovery, and security artifacts. Team synchronization remains absent. |
 | CLI and onboarding | 7/10 | 8.2/10 | Preview/apply/verify is materially safer and clearer than manual hook setup. It still assumes terminal, Git, Node, and agent concepts. |
 | Semantic task-state correctness | 7.5/10 | 8/10 | Metrics and stress coverage improved, but only six labeled cases derive from real sessions. |
-| Exact-session and crash mechanics | 8.5/10 | 9/10 | The candidate adds explicit fault boundaries, stale-lock ownership, orphan cleanup, and concurrency tests. |
+| Exact-session and crash mechanics | 8.5/10 | 9/10 | Beta.1 adds explicit fault boundaries, stale-lock ownership, orphan cleanup, and concurrency tests. |
 | Git and concurrency safety | 8.5/10 | 9/10 | One-writer semantics and cleanup behavior are now directly exercised. |
 | Security posture | 6/10 | 7.5/10 | Policy, threat model, SBOM, incident process, and provenance checks exist. Best-effort redaction and local artifact exposure remain. |
-| Release engineering | 8.5/10 | 9/10 candidate | SBOM freshness, package contents, and the complete CI matrix pass; tag, OIDC publication, and registry provenance remain. |
+| Release engineering | 8.5/10 | 9.2/10 | SBOM freshness, package contents, the complete CI matrix, OIDC publication, registry installation, and SLSA provenance pass. |
 | Cross-platform proof | 5.5/10 | 8/10 verified | The lifecycle and packed-artifact contract passed on all three operating systems with both supported Node lines. |
-| Automated testing | 9/10 | 9.2/10 candidate | The complete local suite and both remote Ubuntu full-verification jobs passed, alongside six lifecycle jobs and the website job. |
+| Automated testing | 9/10 | 9.2/10 | The complete local suite and both remote Ubuntu full-verification jobs passed, alongside six lifecycle jobs and the website job. |
 | Team use | 3/10 | 3/10 | Memory remains intentionally local to one machine. |
 | Adoption proof | 4/10 | 4/10 | No verified retention or production-use evidence was added. |
 
@@ -197,28 +197,28 @@ Established locally:
 - The website Chromium suite passed all nine tests.
 - `git diff --check` passed.
 
-Established remotely for final commit `3e20b2a`:
+Established remotely:
 
 - [`CI run 29931074657`](https://github.com/hamma-labs/hammadev/actions/runs/29931074657) passed all nine jobs.
+- Final release commit `f04d881` passed all nine jobs again in [CI run 29931443146](https://github.com/hamma-labs/hammadev/actions/runs/29931443146).
 - Both Ubuntu full-verification jobs passed the full test, fault, semantic, SBOM, and package gates.
 - All six Ubuntu/macOS/Windows lifecycle jobs passed on Node 22.12 and Node 24.
 - Both Windows packed-artifact smokes passed after the explicit Claude home and relative-glob fixes.
 - The Ubuntu website job passed typecheck, production build, and all nine Chromium tests.
+- [Publish run 29931762835](https://github.com/hamma-labs/hammadev/actions/runs/29931762835) validated the tag identity and every release gate, then published `hammadev@0.1.0-beta.1` through npm Trusted Publishing with signed provenance.
+- A subsequent exact registry smoke installed beta.1, matched its CLI version and command contract, and verified the npm SLSA v1 attestation.
+- npm `beta` resolves to `0.1.0-beta.1`; `alpha` remains `0.1.0-alpha.10` and `latest` remains `0.1.0-alpha.5`.
 
-Not established yet:
+Release verification note:
 
-- An annotated `v0.1.0-beta.1` tag.
-- npm OIDC publication from `hamma-labs/hammadev`.
-- A registry round trip proving the exact beta artifact and SLSA provenance.
-- The npm `beta` distribution tag. The existing `alpha` and `latest` tags remain unchanged.
+- The publish workflow's immediate registry-install step exhausted its three-minute retry window because npm still returned `ETARGET`, so that workflow run concluded failed after publication.
+- Registry propagation completed shortly afterward. The same repository command, `pnpm smoke:registry -- --version 0.1.0-beta.1`, then passed against npm with the exact version, provenance, and command surface. No republish or dist-tag mutation was performed.
 
-## What remains before releasing beta.1
+## Post-release follow-up
 
-1. Confirm the npm Trusted Publisher entry authorizes `hamma-labs/hammadev` and `publish.yml`.
-2. Commit and push this evidence refresh, then require the final main-branch CI run to pass.
-3. Create and push annotated tag `v0.1.0-beta.1`.
-4. Require the publish workflow to verify the exact registry artifact, SLSA provenance, and `beta` dist-tag.
-5. Confirm `alpha` remains `0.1.0-alpha.10` and `latest` remains unchanged.
+1. Increase or diversify the registry propagation strategy before the next release so a successful publication is less likely to leave a red workflow run.
+2. Re-run the failed beta.1 publish job when Actions write access is available if a green historical workflow record is desired; its collision guard will skip publication and repeat verification.
+3. Consider promotion to `latest` separately. Do not change `alpha` or `latest` as part of the beta.1 release.
 
 ## What remains before broad production use
 
@@ -233,10 +233,10 @@ Not established yet:
 
 ## Recommendation
 
-Public alpha.10 remains the frozen hackathon artifact. The beta.1 candidate is materially stronger and has complete local and three-OS CI evidence, but it should still be described as unpublished until the npm OIDC and registry round trip pass.
+Public alpha.10 remains the frozen hackathon artifact. Public beta.1 is materially stronger and has complete local, three-OS CI, npm OIDC, registry-installation, and provenance evidence.
 
 HammaDev is still not recommended for unattended autonomous execution, sensitive enterprise repositories, regulated environments, or teams expecting shared memory.
 
 The most accurate current description is:
 
-> HammaDev is a well-engineered local-first continuity subsystem with a frozen public alpha and a three-OS-verified beta candidate. Its mechanical recovery is well tested, while semantic, security, and adoption evidence still need broader real-world proof.
+> HammaDev is a well-engineered local-first continuity subsystem with a frozen hackathon alpha and a three-OS-verified public beta. Its mechanical recovery is well tested, while semantic, security, and adoption evidence still need broader real-world proof.
