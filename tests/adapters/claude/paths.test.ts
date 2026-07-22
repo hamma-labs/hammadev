@@ -2,6 +2,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   candidateClaudeHomes,
+  claudeProjectsGlobs,
   defaultClaudeHome,
 } from "../../../src/adapters/claude/paths.js";
 
@@ -19,5 +20,13 @@ describe("Claude home paths", () => {
 
     expect(defaultClaudeHome()).toBe(explicitHome);
     expect(candidateClaudeHomes()).toEqual([explicitHome]);
+  });
+
+  it("uses separator-neutral globs relative to the Claude home", () => {
+    expect(claudeProjectsGlobs()).toEqual([
+      "projects/**/*.jsonl",
+      "sessions/**/*.jsonl",
+      "history/**/*.jsonl",
+    ]);
   });
 });

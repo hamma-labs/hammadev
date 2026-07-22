@@ -80,8 +80,13 @@ export async function discoverClaudeSessions(
   for (const home of claudeHomes) {
     if (!(await pathExists(home))) continue;
 
-    const patterns = claudeProjectsGlobs(home);
-    const files = await fg(patterns, { onlyFiles: true, dot: true });
+    const patterns = claudeProjectsGlobs();
+    const files = await fg(patterns, {
+      cwd: home,
+      absolute: true,
+      onlyFiles: true,
+      dot: true,
+    });
 
     for (const file of files) {
       let stat;

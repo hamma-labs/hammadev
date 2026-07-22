@@ -15,11 +15,11 @@ export function candidateClaudeHomes(): string[] {
   ];
 }
 
-export function claudeProjectsGlobs(claudeHome: string): string[] {
+export function claudeProjectsGlobs(): string[] {
   return [
-    path.join(claudeHome, "projects", "**", "*.jsonl"),
-    path.join(claudeHome, "sessions", "**", "*.jsonl"),
-    path.join(claudeHome, "history", "**", "*.jsonl")
+    "projects/**/*.jsonl",
+    "sessions/**/*.jsonl",
+    "history/**/*.jsonl"
   ];
 }
 
