@@ -1,0 +1,44 @@
+[
+  {
+    "id": "title",
+    "start": 0,
+    "end": 13.633,
+    "narration": "Hi, I built HammaDev: local project memory for Codex, Claude Code, and Grok. It lets me change coding agents without losing the decisions, evidence, and next action that belong to my repository."
+  },
+  {
+    "id": "problem",
+    "start": 13.633,
+    "end": 29.038,
+    "narration": "Here is the problem. When I switch agents today, I either start over or paste a huge transcript. The next agent can still repeat finished work, trust stale claims, or miss changes in Git."
+  },
+  {
+    "id": "solution",
+    "start": 29.038,
+    "end": 52.053,
+    "narration": "HammaDev turns that history into a small continuation contract stored locally beside the project. It separates agent claims from command results and repository evidence, records Git drift, and gives the next agent one clear place to continue. There is no account, cloud service, telemetry, or transcript upload."
+  },
+  {
+    "id": "demo",
+    "start": 52.053,
+    "end": 84.186,
+    "narration": "Here is the working flow. Setup check previews the hooks and Git ignore changes without writing anything. After I approve them, native lifecycle hooks save memory before compaction and restore bounded context when a session starts. When I run Hamma switch Claude, it checkpoints the exact Codex session and prepares the continuation. Claude receives the original goal, completed work, verification, risk, repository state, and the next action. It does not need the raw transcript."
+  },
+  {
+    "id": "buildweek",
+    "start": 84.186,
+    "end": 112.219,
+    "narration": "During the July eighteenth-to-twentieth Build Week sprint, I used Codex as the hands-on engineering agent. It inspected the existing TypeScript architecture, implemented changes across the adapters and shared core, ran focused tests, and replayed failures. I used GPT-5.6 inside Codex for the harder reasoning: designing evidence and readiness rules, separating the pre-event baseline, and finding cases where completed work would restart. This was useful because Codex kept implementation, tests, and repository evidence in one loop, while GPT-5.6 helped me challenge design decisions before accepting code."
+  },
+  {
+    "id": "technical",
+    "start": 112.219,
+    "end": 133.152,
+    "narration": "Under the hood, each agent has its own parser, but every parser feeds one shared state model. Memory revisions are immutable and written atomically. Exact session binding avoids guessing from the newest transcript, and initial context has an eight-kilobyte hard limit. Deeper history is recalled locally only when needed."
+  },
+  {
+    "id": "close",
+    "start": 133.152,
+    "end": 151.085,
+    "narration": "HammaDev turns agent switching from a context dump into a trustworthy continuation. Sessions belong to agents; memory belongs to the project. The public beta is on npm, the source is on GitHub, and HammaDev is ready to test for OpenAI Day."
+  }
+]

@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('presents the current product identity and supported agents accurately', async ({ page }) => {
-  await expect(page).toHaveTitle(/HammaDev.*Native Local Continuity/);
+  await expect(page).toHaveTitle(/HammaDev.*Project Memory/);
   await expect(page.getByRole('main')).toBeVisible();
   await expect(
     page.getByRole('heading', {
@@ -42,6 +42,57 @@ test('explains the native continuity workflow and safety boundaries', async ({ p
   await expect(page.getByText('Trust-controlled', { exact: true })).toBeVisible();
   await expect(page.getByText(/Only transcript bytes persisted to disk are recoverable/i)).toBeVisible();
   await expect(page.getByText(/Redaction is best-effort, not a privacy guarantee/i)).toBeVisible();
+});
+
+test('explains the OpenAI Day contribution without implying runtime model lock-in', async ({ page }) => {
+  const openAiDay = page.locator('#openai-day');
+
+  await expect(
+    openAiDay.getByRole('heading', { name: /Hardened with GPT-5.6.*Local at runtime/i }),
+  ).toBeVisible();
+  await expect(openAiDay.getByText('No model lock-in', { exact: true })).toBeVisible();
+  await expect(openAiDay.getByText(/entered Build Week as a working cross-agent handoff prototype/i)).toBeVisible();
+  await expect(openAiDay.getByText(/needs no HammaDev account, API key, or cloud backend/i)).toBeVisible();
+});
+
+test('publishes canonical social metadata for the deployed domain', async ({ page }) => {
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://hammadev.nematov.com/',
+  );
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+    'content',
+    'https://hammadev.nematov.com/',
+  );
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+    'content',
+    'https://hammadev.nematov.com/og-image.png',
+  );
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+    'content',
+    'summary_large_image',
+  );
+});
+
+test('serves the social card and crawler files from the built site', async ({ page }) => {
+  const socialCard = await page.request.get('/og-image.png');
+  expect(socialCard.ok()).toBe(true);
+  expect(socialCard.headers()['content-type']).toBe('image/png');
+  const socialCardBytes = await socialCard.body();
+  expect(socialCardBytes.readUInt32BE(16)).toBe(1200);
+  expect(socialCardBytes.readUInt32BE(20)).toBe(630);
+
+  const robots = await page.request.get('/robots.txt');
+  expect(robots.ok()).toBe(true);
+  await expect(robots.text()).resolves.toContain(
+    'Sitemap: https://hammadev.nematov.com/sitemap.xml',
+  );
+
+  const sitemap = await page.request.get('/sitemap.xml');
+  expect(sitemap.ok()).toBe(true);
+  await expect(sitemap.text()).resolves.toContain(
+    '<loc>https://hammadev.nematov.com/</loc>',
+  );
 });
 
 test('copies the documented beta install command', async ({ page, context }) => {
@@ -94,6 +145,10 @@ for (const viewport of [
 test('has a single page heading and keyboard-reachable primary actions', async ({ page }) => {
   await expect(page.locator('h1')).toHaveCount(1);
 
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'OpenAI Day' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'HammaDev on GitHub' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: /npm install/i })).toBeFocused();
 

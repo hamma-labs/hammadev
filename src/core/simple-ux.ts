@@ -35,6 +35,7 @@ export interface SimpleSaveOptions {
   agent?: string;
   memory?: string;
   useGitignore?: boolean;
+  onProgress?: (message: string) => void;
 }
 
 export interface SimpleSaveResult {
@@ -56,6 +57,7 @@ export interface SimpleSwitchOptions {
   memory?: string;
   save?: boolean;
   useGitignore?: boolean;
+  onProgress?: (message: string) => void;
 }
 
 export interface SimpleSwitchResult {
@@ -75,6 +77,7 @@ export interface SimpleDoneOptions {
   outcome?: "completed" | "blocked";
   nextAction?: string;
   useGitignore?: boolean;
+  onProgress?: (message: string) => void;
 }
 
 export interface SimpleDoneResult {
@@ -244,8 +247,11 @@ export async function detectSimpleSource(
     candidate.sourceCli !== selected.sourceCli
   );
   if (runnerUp && Math.abs(candidateTime(selected) - candidateTime(runnerUp)) <= AMBIGUOUS_WINDOW_MS) {
+    const selectedTime = selected.lastUpdatedAt ?? "unknown";
+    const runnerUpTime = runnerUp.lastUpdatedAt ?? "unknown";
     throw new Error(
-      `Both ${selected.sourceCli} and ${runnerUp.sourceCli} have recently updated project sessions. Run again with ${hintOption} <name> so Hamma saves the intended one.`
+      `Both ${selected.sourceCli} (updated ${selectedTime}) and ${runnerUp.sourceCli} (updated ${runnerUpTime}) have recently updated project sessions within ${AMBIGUOUS_WINDOW_MS / 1000}s of each other. ` +
+      `Run again with ${hintOption} ${selected.sourceCli} or ${hintOption} ${runnerUp.sourceCli} to choose the intended one.`
     );
   }
   const selectedAgent = parseAgent(selected.sourceCli);
@@ -288,6 +294,7 @@ export async function simpleSave(
   projectPath: string,
   options: SimpleSaveOptions = {}
 ): Promise<SimpleSaveResult> {
+  const progress = options.onProgress ?? (() => {});
   const inspection = await optionalInspection(projectPath, options.memory);
   const openRun = oneOpenRun(inspection);
   const source = await detectSimpleSource(projectPath, {
@@ -295,6 +302,8 @@ export async function simpleSave(
     expectedRun: openRun,
   });
   if (!source) throw new Error("No current agent session was found.");
+
+  progress("Writing to project memory…");
 
   if (openRun) {
     const checkpoint = await checkpointMemory(
@@ -344,6 +353,7 @@ export async function simpleSwitch(
   options: SimpleSwitchOptions = {}
 ): Promise<SimpleSwitchResult> {
   const target = parseAgent(targetValue, "target agent");
+  const progress = options.onProgress ?? (() => {});
   let inspection = await optionalInspection(projectPath, options.memory);
   let openRun = oneOpenRun(inspection);
   let source: SimpleSourceSelection | undefined;
@@ -403,6 +413,7 @@ export async function simpleSwitch(
       "There is no saved project memory to switch. Run `hamma save --agent <codex|claude|grok>` first."
     );
   }
+  progress(`Preparing context for ${target}…`);
   const attach = await attachMemory(projectPath, inspection.manifest.name, target, {
     noSync: true,
     useGitignore: options.useGitignore,
@@ -423,6 +434,7 @@ export async function simpleDone(
   projectPath: string,
   options: SimpleDoneOptions = {}
 ): Promise<SimpleDoneResult> {
+  const progress = options.onProgress ?? (() => {});
   const inspection = await inspectMemory(projectPath, options.memory);
   const openRun = oneOpenRun(inspection);
   const outcome = options.outcome ?? "completed";
@@ -431,6 +443,8 @@ export async function simpleDone(
     expectedRun: openRun,
   });
   if (!source) throw new Error("No current agent session was found.");
+
+  progress("Closing the task epoch…");
 
   if (openRun) {
     const finished = await finishMemory(

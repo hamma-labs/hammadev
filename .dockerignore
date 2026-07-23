@@ -1,0 +1,14 @@
+.git
+.grok
+.hamma
+dist
+docs/product-hunt/assets
+docs/product-hunt/source
+docs/video-submission/output
+node_modules
+playwright-report
+test-results
+website/dist
+website/node_modules
+website/playwright-report
+website/test-results

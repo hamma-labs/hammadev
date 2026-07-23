@@ -35,7 +35,7 @@ function checkNode(): Check {
     return {
       name: "Node.js version",
       status: "fail",
-      message: `Node ${raw} detected. HammaDev requires Node ${MIN_NODE_VERSION}+.`,
+      message: `Node ${raw} detected. HammaDev requires Node ${MIN_NODE_VERSION}+. Upgrade: https://nodejs.org or \`nvm install 22\` / \`fnm install 22\`.`,
     };
   }
   return { name: "Node.js version", status: "pass", message: `Node ${raw}` };

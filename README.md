@@ -72,6 +72,9 @@ keeps `.hamma/` out of Git, and opens the selected agent. Run `hamma quickstart`
 for the detailed read-only diagnosis or use `hamma setup --check` to inspect
 every planned file change.
 
+Global flags: `--quiet` / `-q` suppresses progress messages; `--log-level debug`
+enables structured diagnostics.
+
 ### The everyday workflow
 
 ```bash
@@ -203,6 +206,8 @@ and structured logs stay off stdout, so JSON consumers remain safe.
 | `hamma switch <agent>` | Save current work, prepare safe context, and open the destination agent. |
 | `hamma done [--blocked --next <text>]` | Save and close the current task without exposing attach IDs or update files. |
 | `hamma ask <question>` | Search the active project memory in plain language. |
+| `hamma fix` | Interactively repair incorrect memory state (guided repair/close/abandon). |
+| `hamma clean [--dry-run]` | Remove stale runtime records, orphaned temps, and old handoff artifacts. |
 | `hamma codex\|claude\|grok [-- args]` | Launch the agent with memory context, native hooks, and exact-session exit checkpointing. |
 | `hamma config get\|set bootstrap <manual\|automatic>` | Control whether session-start memory loads in every session or only hamma-launched ones (default: manual). |
 | `hamma continue --to <agent> [--explain] [--force]` | Select the strongest cross-agent project session, preflight its current task epoch, and create a continuation only when actionable. |
@@ -354,7 +359,7 @@ recall MRR, false-actionable rate, and false-complete rate. The publish workflow
 then installs the exact version back from npm, requires its SLSA provenance,
 and compares its command surface with the shared website contract. CI runs the
 full suite on Ubuntu and a portable lifecycle contract on Ubuntu, macOS, and
-Windows for Node 22.12 and Node 24.
+Windows for Node 22.12, and Node 24.
 
 The optional project-level Kiro quality hook runs `pnpm quality:report` after
 TypeScript source saves and records a local, content-safe validation report. See

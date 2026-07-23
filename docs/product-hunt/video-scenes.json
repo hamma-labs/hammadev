@@ -1,0 +1,34 @@
+[
+  {
+    "id": "hook",
+    "narration": "Hey Product Hunt. Coding agents are fast, but every new session can forget the decisions, verification, and next step that made the previous session useful."
+  },
+  {
+    "id": "problem",
+    "narration": "Switch from Codex to Claude Code or Grok, and the project story usually fractures. You spend the first part of every session reconstructing what changed, what passed, and what is still risky."
+  },
+  {
+    "id": "solution",
+    "narration": "HammaDev gives that memory to the repository instead of one vendor session. It creates a compact local continuation brief with the goal, completed work, evidence, Git state, risks, and one clear next action."
+  },
+  {
+    "id": "workflow",
+    "narration": "Run hamma, choose your coding agent, and continue. Native lifecycle checkpoints preserve state before compaction, exact-session recovery finds the right source, and Git drift detection warns when the repository has moved."
+  },
+  {
+    "id": "handoff",
+    "narration": "The next agent receives bounded context instead of a transcript dump. It can see what was verified, where the evidence came from, and whether finished work should stay finished."
+  },
+  {
+    "id": "privacy",
+    "narration": "Everything stays in local project files. There is no HammaDev account, cloud backend, telemetry, or transcript upload. The memory is inspectable, model agnostic, and designed to travel with your repository."
+  },
+  {
+    "id": "proof",
+    "narration": "The public beta supports Codex, Claude Code, and Grok, with hundreds of automated checks covering continuity, provenance, recovery, and real browser flows. It is free and open source."
+  },
+  {
+    "id": "cta",
+    "narration": "Install HammaDev from npm, run hamma in your project, and tell us what evidence you would need before trusting an agent to continue automatically. We are live today on Product Hunt."
+  }
+]

@@ -192,7 +192,7 @@ Established locally:
 
 - Package identity, product contract, website, SBOM, and CLI report `0.1.0-beta.2` and use the `beta` installation channel.
 - Typecheck, CLI build, website typecheck/build, SBOM regeneration/freshness, fault injection, and the 19-case semantic gate passed.
-- The complete Vitest run passed 440 tests across 62 files.
+- The complete Vitest run passed 441 tests across 62 files.
 - The 14-test portable lifecycle suite passed locally.
 - The installed-tarball smoke passed. The final tarball measured 2,006,720 bytes and contained the beta.2 CLI contract, setup module, npm resolver, product contract, SBOM, security policy, and handoff skill while excluding source, tests, local evidence, and generated media.
 - The website Chromium suite passed all nine tests.
@@ -214,6 +214,45 @@ Established remotely:
 1. Test the one-command interaction with people who did not build Hamma and measure where installation, terminology, consent, or agent selection still causes friction.
 2. Design a GUI or native launcher only from that usability evidence; beta.2 is still one unified npm package and is not a native installer.
 3. Consider promotion to `latest` separately. Do not change frozen `alpha` as part of a later promotion decision.
+
+## Post-beta.2 friction fixes (in progress, targeting beta.3)
+
+A comprehensive friction audit identified 25 issues across the CLI. The following
+have been implemented and pass the full 441-test suite:
+
+**Accessibility:**
+- Early Node version guard before ESM imports (prevents cryptic errors on Node < 22.12).
+- `preinstall` script in package.json (blocks installation on wrong Node).
+- `.nvmrc` file for contributor auto-switching.
+- Upgrade guidance in `hamma doctor` output (links nvm, fnm, nodejs.org).
+
+**Command surface simplification:**
+- Six plumbing memory subcommands (sync, attach, checkpoint, finish, abandon, resume) hidden from default `--help` but remain functional.
+- `memory show` now includes correction commands when state is actionable (merging `memory review` behavior).
+- Auto-resolve `--attach` IDs: when the memory has exactly one open run, checkpoint/finish/abandon infer it.
+- Shared `printProjectCandidates()` helper deduplicates the `list` command.
+
+**UX improvements:**
+- `--quiet` / `-q` global flag suppresses informational progress messages.
+- Progress indication via `onProgress` callbacks in save/switch/done commands.
+- Ambiguity error shows actual timestamps and the 30s threshold.
+- `hamma config get` explains what each value means, not just its name.
+- `save` and `done` descriptions clarified: checkpoint-without-closing vs marks-complete.
+- Setup consent prompt now bullet-points what each hook does.
+
+**Reliability:**
+- Memory lock retry: 3 attempts at 500ms exponential backoff before throwing.
+- TOCTOU race in stale lock recovery fixed (retry loop instead of rm-then-mkdir).
+- Stale launch records (>7 days, dead process) auto-cleaned at session start.
+- Recovery notification: users see "✓ Recovered prior X session" at startup.
+
+**Controversial design resolutions:**
+- `skill install` default changed from "both" (codex+claude) to "all" (codex+claude+grok).
+- `setup --apply` default bootstrap changed to `automatic` (matches guided flow).
+- `src/commands/` directory scaffolded for incremental CLI extraction.
+
+These changes are mechanical improvements. They do not change the semantic
+evaluation corpus, release artifacts, or the overall product posture.
 
 ## What remains before broad production use
 

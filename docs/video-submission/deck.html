@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HammaDev Build Week video</title>
+  <style>
+    :root {
+      --ink: #14211f;
+      --muted: #687672;
+      --paper: #f7f3ea;
+      --purple: #7357e8;
+      --purple-soft: #ded6ff;
+      --lime: #c9f36b;
+      --orange: #ef775b;
+      --night: #121918;
+      --line: rgba(20, 33, 31, .14);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--paper); color: var(--ink); }
+    .scene { display: none; position: relative; width: 1920px; height: 1080px; padding: 76px 98px; overflow: hidden; }
+    .scene.active { display: flex; }
+    .brand { position: absolute; top: 54px; left: 98px; display: flex; align-items: center; gap: 14px; font-weight: 850; font-size: 24px; letter-spacing: -.03em; }
+    .brand img { width: 38px; height: 38px; }
+    .tag { display: inline-flex; align-items: center; gap: 9px; width: max-content; padding: 8px 13px; border: 1px solid var(--line); border-radius: 99px; font-size: 16px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .tag:before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+    .scene-number { position: absolute; right: 98px; top: 63px; color: #8c9793; font: 700 16px ui-monospace, monospace; letter-spacing: .12em; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { max-width: 1320px; font-size: 118px; line-height: .95; letter-spacing: -.073em; }
+    h2 { max-width: 1260px; font-size: 82px; line-height: .98; letter-spacing: -.058em; }
+    h3 { font-size: 29px; line-height: 1.1; letter-spacing: -.035em; }
+    .lead { color: var(--muted); font-size: 31px; line-height: 1.45; letter-spacing: -.02em; }
+    .purple { color: var(--purple); }
+    .orange { color: var(--orange); }
+    .caption-safe { position: absolute; left: 98px; right: 98px; bottom: 44px; color: #87918d; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; }
+    .grid-bg { position: absolute; inset: 0; opacity: .32; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 64px 64px; mask-image: linear-gradient(to bottom, black, transparent 72%); }
+
+    #title { align-items: center; }
+    #title:after { content: ""; position: absolute; width: 820px; height: 820px; border: 2px solid var(--purple-soft); border-radius: 50%; right: -180px; top: 110px; box-shadow: 0 0 0 120px rgba(115,87,232,.045), 0 0 0 240px rgba(115,87,232,.035); }
+    .title-copy { position: relative; z-index: 2; display: grid; gap: 32px; }
+    .title-copy h1 span { display: block; color: var(--purple); }
+    .title-copy .lead { max-width: 900px; }
+    .agent-orbit { position: absolute; right: 115px; top: 250px; z-index: 3; width: 540px; height: 540px; }
+    .memory-card { position: absolute; inset: 115px 86px; padding: 40px; border-radius: 28px; background: var(--night); color: white; box-shadow: 0 34px 80px rgba(20,33,31,.24); transform: rotate(-3deg); }
+    .memory-card img { width: 52px; filter: brightness(0) invert(1); }
+    .memory-card strong { display: block; margin-top: 24px; font-size: 33px; }
+    .memory-card span { display: block; margin-top: 11px; color: #b3bfbb; line-height: 1.45; }
+    .agent-pill { position: absolute; padding: 14px 21px; border: 1px solid var(--line); background: white; border-radius: 14px; box-shadow: 0 14px 36px rgba(20,33,31,.11); font: 800 17px ui-monospace, monospace; }
+    .agent-pill.codex { top: 16px; left: 42px; }
+    .agent-pill.claude { right: 0; top: 75px; }
+    .agent-pill.grok { bottom: 30px; right: 40px; }
+
+    #problem, #solution, #buildweek, #technical, #close { padding-top: 150px; flex-direction: column; }
+    .problem-head { display: flex; align-items: end; justify-content: space-between; gap: 80px; }
+    .problem-head .lead { max-width: 560px; }
+    .comparison { display: grid; grid-template-columns: 1fr 170px 1fr; align-items: center; gap: 30px; margin-top: 92px; }
+    .agent-screen { height: 390px; border: 1px solid var(--line); border-radius: 24px; padding: 30px; background: rgba(255,255,255,.74); box-shadow: 0 20px 54px rgba(20,33,31,.08); }
+    .screen-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 22px; border-bottom: 1px solid var(--line); font: 800 18px ui-monospace, monospace; }
+    .screen-lines { display: grid; gap: 15px; margin-top: 30px; }
+    .screen-lines i { height: 17px; border-radius: 99px; background: #d8dedb; }
+    .screen-lines i:nth-child(2) { width: 83%; }
+    .screen-lines i:nth-child(3) { width: 68%; }
+    .blank .screen-lines { opacity: .28; }
+    .blank-message { margin-top: 44px; padding: 22px; border-left: 4px solid var(--orange); background: #fff0eb; color: #8d3d2b; font-size: 22px; font-weight: 750; }
+    .bad-arrow { text-align: center; color: var(--orange); font: 850 18px ui-monospace, monospace; }
+    .bad-arrow strong { display: block; font-size: 74px; font-family: sans-serif; }
+
+    .architecture { display: grid; grid-template-columns: 310px 1fr 390px; align-items: center; gap: 55px; margin-top: 64px; }
+    .agents { display: grid; gap: 16px; }
+    .agent-node, .evidence-node { padding: 22px 25px; border: 1px solid var(--line); border-radius: 17px; background: white; font-size: 21px; font-weight: 800; box-shadow: 0 12px 30px rgba(20,33,31,.06); }
+    .agent-node span, .evidence-node span { float: right; color: #85918d; font: 700 14px ui-monospace, monospace; }
+    .memory-hub { position: relative; min-height: 490px; padding: 42px; border-radius: 32px; background: var(--night); color: white; box-shadow: 0 32px 74px rgba(20,33,31,.2); }
+    .hub-label { color: var(--lime); font: 800 16px ui-monospace, monospace; letter-spacing: .1em; }
+    .memory-hub h3 { margin-top: 18px; font-size: 43px; }
+    .memory-hub p { margin-top: 16px; color: #abb8b4; font-size: 20px; line-height: 1.45; }
+    .state-list { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-top: 30px; }
+    .state-list div { padding: 16px; border-radius: 12px; background: rgba(255,255,255,.07); color: #eaf1ee; font-weight: 700; }
+    .state-list b { color: var(--lime); margin-right: 8px; }
+    .evidence { display: grid; gap: 16px; }
+    .local-badge { margin-top: 20px; padding: 15px; border-radius: 12px; background: var(--purple-soft); color: #493598; font: 800 15px ui-monospace, monospace; text-align: center; }
+
+    #demo { padding: 0; background: var(--night); color: white; }
+    .demo-wrap { display: grid; grid-template-columns: 1.08fr .92fr; width: 100%; height: 100%; }
+    .terminal { padding: 54px 58px; background: #0d1211; }
+    .terminal-bar { display: flex; align-items: center; justify-content: space-between; color: #77827f; font: 700 16px ui-monospace, monospace; }
+    .dots { color: #ef775b; letter-spacing: 8px; }
+    .terminal-body { margin-top: 44px; font: 20px/1.62 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .cmd { color: white; font-weight: 800; }
+    .cmd:before { content: "$ "; color: var(--lime); }
+    .output { color: #9aaba6; }
+    .ok { color: var(--lime); }
+    .warn { color: #f0b575; }
+    .terminal-space { height: 20px; }
+    .handoff-panel { position: relative; padding: 84px 68px 58px; background: var(--purple); }
+    .live-label { color: var(--lime); font: 850 16px ui-monospace, monospace; letter-spacing: .11em; }
+    .handoff-panel h2 { margin-top: 22px; font-size: 64px; color: white; }
+    .handoff-doc { margin-top: 38px; padding: 29px; border-radius: 21px; background: var(--paper); color: var(--ink); transform: rotate(-1.2deg); box-shadow: 0 24px 60px rgba(27,18,70,.28); }
+    .doc-head { display: flex; align-items: center; justify-content: space-between; font: 850 16px ui-monospace, monospace; }
+    .doc-head span { color: #537620; background: #e8f8c8; border-radius: 99px; padding: 8px 12px; }
+    .doc-section { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .doc-section small { color: var(--muted); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .doc-section p { margin-top: 9px; font-size: 19px; line-height: 1.38; font-weight: 690; }
+    .doc-checks { display: flex; gap: 10px; margin-top: 19px; }
+    .doc-checks span { padding: 9px 11px; border-radius: 9px; background: white; border: 1px solid var(--line); font-size: 14px; font-weight: 800; }
+
+    .build-layout { display: grid; grid-template-columns: 1.02fr .98fr; gap: 75px; margin-top: 56px; }
+    .codex-card-large { padding: 40px; border-radius: 28px; color: white; background: linear-gradient(145deg, #171e1d, #28312f); box-shadow: 0 30px 68px rgba(20,33,31,.2); }
+    .codex-card-large .model { color: var(--lime); font: 800 16px ui-monospace, monospace; letter-spacing: .09em; }
+    .codex-card-large h3 { margin-top: 18px; font-size: 44px; }
+    .codex-card-large p { margin-top: 19px; color: #acb8b4; font-size: 22px; line-height: 1.48; }
+    .commit-list { display: grid; gap: 14px; }
+    .commit { display: grid; grid-template-columns: 115px 1fr; gap: 16px; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+    .commit code { color: var(--purple); font: 850 17px ui-monospace, monospace; }
+    .commit strong { font-size: 20px; }
+    .build-proof { display: flex; gap: 16px; margin-top: 30px; }
+    .build-proof span { padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; font-weight: 800; }
+
+    .technical-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; margin-top: 72px; }
+    .tech-card { min-height: 360px; padding: 30px; border: 1px solid var(--line); border-radius: 22px; background: white; box-shadow: 0 18px 44px rgba(20,33,31,.07); }
+    .tech-num { color: var(--purple); font: 850 17px ui-monospace, monospace; }
+    .tech-card h3 { margin-top: 26px; font-size: 31px; }
+    .tech-card p { margin-top: 17px; color: var(--muted); font-size: 20px; line-height: 1.47; }
+    .tech-card code { display: block; margin-top: 30px; color: #4e3b9c; background: #f0ecff; border-radius: 11px; padding: 13px; font: 750 15px/1.4 ui-monospace, monospace; }
+
+    #close { justify-content: center; background: var(--purple); color: white; }
+    #close .brand { color: white; }
+    #close .brand img { filter: brightness(0) invert(1); }
+    #close h2 { max-width: 1420px; font-size: 105px; }
+    #close h2 span { color: var(--lime); }
+    #close .lead { margin-top: 38px; max-width: 1050px; color: #ded8fa; }
+    #close .install { align-items: center; justify-content: space-between; }
+    #close .links { margin-top: 0; color: #ded8fa; font-size: 18px; }
+    .install { margin-top: 48px; display: inline-flex; padding: 20px 26px; border-radius: 14px; background: var(--night); color: white; font: 800 21px ui-monospace, monospace; box-shadow: 0 18px 44px rgba(34,20,90,.3); }
+    .links { margin-top: 22px; color: white; font-size: 20px; font-weight: 760; }
+  </style>
+</head>
+<body>
+  <section class="scene" id="title">
+    <div class="grid-bg"></div>
+    <div class="brand"><img src="../assets/hammadev-mark.svg" /> HammaDev</div>
+    <div class="scene-number">01 / 07</div>
+    <div class="title-copy">
+      <div class="tag">OpenAI Build Week · Developer Tools</div>
+      <h1>Memory belongs <span>to the project.</span></h1>
+      <p class="lead">Persistent, local repository memory for AI coding agents.</p>
+    </div>
+    <div class="agent-orbit">
+      <div class="memory-card"><img src="../assets/hammadev-mark.svg" /><strong>Project memory</strong><span>Goal · evidence · Git state<br/>next action · durable decisions</span></div>
+      <div class="agent-pill codex">CODEX</div><div class="agent-pill claude">CLAUDE</div><div class="agent-pill grok">GROK</div>
+    </div>
+    <div class="caption-safe">HammaDev · OpenAI Build Week 2026</div>
+  </section>
+
+  <section class="scene" id="problem">
+    <div class="brand"><img src="../assets/hammadev-mark.svg" /> HammaDev</div><div class="scene-number">02 / 07</div>
+    <div class="problem-head"><h2>Switching agents still <span class="orange">breaks continuity.</span></h2><p class="lead">A transcript is volume.<br/>It is not trustworthy state.</p></div>
+    <div class="comparison">
+      <div class="agent-screen"><div class="screen-top"><span>CODEX SESSION</span><span>23,480 tokens</span></div><div class="screen-lines"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="bad-arrow">COPY ALL<strong>→</strong>HOPE</div>
+      <div class="agent-screen blank"><div class="screen-top"><span>NEXT AGENT</span><span>UNKNOWN STATE</span></div><div class="screen-lines"><i></i><i></i><i></i></div><div class="blank-message">“Should I redo the completed task?”</div></div>
+    </div>
+  </section>
+
+  <section class="scene" id="solution">
+    <div class="brand"><img src="../assets/hammadev-mark.svg" /> HammaDev</div><div class="scene-number">03 / 07</div>
+    <h2>A local <span class="purple">continuity layer</span> grounded in evidence.</h2>
+    <div class="architecture">
+      <div class="agents"><div class="agent-node">Codex <span>SESSION</span></div><div class="agent-node">Claude Code <span>SESSION</span></div><div class="agent-node">Grok <span>SESSION</span></div></div>
+      <div class="memory-hub"><div class="hub-label">.HAMMA / PROJECT MEMORY</div><h3>One durable execution contract</h3><p>Normalize agent history. Reconcile it with the repository. Load only what the next agent needs.</p><div class="state-list"><div><b>✓</b> Current goal</div><div><b>✓</b> Next action</div><div><b>✓</b> Completed work</div><div><b>✓</b> Known risks</div><div><b>✓</b> Git snapshot</div><div><b>✓</b> Provenance</div></div><div class="local-badge">LOCAL-ONLY · NO TELEMETRY · NO UPLOAD</div></div>
+      <div class="evidence"><div class="evidence-node">Passed command <span>EVIDENCE</span></div><div class="evidence-node">Git repository <span>TRUTH</span></div><div class="evidence-node">Agent claim <span>CLAIM</span></div><div class="evidence-node">User confirmation <span>EVIDENCE</span></div></div>
+    </div>
+  </section>
+
+  <section class="scene" id="demo">
+    <div class="demo-wrap">
+      <div class="terminal"><div class="terminal-bar"><span class="dots">● ● ●</span><span>~/project — hamma</span></div><div class="terminal-body">
+        <div class="cmd">hamma setup --check --agent codex</div><div class="terminal-space"></div>
+        <div class="output">HammaDev setup check</div><div class="output">Node: <span class="ok">ready</span> · Git repository: <span class="ok">yes</span></div><div class="output">Lifecycle hooks:</div><div class="output">&nbsp; codex: <span class="ok">add PreCompact, add SessionStart</span></div><div class="output">&nbsp; .codex/hooks.json</div><div class="output warn">Review changes, then apply explicitly.</div><div class="terminal-space"></div>
+        <div class="cmd">hamma switch claude</div><div class="output ok">✓ exact Codex session checkpointed</div><div class="output ok">✓ bounded continuation created</div><div class="output ok">✓ Claude Code ready to open</div><div class="terminal-space"></div>
+        <div class="cmd">hamma show latest --readiness</div><div class="output">Outcome: <span class="ok">actionable</span></div><div class="output">Readiness: <span class="ok">READY</span></div>
+      </div></div>
+      <div class="handoff-panel"><div class="live-label">WORKING CLI · SANITIZED DEMO</div><h2>Safe context,<br/>not a context dump.</h2><div class="handoff-doc"><div class="doc-head">HAMMA HANDOFF <span>READY</span></div><div class="doc-section"><small>Original goal</small><p>Implement GET /health, preserve the API, and update the README after verification.</p></div><div class="doc-section"><small>Continue from here</small><p>Run the build and document the verified endpoint. Do not repeat the completed implementation.</p></div><div class="doc-checks"><span>✓ tests passed</span><span>✓ Git checked</span><span>✓ risk visible</span></div></div></div>
+    </div>
+  </section>
+
+  <section class="scene" id="buildweek">
+    <div class="brand"><img src="../assets/hammadev-mark.svg" /> HammaDev</div><div class="scene-number">05 / 07</div>
+    <h2>Built with <span class="purple">GPT‑5.6 + Codex.</span></h2>
+    <div class="build-layout"><div class="codex-card-large"><div class="model">CODEX · GPT‑5.6</div><h3>Engineering partner, not a code autocomplete.</h3><p>Architecture audit → implementation → adversarial replay → focused tests → black-box correction.</p><div class="build-proof"><span>strict TypeScript</span><span>real failure shapes</span><span>safe defaults</span></div></div>
+      <div class="commit-list"><div class="commit"><code>cd58f0a</code><strong>Intelligent cross-agent continuation</strong></div><div class="commit"><code>97b8079</code><strong>Repository drift detection</strong></div><div class="commit"><code>bf62f75</code><strong>Evidence provenance</strong></div><div class="commit"><code>2364711</code><strong>Explainable readiness</strong></div><div class="commit"><code>1439b2e</code><strong>Persistent named memory</strong></div><div class="commit"><code>08dc30e</code><strong>Bounded continuation context</strong></div></div>
+    </div>
+  </section>
+
+  <section class="scene" id="technical">
+    <div class="brand"><img src="../assets/hammadev-mark.svg" /> HammaDev</div><div class="scene-number">06 / 07</div>
+    <h2>Designed for continuity <span class="purple">without pretending.</span></h2>
+    <div class="technical-grid"><div class="tech-card"><div class="tech-num">01 / ADAPTERS</div><h3>Normalize, don’t rewrite</h3><p>Agent-specific parsers feed one shared state model. Native sessions are never renamed or modified.</p><code>codex · claude · grok</code></div><div class="tech-card"><div class="tech-num">02 / IDENTITY</div><h3>Bind the exact session</h3><p>Lifecycle events and launch records avoid guessing from whichever transcript changed last.</p><code>SessionStart → exact ID</code></div><div class="tech-card"><div class="tech-num">03 / STORAGE</div><h3>Immutable revisions</h3><p>Atomic local writes, bounded archives, redaction, and one-writer memory synchronization.</p><code>.hamma/memories/...</code></div><div class="tech-card"><div class="tech-num">04 / CONTEXT</div><h3>Load less by default</h3><p>Bootstrap context stays bounded. Deeper project history is searched locally only when needed.</p><code>initial context ≤ 8 KiB</code></div></div>
+  </section>
+
+  <section class="scene" id="close">
+    <div class="brand"><img src="../assets/hammadev-mark.svg" /> HammaDev</div><div class="scene-number">07 / 07</div>
+    <h2>Sessions belong to agents.<br/><span>Memory belongs to the project.</span></h2>
+    <p class="lead">A trustworthy continuation contract for the agent that fits the next step.</p>
+    <div class="install">
+      <span>npm install -g hammadev@beta</span>
+      <span class="links">github.com/hamma-labs/hammadev</span>
+    </div>
+  </section>
+  <script>
+    const scene = new URLSearchParams(location.search).get("scene") || "title";
+    document.getElementById(scene)?.classList.add("active");
+  </script>
+</body>
+</html>
