@@ -5,7 +5,7 @@ export default function Hero() {
   return (
     <section className="hero" aria-labelledby="hero-heading">
       <div className="hero-copy">
-        <div className="eyebrow"><span /> Native continuity · local by design</div>
+        <div className="eyebrow"><span /> Project memory · local by design</div>
         <h1 id="hero-heading">
           Your agents remember <span>where the work stopped.</span>
         </h1>
@@ -42,6 +42,7 @@ export default function Hero() {
         <div className="hero-proof">
           <span><ShieldCheck size={15} /> Local-only</span>
           <span><Check size={15} /> Trusted native hooks</span>
+          <span><Check size={15} /> Free &amp; open source</span>
           <span className="agent-pill">Codex · Claude · Grok</span>
         </div>
       </div>

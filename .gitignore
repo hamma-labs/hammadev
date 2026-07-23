@@ -36,6 +36,7 @@ out_full.json
 .codex/
 graphify-out/
 *.tgz
+*.tgz.sha256
 
 # Ephemeral multi-agent orchestration scaffolding
 .agents/
