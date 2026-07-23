@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HammaDev Product Hunt assets</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --paper: #f6f4ef;
+      --muted: #68717d;
+      --violet: #7257e8;
+      --coral: #f06f52;
+      --lime: #b9df79;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 40px;
+      background: #d8d5ce;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .slide {
+      position: relative;
+      width: 1270px;
+      height: 760px;
+      margin: 0 0 40px;
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(23,32,42,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23,32,42,.025) 1px, transparent 1px),
+        var(--paper);
+      background-size: 52px 52px;
+    }
+    .brand {
+      position: absolute;
+      top: 46px;
+      left: 58px;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: -.03em;
+    }
+    .brand-mark {
+      position: relative;
+      width: 30px;
+      height: 22px;
+    }
+    .brand-mark:before, .brand-mark:after {
+      content: "";
+      position: absolute;
+      top: 4px;
+      width: 16px;
+      height: 16px;
+      border-radius: 5px;
+      transform: rotate(45deg);
+    }
+    .brand-mark:before { left: 0; background: var(--ink); }
+    .brand-mark:after { right: 0; background: var(--coral); }
+    .brand-mark i {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 2;
+      width: 11px;
+      height: 4px;
+      background: var(--violet);
+    }
+    .brand span span { color: var(--violet); }
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #6650c8;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .eyebrow:before { content: ""; width: 30px; height: 2px; background: currentColor; }
+    .copy {
+      position: absolute;
+      z-index: 2;
+      left: 58px;
+      top: 150px;
+      width: 575px;
+    }
+    h1 {
+      margin: 22px 0 22px;
+      font-size: 73px;
+      line-height: .96;
+      letter-spacing: -.065em;
+    }
+    h1 em {
+      color: var(--coral);
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 500;
+    }
+    .lede {
+      max-width: 540px;
+      margin: 0;
+      color: #5d6671;
+      font-size: 20px;
+      line-height: 1.58;
+    }
+    .chips { display: flex; gap: 9px; margin-top: 34px; }
+    .chip {
+      padding: 9px 13px;
+      border: 1px solid rgba(23,32,42,.12);
+      border-radius: 999px;
+      background: rgba(255,255,255,.72);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .art {
+      position: absolute;
+      z-index: 1;
+      inset: 0 0 0 42%;
+      background: linear-gradient(90deg, var(--paper) 0, transparent 25%), url("source/continuity-landscape.png") center / cover no-repeat;
+    }
+    .footer {
+      position: absolute;
+      z-index: 3;
+      right: 58px;
+      bottom: 43px;
+      color: #7b8189;
+      font: 11px ui-monospace, monospace;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .dark {
+      color: white;
+      background:
+        radial-gradient(circle at 78% 15%, rgba(114,87,232,.48), transparent 35%),
+        #171f2a;
+    }
+    .dark .brand-mark:before { background: white; }
+    .dark .brand { color: white; }
+    .dark .eyebrow { color: var(--lime); }
+    .dark .copy { width: 650px; }
+    .dark h1 { font-size: 70px; }
+    .dark h1 em { color: #c9bcff; }
+    .dark .lede { color: #b7bec8; max-width: 610px; }
+    .event-proof {
+      position: absolute;
+      top: 134px;
+      right: 58px;
+      width: 405px;
+      padding: 27px;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 22px;
+      background: rgba(255,255,255,.07);
+      box-shadow: 0 28px 70px rgba(0,0,0,.2);
+    }
+    .event-proof strong {
+      display: block;
+      margin-bottom: 14px;
+      color: white;
+      font-size: 14px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .event-proof div {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      color: #d9dce2;
+      font-size: 14px;
+    }
+    .event-proof div:before {
+      content: "✓";
+      display: grid;
+      place-items: center;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      color: #24320d;
+      background: var(--lime);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .honesty {
+      position: absolute;
+      left: 58px;
+      right: 58px;
+      bottom: 42px;
+      display: flex;
+      justify-content: space-between;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,.14);
+      color: #9ba4af;
+      font-size: 12px;
+    }
+    .proof-title {
+      position: absolute;
+      left: 58px;
+      top: 132px;
+      width: 760px;
+    }
+    .proof-title h1 { margin-top: 20px; font-size: 68px; }
+    .stats {
+      position: absolute;
+      left: 58px;
+      right: 58px;
+      top: 400px;
+      display: grid;
+      grid-template-columns: repeat(4,1fr);
+      gap: 13px;
+    }
+    .stat {
+      min-height: 190px;
+      padding: 25px;
+      border: 1px solid rgba(23,32,42,.12);
+      border-radius: 20px;
+      background: rgba(255,255,255,.68);
+    }
+    .stat strong {
+      display: block;
+      margin-bottom: 19px;
+      color: var(--violet);
+      font-size: 45px;
+      letter-spacing: -.055em;
+    }
+    .stat span { font-size: 15px; font-weight: 750; }
+    .stat p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .command {
+      position: absolute;
+      left: 58px;
+      bottom: 38px;
+      padding: 11px 15px;
+      border-radius: 10px;
+      background: var(--ink);
+      color: white;
+      font: 13px ui-monospace, monospace;
+    }
+    #thumbnail {
+      position: relative;
+      width: 240px;
+      height: 240px;
+      margin-bottom: 40px;
+      overflow: hidden;
+      border-radius: 0;
+      background: url("source/continuity-square.png") center / cover no-repeat;
+    }
+    #thumbnail:after {
+      content: "HammaDev";
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      color: white;
+      background: rgba(23,32,42,.9);
+      font-size: 19px;
+      font-weight: 850;
+      letter-spacing: -.04em;
+      text-align: center;
+    }
+    #og-image {
+      width: 1200px;
+      height: 630px;
+    }
+    #og-image .copy { top: 132px; }
+    #og-image .copy h1 { font-size: 68px; }
+    #og-image .art { inset: 0 0 0 40%; }
+    #youtube-thumbnail {
+      width: 1280px;
+      height: 720px;
+    }
+    #youtube-thumbnail .copy { top: 140px; }
+    #youtube-thumbnail .copy h1 { font-size: 70px; }
+    #youtube-thumbnail .event-proof { top: 125px; }
+  </style>
+</head>
+<body>
+  <div id="thumbnail" aria-label="HammaDev Product Hunt thumbnail"></div>
+
+  <section id="gallery-02-continuity" class="slide">
+    <div class="brand"><span class="brand-mark"><i></i></span><span>Hamma<span>Dev</span></span></div>
+    <div class="copy">
+      <div class="eyebrow">One local continuity layer</div>
+      <h1>Switch agents.<br><em>Keep the thread.</em></h1>
+      <p class="lede">Hamma preserves decisions, verification, Git state, and one clear next action—without uploading your transcript.</p>
+      <div class="chips"><span class="chip">Codex</span><span class="chip">Claude Code</span><span class="chip">Grok</span></div>
+    </div>
+    <div class="art"></div>
+    <div class="footer">Sessions belong to agents · memory belongs to the project</div>
+  </section>
+
+  <section id="gallery-03-openai-day" class="slide dark">
+    <div class="brand"><span class="brand-mark"><i></i></span><span>Hamma<span>Dev</span></span></div>
+    <div class="copy">
+      <div class="eyebrow">OpenAI Day · built with GPT-5.6</div>
+      <h1>Harder reasoning.<br><em>Safer handoffs.</em></h1>
+      <p class="lede">GPT-5.6 inside Codex helped design evidence and readiness rules, replay false continuations, and harden durable project memory.</p>
+    </div>
+    <div class="event-proof">
+      <strong>Shipped during Build Week</strong>
+      <div>Cross-agent selection</div>
+      <div>Git drift + provenance</div>
+      <div>Explainable readiness</div>
+      <div>Persistent named memory</div>
+    </div>
+    <div class="honesty">
+      <span>HammaDev existed before Build Week as a working handoff prototype.</span>
+      <span>Local, model-agnostic runtime</span>
+    </div>
+  </section>
+
+  <section id="gallery-04-proof" class="slide">
+    <div class="brand"><span class="brand-mark"><i></i></span><span>Hamma<span>Dev</span></span></div>
+    <div class="proof-title">
+      <div class="eyebrow">A beta you can inspect</div>
+      <h1>Local by design.<br><em>Verified in practice.</em></h1>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong>441 + 12</strong><span>automated checks</span><p>Vitest cases plus browser launch flows.</p></div>
+      <div class="stat"><strong>3</strong><span>native adapters</span><p>Codex, Claude Code, and Grok.</p></div>
+      <div class="stat"><strong>3.1 KB</strong><span>initial context</span><p>Measured installed-package continuation artifact.</p></div>
+      <div class="stat"><strong>0</strong><span>backend accounts</span><p>No HammaDev cloud or transcript upload.</p></div>
+    </div>
+    <div class="command">$ npm install -g hammadev@beta</div>
+    <div class="footer">Free · open source · local files</div>
+  </section>
+
+  <section id="og-image" class="slide">
+    <div class="brand"><span class="brand-mark"><i></i></span><span>Hamma<span>Dev</span></span></div>
+    <div class="copy">
+      <div class="eyebrow">Project memory for coding agents</div>
+      <h1>Your agents remember<br><em>where work stopped.</em></h1>
+      <p class="lede">Continue across Codex, Claude Code, and Grok with compact local project context.</p>
+    </div>
+    <div class="art"></div>
+  </section>
+
+  <section id="youtube-thumbnail" class="slide dark">
+    <div class="brand"><span class="brand-mark"><i></i></span><span>Hamma<span>Dev</span></span></div>
+    <div class="copy">
+      <div class="eyebrow">OpenAI Build Week 2026</div>
+      <h1>Project memory<br><em>for AI coding agents.</em></h1>
+      <p class="lede">Built with Codex and GPT-5.6 · local and model-agnostic at runtime</p>
+    </div>
+    <div class="event-proof">
+      <strong>See Hamma in action</strong>
+      <div>Exact session continuity</div>
+      <div>Evidence-aware handoffs</div>
+      <div>Git drift detection</div>
+      <div>Bounded local memory</div>
+    </div>
+  </section>
+</body>
+</html>

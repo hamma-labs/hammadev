@@ -1,0 +1,37 @@
+[
+  {
+    "id": "title",
+    "durationHint": 12,
+    "narration": "AI coding agents are powerful, but their memory still belongs to individual sessions. HammaDev makes memory belong to the project. It is persistent, local repository memory for Codex, Claude Code, and Grok."
+  },
+  {
+    "id": "problem",
+    "durationHint": 20,
+    "narration": "Today, changing agents often means pasting a transcript and hoping the next model reconstructs the truth. It may repeat completed work, trust stale claims, or miss that the Git repository changed. More context is not the same as reliable state."
+  },
+  {
+    "id": "solution",
+    "durationHint": 24,
+    "narration": "HammaDev discovers the exact project session, reconstructs the current task, and stores a compact evidence-aware memory beside the repository. Agent claims stay separate from passed commands and repository observations. Git drift is visible, and the live repository always wins. No cloud backend, account, telemetry, or transcript upload is required."
+  },
+  {
+    "id": "demo",
+    "durationHint": 34,
+    "narration": "Here is the working flow. First, setup check previews every hook, bootstrap, and Git ignore change without writing files. After explicit approval, native lifecycle hooks checkpoint before compaction and restore bounded context at session start. Hamma switch saves the exact active session, creates a safe continuation, and opens the destination agent. The receiving agent gets the goal, completed work, one clear next action, verification evidence, risks, and repository state instead of a raw transcript."
+  },
+  {
+    "id": "buildweek",
+    "durationHint": 30,
+    "narration": "During Build Week, I used GPT five point six through Codex as an engineering partner. It audited the existing adapters and safety boundaries, then helped implement cross-agent selection, Git drift detection, evidence provenance, readiness assessment, bounded continuation context, and persistent named memory. Codex also drove regression tests and black-box replay of real failure shapes, including completed tasks that must not restart."
+  },
+  {
+    "id": "technical",
+    "durationHint": 25,
+    "narration": "The implementation is strict TypeScript with separate adapters for each agent and a shared normalized state model. Memory revisions are immutable and written atomically. Exact session binding avoids guessing from the newest transcript. Initial bootstrap context has an eight kilobyte hard ceiling, while deeper local history is recalled only on demand."
+  },
+  {
+    "id": "close",
+    "durationHint": 15,
+    "narration": "HammaDev turns agent switching from a context dump into a trustworthy continuation contract. Sessions belong to agents. Memory belongs to the project. Install the public beta from npm, inspect the open source repository, and keep building with the agent that fits the next step."
+  }
+]

@@ -42,6 +42,8 @@ const REVISION_ID = /^\d{6}-\d{4}-\d{2}-\d{2}T[0-9-]+Z-[a-z0-9_-]+$/;
 const ATTACH_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const RECALL_MAX_OUTPUT_BYTES = 32 * 1024;
 const MEMORY_LOCK_STALE_MS = 5 * 60 * 1000;
+const MEMORY_LOCK_RETRIES = 3;
+const MEMORY_LOCK_RETRY_MS = 500;
 
 export type MemoryFaultStage =
   | "after-lock-acquired"
@@ -668,54 +670,71 @@ function renderMemoryHandoff(state: HammaTaskState, memoryName: string): string 
 
 async function acquireLock(directory: string): Promise<string> {
   const lock = path.join(directory, ".sync-lock");
-  try {
-    await fs.mkdir(lock);
-    await fs.writeFile(
-      path.join(lock, "owner.json"),
-      `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
-      { encoding: "utf8", flag: "wx" }
-    );
-    return lock;
-  } catch (error: any) {
-    if (error.code !== "EEXIST") {
-      await fs.rm(lock, { recursive: true, force: true }).catch(() => undefined);
+  for (let attempt = 0; attempt <= MEMORY_LOCK_RETRIES; attempt++) {
+    try {
+      await fs.mkdir(lock);
+      await fs.writeFile(
+        path.join(lock, "owner.json"),
+        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+        { encoding: "utf8", flag: "wx" }
+      );
+      return lock;
+    } catch (error: any) {
+      if (error.code !== "EEXIST") {
+        await fs.rm(lock, { recursive: true, force: true }).catch(() => undefined);
+        throw error;
+      }
+    }
+
+    // Lock already exists — check if stale and recoverable.
+    let stats;
+    try {
+      stats = await fs.lstat(lock);
+    } catch (error: any) {
+      // Lock disappeared between our failed mkdir and lstat — retry immediately.
+      if (error.code === "ENOENT") continue;
       throw error;
     }
-  }
-
-  const stats = await fs.lstat(lock);
-  if (!stats.isDirectory() || stats.isSymbolicLink()) {
-    throw new Error(`Memory synchronization lock is not a safe directory: ${lock}`);
-  }
-  let ownerPid: number | undefined;
-  try {
-    const owner = JSON.parse(await fs.readFile(path.join(lock, "owner.json"), "utf8")) as {
-      pid?: unknown;
-    };
-    if (Number.isInteger(owner.pid) && Number(owner.pid) > 0) ownerPid = Number(owner.pid);
-  } catch (error: any) {
-    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
-  }
-  let ownerAlive = false;
-  if (ownerPid) {
-    try {
-      process.kill(ownerPid, 0);
-      ownerAlive = true;
-    } catch (error: any) {
-      ownerAlive = error.code === "EPERM";
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error(`Memory synchronization lock is not a safe directory: ${lock}`);
     }
+    let ownerPid: number | undefined;
+    try {
+      const owner = JSON.parse(await fs.readFile(path.join(lock, "owner.json"), "utf8")) as {
+        pid?: unknown;
+      };
+      if (Number.isInteger(owner.pid) && Number(owner.pid) > 0) ownerPid = Number(owner.pid);
+    } catch (error: any) {
+      if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+    }
+    let ownerAlive = false;
+    if (ownerPid) {
+      try {
+        process.kill(ownerPid, 0);
+        ownerAlive = true;
+      } catch (error: any) {
+        ownerAlive = error.code === "EPERM";
+      }
+    }
+    if (Date.now() - stats.mtimeMs <= MEMORY_LOCK_STALE_MS || ownerAlive) {
+      // Lock is fresh or owner is alive — wait and retry if attempts remain.
+      if (attempt < MEMORY_LOCK_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, MEMORY_LOCK_RETRY_MS * (attempt + 1)));
+        continue;
+      }
+      throw new Error(
+        "This memory is already being synchronized by another process. " +
+        `Retried ${MEMORY_LOCK_RETRIES} times over ${MEMORY_LOCK_RETRIES * MEMORY_LOCK_RETRY_MS / 1000}s.`
+      );
+    }
+    // Stale lock recovery: atomically attempt to replace via rename race-free pattern.
+    // Remove and immediately re-mkdir. If another process races us, mkdir will EEXIST
+    // and the loop retries (TOCTOU-safe via the retry loop).
+    await fs.rm(lock, { recursive: true, force: true });
+    // Don't write owner here — let the next loop iteration do the mkdir+writeFile atomically.
   }
-  if (Date.now() - stats.mtimeMs <= MEMORY_LOCK_STALE_MS || ownerAlive) {
-    throw new Error("This memory is already being synchronized by another process.");
-  }
-  await fs.rm(lock, { recursive: true, force: true });
-  await fs.mkdir(lock);
-  await fs.writeFile(
-    path.join(lock, "owner.json"),
-    `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), recoveredStaleLock: true })}\n`,
-    { encoding: "utf8", flag: "wx" }
-  );
-  return lock;
+  // Should not be reachable, but safeguard.
+  throw new Error("This memory is already being synchronized by another process.");
 }
 
 async function cleanupInterruptedRevisionWrites(

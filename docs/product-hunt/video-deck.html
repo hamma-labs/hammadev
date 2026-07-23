@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>HammaDev Product Hunt video</title>
+  <style>
+    :root { --ink:#17202a; --paper:#f6f4ef; --violet:#7257e8; --coral:#f06f52; --lime:#b9df79; --muted:#69727e; }
+    * { box-sizing:border-box; }
+    html, body { width:1920px; height:1080px; margin:0; overflow:hidden; }
+    body { font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink); background:var(--paper); }
+    .scene { display:none; position:relative; width:1920px; height:1080px; overflow:hidden; padding:92px 110px; background:linear-gradient(rgba(23,32,42,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(23,32,42,.025) 1px,transparent 1px),var(--paper); background-size:70px 70px; }
+    .scene.active { display:block; }
+    .dark { color:white; background:radial-gradient(circle at 78% 18%,rgba(114,87,232,.42),transparent 36%),#17202a; }
+    .brand { display:flex; align-items:center; gap:14px; font-size:28px; font-weight:850; letter-spacing:-.04em; }
+    .brand b { color:var(--violet); }
+    .mark { position:relative; width:42px; height:30px; }
+    .mark:before,.mark:after { content:""; position:absolute; top:5px; width:22px; height:22px; border-radius:6px; transform:rotate(45deg); }
+    .mark:before { left:0; background:currentColor; } .mark:after { right:0; background:var(--coral); }
+    .mark i { position:absolute; left:14px; top:13px; width:15px; height:5px; z-index:2; background:var(--violet); }
+    .eyebrow { margin-top:105px; color:var(--violet); font-size:22px; font-weight:850; letter-spacing:.16em; text-transform:uppercase; }
+    .dark .eyebrow { color:var(--lime); }
+    h1 { max-width:1280px; margin:26px 0 30px; font-size:104px; line-height:.98; letter-spacing:-.065em; }
+    h1 em { color:var(--violet); font-family:Georgia,serif; font-weight:400; }
+    .dark h1 em { color:#b7a8ff; }
+    .lede { max-width:1120px; margin:0; color:var(--muted); font-size:36px; line-height:1.35; }
+    .dark .lede { color:#d8dbe0; }
+    .pill { display:inline-block; margin-top:44px; padding:16px 24px; border-radius:999px; color:white; background:var(--ink); font:700 24px ui-monospace,monospace; }
+    .footer { position:absolute; left:110px; right:110px; bottom:70px; display:flex; justify-content:space-between; color:var(--muted); font-size:22px; }
+    .dark .footer { color:#adb5bf; }
+    .panel { position:absolute; right:105px; top:180px; width:650px; padding:42px; border-radius:32px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); }
+    .panel div { padding:24px 0; border-bottom:1px solid rgba(255,255,255,.14); font-size:28px; }
+    .panel div:last-child { border:0; }
+    .panel span { display:inline-grid; place-items:center; width:34px; height:34px; margin-right:18px; border-radius:50%; color:var(--ink); background:var(--lime); font-weight:900; }
+    .split h1 { max-width:950px; font-size:88px; }
+    .split .lede { max-width:850px; }
+    .agent-row { display:flex; gap:24px; margin-top:48px; }
+    .agent-row span { padding:18px 30px; border:2px solid #d9d4cc; border-radius:14px; font-size:27px; font-weight:800; background:white; }
+    .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:25px; margin-top:90px; }
+    .flow article { min-height:260px; padding:34px; border:2px solid #ded9d0; border-radius:25px; background:white; box-shadow:0 18px 45px rgba(23,32,42,.08); }
+    .flow strong { display:block; margin-bottom:24px; color:var(--violet); font:800 24px ui-monospace,monospace; }
+    .flow h2 { margin:0 0 18px; font-size:36px; letter-spacing:-.04em; }
+    .flow p { margin:0; color:var(--muted); font-size:24px; line-height:1.4; }
+    .terminal { margin-top:70px; padding:42px 48px; border-radius:28px; color:#eef2f4; background:#111820; box-shadow:0 28px 70px rgba(23,32,42,.24); font:25px/1.7 ui-monospace,monospace; }
+    .terminal .green { color:var(--lime); } .terminal .purple { color:#b7a8ff; } .terminal .dim { color:#8b96a3; }
+    .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:24px; margin-top:85px; }
+    .cards article { padding:36px; border-radius:25px; color:var(--ink); background:white; }
+    .cards strong { display:block; color:var(--violet); font-size:56px; letter-spacing:-.05em; }
+    .cards h2 { margin:10px 0 14px; font-size:27px; } .cards p { margin:0; color:var(--muted); font-size:21px; line-height:1.4; }
+    .cta { text-align:center; }
+    .cta .brand { justify-content:center; }
+    .cta h1 { margin:135px auto 30px; font-size:108px; }
+    .cta .lede { margin:0 auto; }
+    .cta .pill { margin-top:55px; color:var(--ink); background:var(--lime); font-size:28px; }
+  </style>
+</head>
+<body>
+  <section id="hook" class="scene dark split"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">Hey Product Hunt</div><h1>Your coding agent is fast.<br><em>Its memory expires.</em></h1><p class="lede">The decisions, test evidence, Git state, and next step disappear when the session ends.</p><div class="panel"><div><span>×</span>Reconstruct the project</div><div><span>×</span>Repeat finished work</div><div><span>×</span>Trust stale context</div></div><div class="footer"><span>Project memory for AI coding agents</span><span>hammadev.nematov.com</span></div></section>
+  <section id="problem" class="scene split"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">The continuity gap</div><h1>Switch agents.<br><em>Lose the thread.</em></h1><p class="lede">Every handoff starts with archaeology: what changed, what passed, what failed, and what should happen next?</p><div class="agent-row"><span>Codex</span><span>Claude Code</span><span>Grok</span></div><div class="footer"><span>Sessions belong to agents</span><span>Memory should belong to the project</span></div></section>
+  <section id="solution" class="scene dark split"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">One local continuity layer</div><h1>Give memory<br><em>to the repository.</em></h1><p class="lede">A compact continuation brief preserves the goal, verified work, evidence, Git state, risks, and one clear next action.</p><div class="panel"><div><span>✓</span>Evidence-aware handoffs</div><div><span>✓</span>Exact session recovery</div><div><span>✓</span>Bounded local context</div></div><div class="footer"><span>Free and open source</span><span>No transcript upload</span></div></section>
+  <section id="workflow" class="scene"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">One command, durable continuity</div><h1 style="font-size:76px">From active session to<br><em>trusted continuation.</em></h1><div class="flow"><article><strong>01</strong><h2>Run hamma</h2><p>Preview setup and choose the target coding agent.</p></article><article><strong>02</strong><h2>Checkpoint</h2><p>Preserve state before compaction or an agent switch.</p></article><article><strong>03</strong><h2>Reconcile</h2><p>Check exact session identity, evidence, and Git drift.</p></article><article><strong>04</strong><h2>Continue</h2><p>Give the next agent bounded context and one next action.</p></article></div><div class="footer"><span>Reviewable lifecycle hooks</span><span>Deterministic local artifacts</span></div></section>
+  <section id="handoff" class="scene dark"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">A handoff you can inspect</div><h1 style="font-size:78px">Small context.<br><em>High-confidence continuation.</em></h1><div class="terminal"><span class="dim">$</span> <span class="green">hamma</span><br><span class="purple">✓</span> Goal: ship the Product Hunt launch<br><span class="purple">✓</span> Verified: website live, HTTPS healthy, tests passing<br><span class="purple">✓</span> Git: current branch reconciled with source session<br><span class="purple">✓</span> Risk: account-bound launch fields remain<br><span class="green">→ Next:</span> upload final demo video and captions</div><div class="footer"><span>Not a transcript dump</span><span>Evidence remains attributable</span></div></section>
+  <section id="privacy" class="scene dark"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">Local by design</div><h1 style="font-size:84px">Your project memory<br><em>stays yours.</em></h1><div class="cards"><article><strong>0</strong><h2>HammaDev accounts</h2><p>No hosted identity or sign-up.</p></article><article><strong>0</strong><h2>Cloud backends</h2><p>Memory lives in repository files.</p></article><article><strong>0</strong><h2>Transcript uploads</h2><p>Native sessions remain local.</p></article><article><strong>3</strong><h2>Agent adapters</h2><p>Codex, Claude Code, and Grok.</p></article></div><div class="footer"><span>Model agnostic at runtime</span><span>Inspectable and portable</span></div></section>
+  <section id="proof" class="scene"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">A beta you can verify</div><h1 style="font-size:82px">Built for real<br><em>continuation failures.</em></h1><div class="cards"><article><strong>441+</strong><h2>automated checks</h2><p>Core continuity and security behavior.</p></article><article><strong>12</strong><h2>browser flows</h2><p>Real launch and interface verification.</p></article><article><strong>3.1 KB</strong><h2>initial context</h2><p>A measured bounded continuation artifact.</p></article><article><strong>ISC</strong><h2>open-source license</h2><p>Inspect, adapt, and contribute.</p></article></div><div class="footer"><span>Public npm beta</span><span>github.com/hamma-labs/hammadev</span></div></section>
+  <section id="cta" class="scene dark cta"><div class="brand"><span class="mark"><i></i></span>Hamma<b>Dev</b></div><div class="eyebrow">Live today on Product Hunt</div><h1>Keep the work.<br><em>Change the agent.</em></h1><p class="lede">Free, local project memory for Codex, Claude Code, and Grok.</p><div class="pill">npm install -g hammadev@beta</div><div class="footer"><span>Try it: hammadev.nematov.com</span><span>Tell us what trust requires</span></div></section>
+  <script>const id=new URLSearchParams(location.search).get("scene")||"hook";document.getElementById(id)?.classList.add("active");</script>
+</body>
+</html>

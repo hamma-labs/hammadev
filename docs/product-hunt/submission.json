@@ -1,0 +1,36 @@
+{
+  "contestUrl": "https://www.producthunt.com/contests/openai-day-july-26",
+  "launchDate": "2026-07-23",
+  "name": "HammaDev",
+  "tagline": "Project memory that follows your AI coding agents",
+  "description": "HammaDev is free, local project memory for Codex, Claude Code, and Grok. Run `hamma`, choose an agent, and continue with decisions, verification, Git state, and one clear next action intact. Native lifecycle hooks checkpoint before compaction and recover exact sessions without a HammaDev account, cloud backend, telemetry, or transcript upload. Built with GPT-5.6 inside Codex during OpenAI Build Week; model-agnostic at runtime.",
+  "primaryUrl": "https://hammadev.nematov.com/",
+  "additionalLinks": [
+    "https://github.com/hamma-labs/hammadev",
+    "https://www.npmjs.com/package/hammadev"
+  ],
+  "launchTags": [
+    "AI Coding Agents",
+    "Developer Tools",
+    "Open Source"
+  ],
+  "pricing": "Free",
+  "shoutouts": [
+    "OpenAI",
+    "Codex",
+    "Vite"
+  ],
+  "thumbnail": "assets/thumbnail.png",
+  "gallery": [
+    "assets/gallery-01-product.png",
+    "assets/gallery-02-continuity.png",
+    "assets/gallery-03-openai-day.png",
+    "assets/gallery-04-proof.png"
+  ],
+  "videoFile": "output/hammadev-product-hunt-launch.mp4",
+  "captionFile": "output/hammadev-product-hunt-launch.srt",
+  "videoUrl": "",
+  "makerUsername": "",
+  "productHuntUrl": "",
+  "firstComment": "Hey Product Hunt 👋\n\nI built HammaDev because every coding-agent switch forced me to reconstruct the same project state: what changed, which decisions still mattered, whether tests actually passed, and what the next agent should do.\n\nHammaDev gives that memory to the repository instead of one vendor session. Run `hamma`, choose Codex, Claude Code, or Grok, and continue with a compact local brief containing the goal, verified work, Git state, risks, and one clear next action.\n\nDuring OpenAI Build Week I used Codex as the hands-on engineering agent and GPT-5.6 for the harder reasoning: challenging the evidence/readiness rules, replaying false continuations, and finding cases where completed work could restart. HammaDev existed before the event as a working handoff prototype; the gallery and engineering log identify exactly what shipped during Build Week.\n\nWhat is in the beta today:\n• one-command guided setup\n• native lifecycle checkpoints and exact-session recovery\n• local repository memory with bounded context\n• evidence provenance and Git drift detection\n• no HammaDev account, backend, telemetry, or transcript upload\n\nIt is free and open source. I would especially value feedback on two questions: would you trust reviewable lifecycle hooks for this workflow, and what evidence would you need before letting a new agent continue automatically?\n\nThanks for taking a look — I’ll be here all day answering technical questions and testing edge cases with you."
+}

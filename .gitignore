@@ -34,9 +34,14 @@ out_full.json
 
 # Local agent/tool output
 .codex/
+.grok/
 graphify-out/
 *.tgz
 *.tgz.sha256
 
 # Ephemeral multi-agent orchestration scaffolding
 .agents/
+
+# Generated video/audio assets (large binaries)
+docs/video-submission/output/
+docs/product-hunt/output/

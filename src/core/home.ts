@@ -109,8 +109,10 @@ function setupSummary(result: SetupResult): string {
   const names = result.selectedAgents.map((agent) => label(agent)).join(", ");
   return [
     `Set up Hamma for ${names}?`,
-    "  This adds lifecycle hooks, enables automatic context,",
-    "  and keeps .hamma/ out of Git. [y/N] ",
+    "  • Lifecycle hooks: auto-save before context compaction and on session end",
+    "  • Session-start context: load project memory when an agent starts",
+    "  • .gitignore: keep .hamma/ out of version control",
+    "[y/N] ",
   ].join("\n");
 }
 

@@ -778,3 +778,40 @@ export async function launchAgentWithRecovery(
     for (const [signal, handler] of handlers) process.off(signal, handler);
   }
 }
+
+const STALE_LAUNCH_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/**
+ * Remove launch records older than 7 days that are in a terminal state
+ * (failed) or whose processes have died and cannot be recovered.
+ * Best-effort: errors are silently ignored.
+ */
+export async function cleanupStaleLaunches(
+  agent: LaunchAgent,
+  projectPath: string
+): Promise<number> {
+  let records: AgentLaunchRecord[];
+  try {
+    records = await listAgentLaunches(agent, projectPath);
+  } catch {
+    return 0;
+  }
+  const now = Date.now();
+  let removed = 0;
+  for (const record of records) {
+    const age = now - Date.parse(record.updatedAt || record.createdAt);
+    if (age < STALE_LAUNCH_AGE_MS) continue;
+    if (record.state === "failed" || !(
+      await sameLiveProcess(record.childPid, record.childIdentity) ||
+      await sameLiveProcess(record.wrapperPid, record.wrapperIdentity)
+    )) {
+      try {
+        await discardAgentLaunch(agent, projectPath, record.id);
+        removed++;
+      } catch {
+        // Best-effort cleanup; ignore individual failures.
+      }
+    }
+  }
+  return removed;
+}
