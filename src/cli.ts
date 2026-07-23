@@ -1,5 +1,19 @@
 #!/usr/bin/env node
+
+// Early Node.js version guard — runs before any ESM import can fail with a
+// cryptic syntax error. This check uses only CommonJS-era APIs that work on
+// any Node version.
+const [_major, _minor] = process.versions.node.split(".").map(Number);
+if (_major < 22 || (_major === 22 && _minor < 12)) {
+  process.stderr.write(
+    `HammaDev requires Node.js 22.12 or newer (current: ${process.versions.node}).\n` +
+    `Upgrade: https://nodejs.org or run \`nvm install 22\` / \`fnm install 22\`.\n`
+  );
+  process.exit(1);
+}
+
 import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -102,7 +116,7 @@ import {
   recoverGrokLaunches,
   registerGrokSessionStart,
 } from "./adapters/grok/runtime.js";
-import { AgentLauncherResult, launchIdEnvVar } from "./core/agent-launch.js";
+import { AgentLauncherResult, cleanupStaleLaunches, launchIdEnvVar } from "./core/agent-launch.js";
 import { parseSetupAgents, runSetup } from "./core/setup.js";
 import { runTerminalHammaHome } from "./core/home.js";
 
@@ -135,6 +149,51 @@ function renderSession(session: HammaSession, summary: boolean): string {
     }))
   };
   return JSON.stringify(view, null, 2);
+}
+
+interface ProjectListResult {
+  projectPath: string;
+  candidates: Array<{
+    sessionId?: string;
+    lastUpdatedAt: string;
+    path?: string;
+    confidence: string;
+    score: number;
+    resumable: boolean;
+    signals: string[];
+    reasons: string[];
+  }>;
+}
+
+function printProjectCandidates(agentLabel: string, result: ProjectListResult, json: boolean): boolean {
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ...result }, null, 2)}\n`);
+    return true;
+  }
+  console.log(pc.bold(`${agentLabel} sessions for ${result.projectPath}:\n`));
+  if (result.candidates.length === 0) {
+    console.log(pc.yellow(`No ${agentLabel} sessions found for this project.`));
+    return true;
+  }
+  result.candidates.slice(0, 20).forEach((candidate, index) => {
+    const id = candidate.sessionId ?? "unknown-id";
+    console.log(
+      `${index + 1}. ${pc.cyan(candidate.lastUpdatedAt)} ${id} ` +
+      `[${candidate.confidence}, score ${candidate.score}]`
+    );
+    if (candidate.path) console.log(`   ${candidate.path}`);
+    console.log(
+      `   resumable: ${candidate.resumable ? "yes" : "no"}  ` +
+      `signals: ${candidate.signals.join(", ") || "none"}`
+    );
+    if (candidate.reasons.length > 0) {
+      console.log(`   reasons: ${candidate.reasons.join("; ")}`);
+    }
+  });
+  if (result.candidates.length > 20) {
+    console.log(pc.dim(`\n… ${result.candidates.length - 20} more not shown.`));
+  }
+  return true;
 }
 
 function printCountMap(label: string, counts: Record<string, number>) {
@@ -217,6 +276,34 @@ function failSimple(error: unknown): void {
   console.error(pc.red(`Hamma couldn't complete that: ${message}`));
   console.error(pc.dim("Run `hamma` for a guided next step or add --help to the command."));
   process.exitCode = 1;
+}
+
+/**
+ * Auto-resolve --attach when not provided: if the active memory has exactly
+ * one open run, return its ID. Throws only when ambiguous (multiple open runs).
+ */
+async function resolveAttachId(
+  projectPath: string,
+  name: string | undefined,
+  explicitAttach: string | undefined
+): Promise<string> {
+  if (explicitAttach) return explicitAttach;
+  const inspection = await inspectMemory(projectPath, name);
+  const openRuns = inspection.openRuns.filter(
+    (run) => run.status === "claimed" || run.status === "running"
+  );
+  if (openRuns.length === 0) {
+    throw new Error(
+      "No open attach claim found. Run `hamma memory attach --to <agent>` first, or provide --attach <id> explicitly."
+    );
+  }
+  if (openRuns.length > 1) {
+    throw new Error(
+      `Multiple open attach claims found (${openRuns.length}). Provide --attach <id> explicitly. ` +
+      `Use \`hamma memory show --json\` to list them.`
+    );
+  }
+  return openRuns[0].id;
 }
 
 function reportLauncherResult(label: string, result: AgentLauncherResult): void {
@@ -314,6 +401,10 @@ program
     "Structured log level: off | error | warn | info | debug",
     process.env.HAMMA_LOG_LEVEL ?? "off"
   )
+  .option(
+    "-q, --quiet",
+    "Suppress informational messages (progress, hints); errors still print"
+  )
   .hook("preAction", (_command, actionCommand) => {
     cliLogger.setLevel(actionCommand.optsWithGlobals().logLevel);
     cliLogger.setOperation(actionCommand.name());
@@ -361,15 +452,17 @@ program
   .option("--project <path>", "Project directory")
   .option("--json", "Print a machine-readable result")
   .option("--no-gitignore", "Do not modify .gitignore")
-  .description("Save the current coding session to project memory")
+  .description("Save the current coding session to project memory (checkpoint without closing the task)")
   .action(async (options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
-      if (!options.json) console.log(pc.dim("Finding the current agent session…"));
+      const quiet = program.optsWithGlobals().quiet;
+      if (!options.json && !quiet) console.error(pc.dim("Finding the current agent session…"));
       const result = await simpleSave(projectPath, {
         agent: options.agent,
         memory: options.memory,
         useGitignore: options.gitignore,
+        onProgress: (options.json || quiet) ? undefined : (msg) => console.error(pc.dim(msg)),
       });
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -411,12 +504,14 @@ program
       if (shouldLaunch && !await simpleCommandAvailable(String(agent).toLowerCase())) {
         throw new Error(`${agent} is not installed or is not on PATH. Install it, or use --no-launch to prepare and print the command only.`);
       }
-      if (!options.json) console.log(pc.dim(`Saving work and preparing ${agent}…`));
+      const quiet = program.optsWithGlobals().quiet;
+      if (!options.json && !quiet) console.error(pc.dim(`Saving work and preparing ${agent}…`));
       const result = await simpleSwitch(projectPath, agent, {
         from: options.from,
         memory: options.memory,
         save: options.save,
         useGitignore: options.gitignore,
+        onProgress: (options.json || quiet) ? undefined : (msg) => console.error(pc.dim(msg)),
       });
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -483,20 +578,22 @@ program
   .option("--project <path>", "Project directory")
   .option("--json", "Print a machine-readable result")
   .option("--no-gitignore", "Do not modify .gitignore")
-  .description("Save the current session and close its task")
+  .description("Save the current session and close its task (marks work complete so it is not repeated)")
   .action(async (options) => {
     try {
       if (options.blocked && !options.next) {
         throw new Error("Blocked work needs a next step. Add --next \"what must happen next\".");
       }
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
-      if (!options.json) console.log(pc.dim("Saving the final session…"));
+      const quiet = program.optsWithGlobals().quiet;
+      if (!options.json && !quiet) console.error(pc.dim("Saving the final session…"));
       const result = await simpleDone(projectPath, {
         agent: options.agent,
         memory: options.memory,
         outcome: options.blocked ? "blocked" : "completed",
         nextAction: options.next,
         useGitignore: options.gitignore,
+        onProgress: (options.json || quiet) ? undefined : (msg) => console.error(pc.dim(msg)),
       });
       if (options.json) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -594,9 +691,10 @@ program
   .action(async (queryParts, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const query = (queryParts as string[]).join(" ");
       const result = await simpleAsk(
         projectPath,
-        (queryParts as string[]).join(" "),
+        query,
         options.memory,
         Number(options.limit)
       );
@@ -604,8 +702,251 @@ program
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
         return;
       }
-      console.log(pc.bold(`Project memory: ${result.memory}\n`));
-      process.stdout.write(`${formatMemoryRecall(result)}\n`);
+      if (result.results.length === 0) {
+        console.log(pc.yellow(`No matches found for "${query}" in memory '${result.memory}'.`));
+        console.log(pc.dim("Try broader terms, a file path, or a single keyword."));
+        return;
+      }
+      console.log(pc.bold(`Project memory: ${result.memory}`) + pc.dim(` (${result.results.length} result${result.results.length > 1 ? "s" : ""})\n`));
+      for (const [index, item] of result.results.entries()) {
+        const kindLabel = item.kind === "knowledge"
+          ? pc.green(`[${item.category ?? "fact"}]`)
+          : item.kind === "epoch"
+            ? pc.cyan("[task]")
+            : pc.dim("[conversation]");
+        console.log(`${pc.bold(`${index + 1}.`)} ${kindLabel} ${item.content}`);
+        const meta: string[] = [];
+        if (item.sourceCli) meta.push(`${item.sourceCli}`);
+        if (item.timestamp) meta.push(item.timestamp.slice(0, 10));
+        if (item.files && item.files.length > 0) meta.push(`files: ${item.files.slice(0, 3).join(", ")}${item.files.length > 3 ? " …" : ""}`);
+        if (meta.length > 0) console.log(pc.dim(`   ${meta.join(" · ")}`));
+        console.log("");
+      }
+      if (result.truncated) {
+        console.log(pc.dim("Results bounded — narrow the query or increase --limit for more."));
+      }
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("fix")
+  .option("--memory <name>", "Memory name; defaults to the active memory")
+  .option("--project <path>", "Project directory")
+  .option("--json", "Print a machine-readable result")
+  .description("Interactively repair incorrect memory state")
+  .action(async (options) => {
+    try {
+      const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
+      const inspection = await inspectMemory(projectPath, options.memory);
+      const memoryName = inspection.manifest.name;
+
+      if (!inspection.latest) {
+        console.log(pc.yellow("No revision to fix — this memory has not been synced yet."));
+        return;
+      }
+
+      if (options.json) {
+        // Non-interactive mode: just show what could be fixed
+        process.stdout.write(`${JSON.stringify({
+          schemaVersion: 1,
+          memory: memoryName,
+          outcome: inspection.latest.state.outcome,
+          nextAction: inspection.latest.state.nextAction,
+          goal: inspection.latest.state.goal,
+          openRuns: inspection.openRuns.length,
+        }, null, 2)}\n`);
+        return;
+      }
+
+      if (!(process.stdin.isTTY && process.stdout.isTTY)) {
+        console.log("Current state:");
+        console.log(`  Memory: ${memoryName}`);
+        console.log(`  Outcome: ${inspection.latest.state.outcome}`);
+        console.log(`  Next action: ${inspection.latest.state.nextAction ?? "not set"}`);
+        console.log(`  Goal: ${inspection.latest.state.goal ?? "not set"}`);
+        console.log(`\nUse these commands to fix:`);
+        console.log(`  hamma memory repair ${memoryName} --outcome <outcome> --reason <text>`);
+        console.log(`  hamma memory close ${memoryName} --reason <text>`);
+        if (inspection.openRuns.length > 0) {
+          console.log(`  hamma memory abandon ${memoryName} --reason <text>`);
+        }
+        return;
+      }
+
+      // Interactive mode
+      const { createInterface } = await import("node:readline/promises");
+      const readline = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        console.log(pc.bold(`\nMemory: ${memoryName}`));
+        console.log(`  Outcome: ${inspection.latest.state.outcome}`);
+        console.log(`  Next action: ${inspection.latest.state.nextAction ?? "not set"}`);
+        if (inspection.latest.state.goal) console.log(`  Goal: ${inspection.latest.state.goal}`);
+        if (inspection.openRuns.length > 0) {
+          console.log(pc.yellow(`  Open claims: ${inspection.openRuns.length}`));
+        }
+        console.log("");
+        console.log("What's wrong?");
+        console.log("  1. This work is actually complete (close it)");
+        console.log("  2. The outcome or next action is incorrect (repair it)");
+        if (inspection.openRuns.length > 0) {
+          console.log("  3. A stuck claim needs to be released (abandon it)");
+        }
+        const response = (await readline.question("\nChoose [1]: ")).trim();
+        const choice = response ? Number(response) : 1;
+
+        if (choice === 1) {
+          const reason = (await readline.question("Reason for closing: ")).trim();
+          if (!reason) { console.log("Cancelled — reason is required."); return; }
+          const { closeMemory } = await import("./core/memory.js");
+          const result = await closeMemory(projectPath, memoryName, reason);
+          console.log(pc.green(`\n✓ Memory '${memoryName}' closed in revision ${result.revision.id}.`));
+        } else if (choice === 2) {
+          console.log("\nNew outcome:");
+          console.log("  1. actionable");
+          console.log("  2. completed");
+          console.log("  3. blocked");
+          const outcomeResponse = (await readline.question("Choose [1]: ")).trim();
+          const outcomes = ["actionable", "completed", "blocked"] as const;
+          const outcome = outcomes[(outcomeResponse ? Number(outcomeResponse) : 1) - 1] ?? "actionable";
+          let nextAction: string | undefined | null;
+          if (outcome !== "completed") {
+            nextAction = (await readline.question("Next action (leave empty to keep current): ")).trim() || undefined;
+          } else {
+            nextAction = null;
+          }
+          const reason = (await readline.question("Reason for repair: ")).trim();
+          if (!reason) { console.log("Cancelled — reason is required."); return; }
+          const { repairMemory } = await import("./core/memory.js");
+          const result = await repairMemory(projectPath, memoryName, {
+            outcome,
+            nextAction,
+            reason,
+          });
+          console.log(pc.green(`\n✓ Memory '${memoryName}' repaired in revision ${result.revision.id}.`));
+          console.log(`  Outcome: ${result.current.outcome}`);
+        } else if (choice === 3 && inspection.openRuns.length > 0) {
+          const run = inspection.openRuns[0];
+          const reason = (await readline.question(`Reason for abandoning claim ${run.id.slice(0, 8)}…: `)).trim();
+          if (!reason) { console.log("Cancelled — reason is required."); return; }
+          const { abandonMemory } = await import("./core/memory.js");
+          await abandonMemory(projectPath, memoryName, run.id, reason);
+          console.log(pc.green(`\n✓ Claim released.`));
+        } else {
+          console.log("Cancelled.");
+        }
+      } finally {
+        readline.close();
+      }
+    } catch (err: any) {
+      return failSimple(err);
+    }
+  });
+
+program
+  .command("clean")
+  .option("--project <path>", "Project directory")
+  .option("--dry-run", "Show what would be removed without deleting")
+  .option("--json", "Print a machine-readable cleanup result")
+  .description("Remove stale runtime records, orphaned temps, and old handoff artifacts")
+  .action(async (options) => {
+    try {
+      const projectPath = path.resolve(options.project ?? process.cwd());
+      const dryRun = Boolean(options.dryRun);
+      const results: { category: string; count: number; details: string[] }[] = [];
+
+      // 1. Clean stale launch records (>7 days)
+      let launchCount = 0;
+      const launchDetails: string[] = [];
+      for (const agent of ["codex", "claude", "grok"] as const) {
+        const removed = dryRun ? 0 : await cleanupStaleLaunches(agent, projectPath);
+        launchCount += removed;
+        if (removed > 0) launchDetails.push(`${agent}: ${removed} records`);
+      }
+      results.push({ category: "stale_launch_records", count: launchCount, details: launchDetails });
+
+      // 2. Clean old handoff artifacts (>30 days)
+      let handoffCount = 0;
+      const handoffDetails: string[] = [];
+      const tasksDir = path.join(projectPath, ".hamma", "tasks");
+      try {
+        const entries = await fsPromises.readdir(tasksDir, { withFileTypes: true });
+        const now = Date.now();
+        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          const entryPath = path.join(tasksDir, entry.name);
+          const stats = await fsPromises.stat(entryPath);
+          if (now - stats.mtimeMs > maxAge) {
+            handoffDetails.push(entry.name);
+            if (!dryRun) {
+              await fsPromises.rm(entryPath, { recursive: true, force: true });
+            }
+            handoffCount++;
+          }
+        }
+      } catch (error: any) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      results.push({ category: "old_handoff_artifacts", count: handoffCount, details: handoffDetails });
+
+      // 3. Clean orphaned runtime temp files
+      let tempCount = 0;
+      const tempDetails: string[] = [];
+      const runtimeDir = path.join(projectPath, ".hamma", "runtime");
+      try {
+        for (const agent of ["codex", "claude", "grok"]) {
+          const agentDir = path.join(runtimeDir, agent);
+          try {
+            const entries = await fsPromises.readdir(agentDir, { withFileTypes: true });
+            for (const entry of entries) {
+              if (entry.name.startsWith(".tmp-") || entry.name.endsWith(".tmp")) {
+                tempDetails.push(`${agent}/${entry.name}`);
+                if (!dryRun) {
+                  await fsPromises.rm(path.join(agentDir, entry.name), { recursive: true, force: true });
+                }
+                tempCount++;
+              }
+            }
+          } catch (error: any) {
+            if (error.code !== "ENOENT") continue;
+          }
+        }
+      } catch (error: any) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      results.push({ category: "orphaned_temp_files", count: tempCount, details: tempDetails });
+
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify({
+          schemaVersion: 1,
+          dryRun,
+          projectPath,
+          results,
+          totalRemoved: results.reduce((sum, r) => sum + r.count, 0),
+        }, null, 2)}\n`);
+        return;
+      }
+
+      const total = results.reduce((sum, r) => sum + r.count, 0);
+      if (total === 0) {
+        console.log(pc.green("✓ Nothing to clean — project is tidy."));
+        return;
+      }
+
+      console.log(pc.bold(`${dryRun ? "Would remove" : "Cleaned"}:\n`));
+      for (const result of results) {
+        if (result.count === 0) continue;
+        console.log(`  ${result.category}: ${result.count} item(s)`);
+        for (const detail of result.details.slice(0, 5)) {
+          console.log(pc.dim(`    ${detail}`));
+        }
+        if (result.details.length > 5) {
+          console.log(pc.dim(`    … and ${result.details.length - 5} more`));
+        }
+      }
+      console.log(`\n  Total: ${total} item(s) ${dryRun ? "would be removed" : "removed"}`);
     } catch (err: any) {
       return failSimple(err);
     }
@@ -624,32 +965,7 @@ program
           const result = await CodexAdapter.listProject(
             path.resolve(options.project)
           );
-          if (options.json) {
-            process.stdout.write(
-              `${JSON.stringify({ schemaVersion: 1, ...result }, null, 2)}\n`
-            );
-            return;
-          }
-          console.log(pc.bold(`Codex sessions for ${result.projectPath}:\n`));
-          if (result.candidates.length === 0) {
-            console.log(pc.yellow("No Codex sessions found for this project."));
-            return;
-          }
-          result.candidates.slice(0, 20).forEach((candidate, index) => {
-            const id = candidate.sessionId ?? "unknown-conversation-id";
-            console.log(
-              `${index + 1}. ${pc.cyan(candidate.lastUpdatedAt)} ${id} ` +
-              `[${candidate.confidence}, score ${candidate.score}]`
-            );
-            console.log(`   ${candidate.path}`);
-            console.log(
-              `   resumable: ${candidate.resumable ? "yes" : "no"}  ` +
-              `signals: ${candidate.signals.join(", ") || "none"}`
-            );
-            if (candidate.reasons.length > 0) {
-              console.log(`   reasons: ${candidate.reasons.join("; ")}`);
-            }
-          });
+          printProjectCandidates("Codex", result, Boolean(options.json));
           return;
         } catch (err: any) {
           return fail("SESSION_ERROR", err);
@@ -682,32 +998,7 @@ program
           const result = await ClaudeAdapter.listProject(
             path.resolve(options.project)
           );
-          if (options.json) {
-            process.stdout.write(
-              `${JSON.stringify({ schemaVersion: 1, ...result }, null, 2)}\n`
-            );
-            return;
-          }
-          console.log(pc.bold(`Claude sessions for ${result.projectPath}:\n`));
-          if (result.candidates.length === 0) {
-            console.log(pc.yellow("No Claude sessions found for this project."));
-            return;
-          }
-          result.candidates.slice(0, 20).forEach((candidate, index) => {
-            const id = candidate.sessionId ?? "unknown-session-id";
-            console.log(
-              `${index + 1}. ${pc.cyan(candidate.lastUpdatedAt)} ${id} ` +
-              `[${candidate.confidence}, score ${candidate.score}]`
-            );
-            console.log(`   ${candidate.path}`);
-            console.log(
-              `   resumable: ${candidate.resumable ? "yes" : "no"}  ` +
-              `signals: ${candidate.signals.join(", ") || "none"}`
-            );
-            if (candidate.reasons.length > 0) {
-              console.log(`   reasons: ${candidate.reasons.join("; ")}`);
-            }
-          });
+          printProjectCandidates("Claude", result, Boolean(options.json));
           return;
         } catch (err: any) {
           return fail("SESSION_ERROR", err);
@@ -1213,7 +1504,15 @@ program
             ...await recoverGrokLaunches(projectPath),
           ];
           for (const recovery of recoveries) {
-            if (["pending", "failed"].includes(recovery.status)) {
+            if (recovery.status === "updated") {
+              // Notify the user that a previously crashed session was recovered.
+              // This goes to stderr so it doesn't pollute bootstrap stdout context.
+              console.error(
+                `✓ Recovered prior ${recovery.agent} session` +
+                (recovery.sessionId ? ` (${recovery.sessionId.slice(0, 8)}…)` : "") +
+                ` into memory '${recovery.memory ?? "default"}'.`
+              );
+            } else if (["pending", "failed"].includes(recovery.status)) {
               cliLogger.warn(`${recovery.agent}.recovery.pending`, {
                 launchId: recovery.launchId,
                 sessionId: recovery.sessionId,
@@ -1221,6 +1520,12 @@ program
               });
             }
           }
+          // Best-effort cleanup of stale records older than 7 days.
+          await Promise.all([
+            cleanupStaleLaunches("codex", projectPath),
+            cleanupStaleLaunches("claude", projectPath),
+            cleanupStaleLaunches("grok", projectPath),
+          ]).catch(() => undefined);
         } catch (runtimeError) {
           // Recovery is best-effort at startup. Existing frozen memory remains
           // useful even when a runtime marker is malformed or temporarily busy.
@@ -1327,6 +1632,14 @@ memoryCommand
         return;
       }
       process.stdout.write(`${formatMemoryInspection(inspection)}\n`);
+      // Show correction commands when the state may need user intervention.
+      if (inspection.latest && ["actionable", "blocked", "ambiguous"].includes(inspection.latest.state.outcome)) {
+        const memoryName = inspection.manifest.name;
+        console.log("");
+        console.log(pc.dim("If this state is incorrect:"));
+        console.log(pc.dim(`  Repair: hamma memory repair ${memoryName} --outcome <outcome> --reason <text>`));
+        console.log(pc.dim(`  Close:  hamma memory close ${memoryName} --reason <text>`));
+      }
     } catch (err: any) {
       return fail("HISTORY_ERROR", err);
     }
@@ -1429,7 +1742,7 @@ memoryCommand
   });
 
 memoryCommand
-  .command("sync")
+  .command("sync", { hidden: true })
   .argument("[name]", "Memory name; defaults to the active memory")
   .option("--source <target>", "Exact source session, for example codex:current or claude:<id>")
   .option("--update-file <path>", "Validated structured memory update JSON")
@@ -1486,7 +1799,7 @@ memoryCommand
   });
 
 memoryCommand
-  .command("attach")
+  .command("attach", { hidden: true })
   .argument("[name]", "Memory name; defaults to active, creating 'default' when absent")
   .requiredOption("--to <agent>", "Target CLI: codex | claude | grok")
   .option("--source <target>", "Exact source session to synchronize before attach")
@@ -1523,9 +1836,9 @@ memoryCommand
   });
 
 memoryCommand
-  .command("checkpoint")
+  .command("checkpoint", { hidden: true })
   .argument("[name]", "Memory name; defaults to the active memory")
-  .requiredOption("--attach <id>", "Attach run identifier returned by memory attach")
+  .option("--attach <id>", "Attach run identifier (auto-resolved from single open run)")
   .requiredOption("--source <target>", "Exact attached agent session, for example codex:<id>")
   .option("--update-file <path>", "Optional structured memory update JSON")
   .option("--project <path>", "Project directory")
@@ -1535,7 +1848,8 @@ memoryCommand
   .action(async (name, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
-      const result = await checkpointMemory(projectPath, name, options.attach, {
+      const attachId = await resolveAttachId(projectPath, name, options.attach);
+      const result = await checkpointMemory(projectPath, name, attachId, {
         source: options.source,
         updateFile: options.updateFile,
         useGitignore: options.gitignore,
@@ -1553,9 +1867,9 @@ memoryCommand
   });
 
 memoryCommand
-  .command("finish")
+  .command("finish", { hidden: true })
   .argument("[name]", "Memory name; defaults to the active memory")
-  .requiredOption("--attach <id>", "Attach run identifier returned by memory attach")
+  .option("--attach <id>", "Attach run identifier (auto-resolved from single open run)")
   .requiredOption("--source <target>", "Exact attached agent session, for example codex:<id>")
   .option("--update-file <path>", "Optional structured memory update JSON")
   .option("--outcome <outcome>", "Final outcome: completed | blocked", "completed")
@@ -1569,7 +1883,8 @@ memoryCommand
         throw new Error("Finish outcome must be completed or blocked.");
       }
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
-      const result = await finishMemory(projectPath, name, options.attach, {
+      const attachId = await resolveAttachId(projectPath, name, options.attach);
+      const result = await finishMemory(projectPath, name, attachId, {
         source: options.source,
         updateFile: options.updateFile,
         outcome: options.outcome,
@@ -1588,9 +1903,9 @@ memoryCommand
   });
 
 memoryCommand
-  .command("abandon")
+  .command("abandon", { hidden: true })
   .argument("[name]", "Memory name; defaults to the active memory")
-  .requiredOption("--attach <id>", "Attach run identifier returned by memory attach")
+  .option("--attach <id>", "Attach run identifier (auto-resolved from single open run)")
   .requiredOption("--reason <text>", "Why the claimed run cannot be completed")
   .option("--project <path>", "Project directory")
   .option("--json", "Print a machine-readable abandon result")
@@ -1598,7 +1913,8 @@ memoryCommand
   .action(async (name, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
-      const run = await abandonMemory(projectPath, name, options.attach, options.reason);
+      const attachId = await resolveAttachId(projectPath, name, options.attach);
+      const run = await abandonMemory(projectPath, name, attachId, options.reason);
       if (options.json) {
         process.stdout.write(`${JSON.stringify({ schemaVersion: 2, run }, null, 2)}\n`);
         return;
@@ -1634,7 +1950,7 @@ memoryCommand
   });
 
 memoryCommand
-  .command("resume")
+  .command("resume", { hidden: true })
   .argument("[name]", "Memory name; defaults to the active memory")
   .requiredOption("--to <agent>", "Target CLI: codex | claude | grok")
   .option("--source <target>", "Exact source session to synchronize before attach")
@@ -1687,7 +2003,7 @@ program
   .option("--check", "Preview setup and verify the current installation (default)")
   .option("--apply", "Apply the displayed hook, bootstrap, and .gitignore changes")
   .option("--agent <agents>", "detected | all | comma-separated claude,codex,grok", "detected")
-  .option("--bootstrap <mode>", "Session-start mode: manual | automatic", "manual")
+  .option("--bootstrap <mode>", "Session-start mode: manual | automatic", "automatic")
   .option("--shared", "Claude: use committable .claude/settings.json")
   .option("--force", "Replace differing hamma-managed hook entries")
   .option("--project <path>", "Project directory")
@@ -1937,6 +2253,7 @@ configCommand
       for (const [name, entry] of Object.entries(selected)) {
         const suffix = entry.source === "default" ? pc.dim(" (default)") : "";
         console.log(`${name}: ${entry.value}${suffix}`);
+        console.log(pc.dim(`  ${CONFIG_KEYS[name].describe(entry.value)}`));
       }
     } catch (err: any) {
       return fail("PROJECT_ERROR", err);
@@ -1982,22 +2299,26 @@ const skillCommand = program
 
 skillCommand
   .command("install")
-  .option("--agent <agent>", "Target agent: codex | claude | grok | both", "both")
+  .option("--agent <agent>", "Target agent: codex | claude | grok | all", "all")
   .option("--force", "Replace an existing hamma-handoff skill")
   .option("--codex-home <path>", "Override the Codex home directory")
   .option("--claude-home <path>", "Override the Claude home directory")
   .option("--grok-home <path>", "Override the Grok home directory")
   .option("--json", "Print only a machine-readable install result")
-  .description("Install the packaged Hamma skills (handoff, snap, resume) for supported agents. For grok this installs universal artifacts (skill install for grok may place in ~/.grok/skills or be used directly via handoff suggested command).")
+  .description("Install the packaged Hamma skills (handoff, snap, resume) for all supported agents.")
   .action(async (options) => {
     const agent = String(options.agent).toLowerCase();
-    if (!["codex", "claude", "grok", "both"].includes(agent)) {
+    if (!["codex", "claude", "grok", "all", "both"].includes(agent)) {
       return fail(
         "INSTALL_ERROR",
-        new Error(`Unsupported --agent '${options.agent}'. Use codex, claude, grok, or both.`)
+        new Error(`Unsupported --agent '${options.agent}'. Use codex, claude, grok, or all.`)
       );
     }
-    const targets: SkillAgent[] = agent === "both" ? ["codex", "claude"] : [agent as SkillAgent];
+    const targets: SkillAgent[] = agent === "all"
+      ? ["codex", "claude", "grok"]
+      : agent === "both"
+        ? ["codex", "claude"]
+        : [agent as SkillAgent];
 
     try {
       const results: SkillInstallResult[] = [];
@@ -2022,9 +2343,14 @@ skillCommand
         console.log(pc.dim(result.destination));
       }
       console.log("");
+      const agentNames = targets.map((t) => {
+        if (t === "codex") return "Codex";
+        if (t === "claude") return "Claude Code";
+        return "Grok";
+      });
       console.log(
         pc.bold(
-          `Restart ${targets.map((t) => (t === "codex" ? "Codex" : "Claude Code")).join(" and ")} to pick up the skill.`
+          `Restart ${agentNames.join(", ")} to pick up the skill.`
         )
       );
     } catch (err: any) {
