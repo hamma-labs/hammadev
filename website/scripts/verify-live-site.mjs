@@ -10,8 +10,8 @@ const productContract = JSON.parse(
 );
 
 const requestedUrl = process.argv.slice(2).find((argument) => argument !== '--');
-const baseUrl = new URL(requestedUrl ?? 'https://hammadev.myrepo.xyz/');
-const expectedCanonical = 'https://hammadev.myrepo.xyz/';
+const baseUrl = new URL(requestedUrl ?? 'https://hammadev.nematov.com/');
+const expectedCanonical = 'https://hammadev.nematov.com/';
 const failures = [];
 const reports = [];
 

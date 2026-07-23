@@ -58,15 +58,15 @@ test('explains the OpenAI Day contribution without implying runtime model lock-i
 test('publishes canonical social metadata for the deployed domain', async ({ page }) => {
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',
-    'https://hammadev.myrepo.xyz/',
+    'https://hammadev.nematov.com/',
   );
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
     'content',
-    'https://hammadev.myrepo.xyz/',
+    'https://hammadev.nematov.com/',
   );
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
     'content',
-    'https://hammadev.myrepo.xyz/og-image.png',
+    'https://hammadev.nematov.com/og-image.png',
   );
   await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
     'content',
@@ -85,13 +85,13 @@ test('serves the social card and crawler files from the built site', async ({ pa
   const robots = await page.request.get('/robots.txt');
   expect(robots.ok()).toBe(true);
   await expect(robots.text()).resolves.toContain(
-    'Sitemap: https://hammadev.myrepo.xyz/sitemap.xml',
+    'Sitemap: https://hammadev.nematov.com/sitemap.xml',
   );
 
   const sitemap = await page.request.get('/sitemap.xml');
   expect(sitemap.ok()).toBe(true);
   await expect(sitemap.text()).resolves.toContain(
-    '<loc>https://hammadev.myrepo.xyz/</loc>',
+    '<loc>https://hammadev.nematov.com/</loc>',
   );
 });
 

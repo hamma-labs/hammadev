@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://hammadev.myrepo.xyz/sitemap.xml
+Sitemap: https://hammadev.nematov.com/sitemap.xml

@@ -65,7 +65,7 @@ Before replacing the live site:
 5. apply \`nginx.conf\` through the server's existing configuration workflow;
 6. run \`pnpm website:check:live\` from the source repository.
 
-Expected canonical URL: https://hammadev.myrepo.xyz/
+Expected canonical URL: https://hammadev.nematov.com/
 Expected product version: ${packageJson.version}
 `;
   await writeFile(path.join(bundleDir, 'DEPLOY.md'), deployInstructions);
@@ -79,7 +79,7 @@ Expected product version: ${packageJson.version}
     schemaVersion: 1,
     product: 'HammaDev website',
     version: packageJson.version,
-    canonicalUrl: 'https://hammadev.myrepo.xyz/',
+    canonicalUrl: 'https://hammadev.nematov.com/',
     files: manifestFiles,
   };
   await writeFile(
