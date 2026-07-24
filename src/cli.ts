@@ -36,7 +36,7 @@ import { runDoctor } from "./core/doctor.js";
 import { installAllSkills, SkillAgent, SkillInstallResult } from "./core/skill-install.js";
 import { loadSession, resolveSessionTarget } from "./session-loader.js";
 import { commandAvailable, runQuickstart } from "./core/quickstart.js";
-import { ErrorCategory, errorMessage, formatCliError } from "./core/errors.js";
+import { ErrorCategory, errorMessage } from "./core/errors.js";
 import { AsyncStructuredLogger } from "./core/logger.js";
 import {
   compactContinuationResponse,
@@ -262,19 +262,23 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 const cliLogger = new AsyncStructuredLogger({ operation: "cli" });
 
 function fail(category: ErrorCategory, error: unknown): void {
-  cliLogger.error("operation.failed", {
-    category,
-    error: errorMessage(error)
-  });
-  console.error(pc.red(formatCliError(category, error)));
+  cliLogger.error("operation.failed", { category, error: errorMessage(error) });
+  console.error(pc.red(`\n✗ ${errorMessage(error)}`));
+  console.error("");
+  console.error(pc.dim("  What to try:"));
+  console.error(pc.dim("  • Run `hamma` to start fresh with guidance"));
+  console.error(pc.dim("  • Run `hamma doctor` to check your setup"));
   process.exitCode = 1;
 }
 
 function failSimple(error: unknown): void {
   const message = errorMessage(error);
   cliLogger.error("operation.failed", { category: "SIMPLE_UX", error: message });
-  console.error(pc.red(`Hamma couldn't complete that: ${message}`));
-  console.error(pc.dim("Run `hamma` for a guided next step or add --help to the command."));
+  console.error(pc.red(`\n✗ ${message}`));
+  console.error("");
+  console.error(pc.dim("  What to try:"));
+  console.error(pc.dim("  • Run `hamma` to start fresh with guidance"));
+  console.error(pc.dim("  • Run `hamma doctor` to check your setup"));
   process.exitCode = 1;
 }
 
@@ -416,7 +420,7 @@ program
 
 program
   .name("hamma")
-  .description("Keep AI coding work moving across Codex, Claude, and Grok")
+  .description("Your AI coding memory — never lose work when switching between agents")
   .version(pkg.version)
   .action(async () => {
     try {
@@ -432,17 +436,23 @@ program
   })
   .addHelpText("after", [
     "",
-    "Simple workflow:",
-    "  hamma                      Choose an agent and continue",
-    "  hamma save                 Save the current coding session",
-    "  hamma codex                Launch Codex with reliable exit recovery",
-    "  hamma claude               Launch Claude Code with reliable exit recovery",
-    "  hamma grok                 Launch Grok with reliable exit recovery",
-    "  hamma switch claude        Save and move the work to Claude",
-    "  hamma done                 Mark the current work complete",
-    "  hamma ask \"why SQLite?\"  Search project memory",
+    "Everyday commands:",
+    "  hamma                      Start here — picks your agent and continues",
+    "  hamma save                 Save your current work (like Ctrl+S for AI sessions)",
+    "  hamma switch claude        Move your work to a different agent",
+    "  hamma done                 Finish the current task",
+    "  hamma ask \"question\"       Ask your project memory something",
     "",
-    "Advanced memory controls remain under `hamma memory`.",
+    "Launch agents directly:",
+    "  hamma codex                Open Codex (with auto-save on exit)",
+    "  hamma claude               Open Claude Code (with auto-save on exit)",
+    "  hamma grok                 Open Grok (with auto-save on exit)",
+    "",
+    "If something seems wrong:",
+    "  hamma doctor               Check that everything is set up correctly",
+    "  hamma fix                  Repair stuck or incorrect memory state",
+    "",
+    "Tip: Just run `hamma` — it handles everything for you.",
   ].join("\n"));
 
 program
@@ -452,7 +462,7 @@ program
   .option("--project <path>", "Project directory")
   .option("--json", "Print a machine-readable result")
   .option("--no-gitignore", "Do not modify .gitignore")
-  .description("Save the current coding session to project memory (checkpoint without closing the task)")
+  .description("Save your current work to project memory")
   .action(async (options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -476,8 +486,11 @@ program
       if (result.attachId) console.log(pc.dim("  Active transferred task checkpointed."));
       if (result.nextAction) console.log(`  Next: ${result.nextAction}`);
       for (const warning of result.warnings) console.log(pc.yellow(`  Warning: ${warning}`));
-      const suggestedTarget = result.source.agent === "claude" ? "codex" : "claude";
-      console.log(pc.dim(`\nSwitch agents with: hamma switch ${suggestedTarget}`));
+      console.log("");
+      console.log(pc.dim("  What next?"));
+      console.log(pc.dim("  • Switch agents:   hamma switch " + (result.source.agent === "claude" ? "codex" : "claude")));
+      console.log(pc.dim("  • Finish the task: hamma done"));
+      console.log(pc.dim("  • Keep working:    your agent session is still active"));
     } catch (err: any) {
       return failSimple(err);
     }
@@ -494,7 +507,7 @@ program
   .option("--start", "Start the target even when this shell is non-interactive")
   .option("--json", "Print a machine-readable result without launching")
   .option("--no-gitignore", "Do not modify .gitignore")
-  .description("Save the work and move it to another coding agent")
+  .description("Move your work to another agent (saves automatically)")
   .action(async (agent, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -530,6 +543,9 @@ program
       if (!shouldLaunch) {
         console.log("\nRun this command to open the agent:");
         console.log(result.attach.suggestedCommand);
+        console.log("");
+        console.log(pc.dim("  After opening the agent, your memory context is ready."));
+        console.log(pc.dim("  When done, run: hamma done"));
         return;
       }
       console.log(pc.cyan(`\nOpening ${result.target}…`));
@@ -578,7 +594,7 @@ program
   .option("--project <path>", "Project directory")
   .option("--json", "Print a machine-readable result")
   .option("--no-gitignore", "Do not modify .gitignore")
-  .description("Save the current session and close its task (marks work complete so it is not repeated)")
+  .description("Finish the current task and save your work")
   .action(async (options) => {
     try {
       if (options.blocked && !options.next) {
@@ -605,7 +621,11 @@ program
       console.log(`  Revision: ${result.revision ?? "already up to date"}`);
       if (result.attachId) console.log(pc.dim("  The agent claim is now closed."));
       for (const warning of result.warnings) console.log(pc.yellow(`  Warning: ${warning}`));
-      console.log(pc.dim("\nThe history remains available, but Hamma will not repeat this work."));
+      console.log("");
+      console.log(pc.dim("  What next?"));
+      console.log(pc.dim("  • Start new work:  just open your agent and begin"));
+      console.log(pc.dim("  • Switch agents:   hamma switch codex"));
+      console.log(pc.dim("  • Check memory:    hamma memory show"));
     } catch (err: any) {
       return failSimple(err);
     }
@@ -617,7 +637,7 @@ program
   .option("--project <path>", "Project directory and Codex working directory")
   .option("--codex-bin <command>", "Codex executable to launch", "codex")
   .allowUnknownOption(true)
-  .description("Launch Codex with exact-session exit checkpointing and crash recovery")
+  .description("Open Codex (your work is auto-saved when you exit)")
   .action(async (codexArgs: string[] | undefined, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -640,7 +660,7 @@ program
   .option("--project <path>", "Project directory and Claude Code working directory")
   .option("--claude-bin <command>", "Claude Code executable to launch", "claude")
   .allowUnknownOption(true)
-  .description("Launch Claude Code with native lifecycle hooks and exact-session exit checkpointing")
+  .description("Open Claude Code (your work is auto-saved when you exit)")
   .action(async (claudeArgs: string[] | undefined, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -663,7 +683,7 @@ program
   .option("--project <path>", "Project directory and Grok working directory")
   .option("--grok-bin <command>", "Grok executable to launch", "grok")
   .allowUnknownOption(true)
-  .description("Launch Grok with native lifecycle hooks and exact-session exit checkpointing")
+  .description("Open Grok (your work is auto-saved when you exit)")
   .action(async (grokArgs: string[] | undefined, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -687,7 +707,7 @@ program
   .option("--limit <n>", "Maximum results", "5")
   .option("--project <path>", "Project directory")
   .option("--json", "Print machine-readable recall results")
-  .description("Search this project's saved memory")
+  .description("Ask a question about your project memory")
   .action(async (queryParts, options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -735,7 +755,7 @@ program
   .option("--memory <name>", "Memory name; defaults to the active memory")
   .option("--project <path>", "Project directory")
   .option("--json", "Print a machine-readable result")
-  .description("Interactively repair incorrect memory state")
+  .description("Repair stuck or incorrect memory state")
   .action(async (options) => {
     try {
       const projectPath = resolveMemoryProjectPath(options.project ?? process.cwd());
@@ -778,6 +798,39 @@ program
       // Interactive mode
       const { createInterface } = await import("node:readline/promises");
       const readline = createInterface({ input: process.stdin, output: process.stdout });
+
+      // Raw-mode single-keypress picker for TTY, falls back to readline otherwise.
+      const pickNumber = (maxChoices: number, defaultChoice: number): Promise<number | undefined> => {
+        const stdin = process.stdin as any;
+        if (stdin.isTTY && typeof stdin.setRawMode === "function") {
+          return new Promise((resolve) => {
+            process.stdout.write(`Press 1–${maxChoices} or Enter for default: `);
+            stdin.setRawMode(true);
+            stdin.resume();
+            const onData = (buf: Buffer): void => {
+              const key = buf.toString();
+              if (key === "\x03") { cleanup(); stdin.setRawMode(false); process.stdout.write("\n"); resolve(undefined); return; }
+              if (key === "\r" || key === "\n") { cleanup(); stdin.setRawMode(false); process.stdout.write(`${defaultChoice}\n`); resolve(defaultChoice); return; }
+              if (key === "q" || key === "Q") { cleanup(); stdin.setRawMode(false); process.stdout.write("q\n"); resolve(undefined); return; }
+              const num = Number(key);
+              if (Number.isInteger(num) && num >= 1 && num <= maxChoices) { cleanup(); stdin.setRawMode(false); process.stdout.write(`${num}\n`); resolve(num); return; }
+              process.stdout.write(`\n  Press 1–${maxChoices}, Enter for default, or q to cancel: `);
+            };
+            const cleanup = (): void => { stdin.removeListener("data", onData); };
+            stdin.on("data", onData);
+          });
+        }
+        // Fallback: readline
+        return (async () => {
+          const resp = (await readline.question(`Choose [${defaultChoice}]: `)).trim();
+          if (!resp) return defaultChoice;
+          if (/^(?:q|quit|cancel)$/i.test(resp)) return undefined;
+          const num = Number(resp);
+          if (Number.isInteger(num) && num >= 1 && num <= maxChoices) return num;
+          return undefined;
+        })();
+      };
+
       try {
         console.log(pc.bold(`\nMemory: ${memoryName}`));
         console.log(`  Outcome: ${inspection.latest.state.outcome}`);
@@ -793,8 +846,9 @@ program
         if (inspection.openRuns.length > 0) {
           console.log("  3. A stuck claim needs to be released (abandon it)");
         }
-        const response = (await readline.question("\nChoose [1]: ")).trim();
-        const choice = response ? Number(response) : 1;
+        const maxMainChoices = inspection.openRuns.length > 0 ? 3 : 2;
+        const choice = await pickNumber(maxMainChoices, 1);
+        if (choice === undefined) { console.log("Cancelled."); return; }
 
         if (choice === 1) {
           const reason = (await readline.question("Reason for closing: ")).trim();
@@ -807,9 +861,10 @@ program
           console.log("  1. actionable");
           console.log("  2. completed");
           console.log("  3. blocked");
-          const outcomeResponse = (await readline.question("Choose [1]: ")).trim();
+          const outcomeChoice = await pickNumber(3, 1);
+          if (outcomeChoice === undefined) { console.log("Cancelled."); return; }
           const outcomes = ["actionable", "completed", "blocked"] as const;
-          const outcome = outcomes[(outcomeResponse ? Number(outcomeResponse) : 1) - 1] ?? "actionable";
+          const outcome = outcomes[outcomeChoice - 1] ?? "actionable";
           let nextAction: string | undefined | null;
           if (outcome !== "completed") {
             nextAction = (await readline.question("Next action (leave empty to keep current): ")).trim() || undefined;
@@ -1992,7 +2047,7 @@ memoryCommand
 
 program
   .command("doctor")
-  .description("Validate environment, Codex availability, and .gitignore safety")
+  .description("Check that Hamma and your tools are set up correctly")
   .action(async () => {
     const code = await runDoctor();
     process.exitCode = code;
@@ -2008,7 +2063,7 @@ program
   .option("--force", "Replace differing hamma-managed hook entries")
   .option("--project <path>", "Project directory")
   .option("--json", "Print the complete setup plan and verification result")
-  .description("Preview, apply, and verify guided Hamma project setup")
+  .description("Preview or apply agent hooks and project configuration")
   .action(async (options) => {
     try {
       if (options.check && options.apply) {
@@ -2058,7 +2113,7 @@ program
 
 program
   .command("quickstart")
-  .description("Guided read-only onboarding for first-time users")
+  .description("Show a detailed diagnosis of your project (read-only)")
   .action(async () => {
     try {
       await runQuickstart(process.cwd());

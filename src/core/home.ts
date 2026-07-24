@@ -145,9 +145,19 @@ export async function runHammaHome(
   const dependencies = { ...defaultDependencies(), ...injected };
   const status = await dependencies.getStatus(projectPath);
   if (status.gitStatus === "unavailable") {
-    throw new Error("Git is not installed or is not available in this terminal.");
+    throw new Error(
+      "Git is not installed. Hamma needs Git to track your project.\n" +
+      "  Install it: https://git-scm.com/downloads\n" +
+      "  Then come back and run `hamma` again."
+    );
   }
-  if (!status.isGitRepo) throw new Error("Run Hamma from inside a Git project.");
+  if (!status.isGitRepo) {
+    throw new Error(
+      "This folder isn't a Git project yet.\n" +
+      "  To set it up: git init\n" +
+      "  Then run `hamma` again."
+    );
+  }
 
   const availabilityEntries = await Promise.all(HOME_AGENTS.map(async (agent) => [
     agent,
@@ -156,7 +166,14 @@ export async function runHammaHome(
   const availability = Object.fromEntries(availabilityEntries) as Record<HammaHomeAgent, boolean>;
   const installed = HOME_AGENTS.filter((agent) => availability[agent]);
   if (installed.length === 0) {
-    throw new Error("Install Codex, Claude Code, or Grok, then run `hamma` again.");
+    throw new Error(
+      "No AI coding agents found on this machine.\n\n" +
+      "  Install one (pick any):\n" +
+      "  • Codex:  npm install -g @openai/codex\n" +
+      "  • Claude: npm install -g @anthropic-ai/claude-code\n" +
+      "  • Grok:   npm install -g grok-cli\n\n" +
+      "  Then run `hamma` again."
+    );
   }
 
   const currentSource = status.memory.openAttachTarget as HammaHomeAgent | undefined ??
@@ -180,7 +197,7 @@ export async function runHammaHome(
   const checked = await dependencies.checkSetup(projectPath, availability);
   const conflict = setupConflict(checked);
   if (conflict) {
-    throw new Error(`${conflict} Run \`hamma setup --check\` for details.`);
+    throw new Error(`${conflict}\n  Run \`hamma doctor\` to diagnose the problem.`);
   }
 
   let setupApplied = false;
@@ -205,7 +222,15 @@ export async function runHammaHome(
 
   let switched: SimpleSwitchResult | undefined;
   if (status.memory.revisionCount > 0 || status.memory.openAttachId || hasProjectSession(status)) {
-    switched = await dependencies.switchAgent(projectPath, target);
+    try {
+      switched = await dependencies.switchAgent(projectPath, target);
+    } catch (switchError: unknown) {
+      const msg = switchError instanceof Error ? switchError.message : String(switchError);
+      prompt.write(`\n${pc.yellow("!")} Hamma ran into a hiccup: ${msg}\n`);
+      prompt.write(pc.dim("  This usually happens after an interrupted session.\n"));
+      prompt.write(`\n  Opening ${label(target)} without saved context instead.\n\n`);
+      // Continue without switch — launch the agent fresh
+    }
   }
 
   prompt.write(`${pc.cyan("Opening")} ${label(target)}…\n`);
@@ -234,12 +259,14 @@ export async function runHammaHome(
 
 export class TerminalHammaPrompt implements HammaHomePrompt {
   private readonly readline: Interface;
+  private readonly input: Readable;
   private inputReleased = false;
 
   constructor(
     input: Readable = process.stdin,
     private readonly output: Writable = process.stdout
   ) {
+    this.input = input;
     this.readline = createInterface({ input, output });
   }
 
@@ -252,12 +279,76 @@ export class TerminalHammaPrompt implements HammaHomePrompt {
     return response === "y" || response === "yes";
   }
 
+  private supportsRawMode(): boolean {
+    const stream = this.input as any;
+    return Boolean(stream.isTTY && typeof stream.setRawMode === "function");
+  }
+
+  private selectRawMode(choices: HammaHomeChoice[], defaultIndex: number): Promise<HammaHomeAgent | undefined> {
+    const stream = this.input as any;
+    return new Promise((resolve) => {
+      this.write(`Press 1–${choices.length} or Enter for default: `);
+      stream.setRawMode(true);
+      stream.resume();
+
+      const onData = (buf: Buffer): void => {
+        const key = buf.toString();
+        // Ctrl-C
+        if (key === "\x03") {
+          cleanup();
+          stream.setRawMode(false);
+          this.write("\n");
+          resolve(undefined);
+          return;
+        }
+        // Enter — select default
+        if (key === "\r" || key === "\n") {
+          cleanup();
+          stream.setRawMode(false);
+          this.write(`${defaultIndex + 1}\n`);
+          resolve(choices[defaultIndex]?.value);
+          return;
+        }
+        // q — cancel
+        if (key === "q" || key === "Q") {
+          cleanup();
+          stream.setRawMode(false);
+          this.write("q\n");
+          resolve(undefined);
+          return;
+        }
+        // Number keys
+        const num = Number(key);
+        if (Number.isInteger(num) && num >= 1 && num <= choices.length) {
+          cleanup();
+          stream.setRawMode(false);
+          this.write(`${num}\n`);
+          resolve(choices[num - 1].value);
+          return;
+        }
+        // Unrecognized key — show help
+        this.write(`\n  Press 1–${choices.length}, Enter for default, or q to cancel: `);
+      };
+
+      const cleanup = (): void => {
+        stream.removeListener("data", onData);
+      };
+      stream.on("data", onData);
+    });
+  }
+
   async select(message: string, choices: HammaHomeChoice[]): Promise<HammaHomeAgent | undefined> {
     this.write(`${message}\n`);
     choices.forEach((choice, index) => {
       this.write(`  ${index + 1}. ${choice.label}${choice.recommended ? " (recommended)" : ""}\n`);
     });
     const defaultIndex = choices.findIndex((choice) => choice.recommended);
+
+    if (this.supportsRawMode()) {
+      return this.selectRawMode(choices, defaultIndex);
+    }
+
+    // Fallback: readline-based selection for non-TTY (piped input, tests)
     while (true) {
       const response = (await this.readline.question(`Choose [${defaultIndex + 1}]: `)).trim();
       if (!response) return choices[defaultIndex]?.value;

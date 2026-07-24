@@ -230,7 +230,7 @@ describe("one-command Hamma home", () => {
     });
 
     await expect(runHammaHome("/project", ui, deps)).rejects.toThrow(
-      "Run Hamma from inside a Git project"
+      "This folder isn't a Git project yet"
     );
     expect(ui.select).not.toHaveBeenCalled();
     expect(deps.applySetup).not.toHaveBeenCalled();
@@ -256,7 +256,7 @@ describe("one-command Hamma home", () => {
     });
 
     await expect(runHammaHome("/project", ui, deps)).rejects.toThrow(
-      /Existing Hamma hook differs.*setup --check/
+      /Existing Hamma hook differs[\s\S]*hamma doctor/
     );
     expect(deps.applySetup).not.toHaveBeenCalled();
   });

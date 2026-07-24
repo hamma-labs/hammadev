@@ -7,7 +7,7 @@ _Evidence refreshed 2026-07-22._
 HammaDev has two different current states that must not be conflated:
 
 - **Public alpha:** `hammadev@0.1.0-alpha.10`, installed with `hammadev@alpha`.
-- **Public beta:** `hammadev@0.1.0-beta.2`, installed with `hammadev@beta`.
+- **Public beta:** `hammadev@0.1.0-beta.2`, installed with `hammadev@beta`. Beta.3 is in final verification.
 
 Beta.2 keeps those release foundations and adds the first "Hamma for everyone" experience: after installation, a user can run only `hamma`, choose an installed agent, approve one clear confirmation, and continue. Hamma performs the bootstrap, ignore, memory, claim, and launch work behind that interaction. Annotated tag `v0.1.0-beta.2` points to green release commit `a603750`.
 
@@ -253,6 +253,16 @@ have been implemented and pass the full 441-test suite:
 
 These changes are mechanical improvements. They do not change the semantic
 evaluation corpus, release artifacts, or the overall product posture.
+
+**Noob-friendly CLI (added in beta.3 prep):**
+- Single-keypress agent selection: pressing 1/2/3 selects immediately without Enter (raw mode on TTY, readline fallback for pipes/tests).
+- Auto-heal orphaned task claims: interrupted sessions no longer throw cryptic errors; Hamma abandons the stale claim and continues normally.
+- Plain English error messages: removed `[CATEGORY]` prefix and troubleshooting URL; errors now show `✗ message` + "What to try" with two bullet suggestions.
+- "What next?" after every action: save, done, and switch all print contextual next-step suggestions.
+- Graceful switchAgent recovery: bare `hamma` catches switch failures and opens the agent fresh instead of crashing.
+- Install guidance in errors: missing Git, not a git repo, and no agents found all provide exact install commands.
+- Simplified help text: all command descriptions rewritten for non-technical users; help footer organized into Everyday/Launch/Troubleshooting sections.
+- Program description: "Your AI coding memory — never lose work when switching between agents".
 
 ## What remains before broad production use
 

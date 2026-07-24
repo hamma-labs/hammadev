@@ -195,8 +195,18 @@ export async function detectSimpleSource(
         // Continue checking bounded project candidates.
       }
     }
-    throw new Error(
-      `Hamma found the open ${expectedAgent} task claim but not its launched session. Open the command printed by \`hamma switch\`, then run this command inside that agent.`
+    // Auto-heal: the launched session is gone (crash/interrupt). Release the claim and continue.
+    await abandonMemory(
+      projectPath,
+      undefined,
+      options.expectedRun.id,
+      "Released automatically: launched session was not found (likely interrupted)."
+    );
+    process.stderr.write("✓ Released stale task claim (session was interrupted). Continuing normally.\n");
+    return exactCurrentSource(
+      projectPath,
+      expectedAgent,
+      `Recovered after releasing orphaned claim for ${expectedAgent}.`
     );
   }
   if (options.preferredAgent) {

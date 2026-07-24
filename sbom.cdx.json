@@ -13,9 +13,9 @@
     "component": {
       "type": "application",
       "name": "hammadev",
-      "version": "0.1.0-beta.2",
-      "purl": "pkg:npm/hammadev@0.1.0-beta.2",
-      "bom-ref": "pkg:npm/hammadev@0.1.0-beta.2",
+      "version": "0.1.0-beta.3",
+      "purl": "pkg:npm/hammadev@0.1.0-beta.3",
+      "bom-ref": "pkg:npm/hammadev@0.1.0-beta.3",
       "licenses": [
         {
           "license": {
@@ -379,7 +379,7 @@
       ]
     },
     {
-      "ref": "pkg:npm/hammadev@0.1.0-beta.2",
+      "ref": "pkg:npm/hammadev@0.1.0-beta.3",
       "dependsOn": [
         "pkg:npm/commander@15.0.0",
         "pkg:npm/fast-glob@3.3.3",

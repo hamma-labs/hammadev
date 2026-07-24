@@ -18,6 +18,6 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An unexpected error occurred.";
 }
 
-export function formatCliError(category: ErrorCategory, error: unknown): string {
-  return `[${category}] ${errorMessage(error)}\nTroubleshooting: ${troubleshootingUrl(category)}`;
+export function formatCliError(_category: ErrorCategory, error: unknown): string {
+  return errorMessage(error);
 }

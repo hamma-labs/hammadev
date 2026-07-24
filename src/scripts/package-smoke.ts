@@ -231,7 +231,7 @@ async function main(): Promise<void> {
       fakeHome
     );
     assert(
-      installedCodexHelp.includes("exact-session exit checkpointing") &&
+      installedCodexHelp.includes("auto-saved when you exit") &&
         installedCodexHelp.includes("--codex-bin <command>"),
       "Installed package does not expose the reliable Codex launcher."
     );

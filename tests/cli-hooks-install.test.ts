@@ -144,14 +144,14 @@ describe("hooks install CLI command", () => {
     await fs.writeFile(target, "{ not json\n");
     await expect(run([
       "hooks", "install", "--agent", "claude", "--project", corruptProject, "--json",
-    ])).rejects.toThrow(/INSTALL_ERROR/);
+    ])).rejects.toThrow();
     expect(await fs.readFile(target, "utf8")).toBe("{ not json\n");
   });
 
   it("rejects an unsupported agent", async () => {
     await expect(run([
       "hooks", "install", "--agent", "cursor", "--project", projectPath, "--json",
-    ])).rejects.toThrow(/INSTALL_ERROR/);
+    ])).rejects.toThrow(/Unsupported/);
   });
 
   it("uninstall removes hamma entries and preserves user settings", async () => {
