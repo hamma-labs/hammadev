@@ -182,6 +182,8 @@ function resolveBySessionId(id: string, sessions: ClaudeSessionRef[]): string {
   }
 
   throw new Error(
-    `No Claude session found with sessionId matching '${id}'.`
+    `No Claude session found with sessionId matching '${id}'.\n` +
+    `  This usually means the session was too short for Claude to save it.\n` +
+    `  Try: hamma done --agent claude (to find the latest session instead)`
   );
 }

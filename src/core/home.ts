@@ -291,39 +291,39 @@ export class TerminalHammaPrompt implements HammaHomePrompt {
       stream.setRawMode(true);
       stream.resume();
 
+      const finish = (value: HammaHomeAgent | undefined, echo: string): void => {
+        cleanup();
+        stream.setRawMode(false);
+        this.write(`${echo}\n`);
+        // Drain any extra keystrokes that arrived during the selection
+        // so they don't leak into the next readline prompt.
+        stream.pause();
+        stream.read();
+        stream.resume();
+        resolve(value);
+      };
+
       const onData = (buf: Buffer): void => {
         const key = buf.toString();
         // Ctrl-C
         if (key === "\x03") {
-          cleanup();
-          stream.setRawMode(false);
-          this.write("\n");
-          resolve(undefined);
+          finish(undefined, "");
           return;
         }
         // Enter — select default
         if (key === "\r" || key === "\n") {
-          cleanup();
-          stream.setRawMode(false);
-          this.write(`${defaultIndex + 1}\n`);
-          resolve(choices[defaultIndex]?.value);
+          finish(choices[defaultIndex]?.value, String(defaultIndex + 1));
           return;
         }
         // q — cancel
         if (key === "q" || key === "Q") {
-          cleanup();
-          stream.setRawMode(false);
-          this.write("q\n");
-          resolve(undefined);
+          finish(undefined, "q");
           return;
         }
         // Number keys
         const num = Number(key);
         if (Number.isInteger(num) && num >= 1 && num <= choices.length) {
-          cleanup();
-          stream.setRawMode(false);
-          this.write(`${num}\n`);
-          resolve(choices[num - 1].value);
+          finish(choices[num - 1].value, String(num));
           return;
         }
         // Unrecognized key — show help
