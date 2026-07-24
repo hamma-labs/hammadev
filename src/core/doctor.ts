@@ -185,11 +185,38 @@ async function checkGitignoreSafety(projectPath?: string): Promise<Check> {
   };
 }
 
+async function checkAgentAvailability(): Promise<Check> {
+  const agents = ["codex", "claude", "grok"] as const;
+  const results: string[] = [];
+  for (const agent of agents) {
+    try {
+      execSync(`command -v ${agent}`, { stdio: "ignore" });
+      results.push(`${agent} ✓`);
+    } catch {
+      results.push(`${agent} ✗`);
+    }
+  }
+  const available = results.filter((r) => r.includes("✓"));
+  if (available.length === 0) {
+    return {
+      name: "agent availability",
+      status: "warn",
+      message: `No agents found on PATH (${results.join(", ")}). Install at least one: codex, claude, or grok.`,
+    };
+  }
+  return {
+    name: "agent availability",
+    status: "pass",
+    message: results.join(", "),
+  };
+}
+
 export async function runDoctor(): Promise<number> {
   const checks: Check[] = [];
 
   checks.push(checkNode());
   checks.push(checkGit());
+  checks.push(await checkAgentAvailability());
 
   const { check: codexCheck, latestPath } = await checkCodexSessions();
   checks.push(codexCheck);

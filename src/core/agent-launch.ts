@@ -771,8 +771,15 @@ export async function launchAgentWithRecovery(
       setupWarning,
       checkpoint,
     };
-  } catch (error) {
+  } catch (error: any) {
     if (launch) await discardAgentLaunch(agent, project, launch.id).catch(() => undefined);
+    if (error?.code === "ENOENT") {
+      const label = AGENT_LABELS[agent] ?? agent;
+      throw new Error(
+        `${label} is not installed (could not find '${command}' on PATH).\n` +
+        `  Install it first, then run this command again.`
+      );
+    }
     throw error;
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
