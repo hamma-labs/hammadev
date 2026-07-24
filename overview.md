@@ -1,18 +1,18 @@
 # HammaDev product overview
 
-_Evidence refreshed 2026-07-22._
+_Evidence refreshed 2026-07-24._
 
 ## Bottom line
 
 HammaDev has two different current states that must not be conflated:
 
 - **Public alpha:** `hammadev@0.1.0-alpha.10`, installed with `hammadev@alpha`.
-- **Public beta:** `hammadev@0.1.0-beta.2`, installed with `hammadev@beta`. Beta.3 is in final verification.
+- **Public beta:** `hammadev@0.1.0-beta.3`, installed with `hammadev@beta`.
 
-Beta.2 keeps those release foundations and adds the first "Hamma for everyone" experience: after installation, a user can run only `hamma`, choose an installed agent, approve one clear confirmation, and continue. Hamma performs the bootstrap, ignore, memory, claim, and launch work behind that interaction. Annotated tag `v0.1.0-beta.2` points to green release commit `a603750`.
+Beta.3 keeps beta.2's one-command "Hamma for everyone" experience and adds its friction fixes: single-keypress agent selection, recovery from interrupted claims, plain-English errors, contextual next-step hints, and simplified help. Post-tag fixes on `main` add platform-specific install commands, raw-mode stdin stability, and `hamma doctor` agent checks. After installation, a user can run only `hamma`, choose an installed agent, approve one clear confirmation, and continue. Hamma performs the bootstrap, ignore, memory, claim, and launch work behind that interaction. Annotated tag `v0.1.0-beta.3` points to release commit `df4b689`; `main` is ahead with verified fixes.
 
 - Product idea: **9/10**
-- Public beta.2: **8.9/10**
+- Public beta.3: **8.9/10**
 - Public alpha.10: **7.8/10**
 - Broad production readiness: **7/10**
 - Recommendation today: **controlled early-adopter use with human review**
@@ -25,7 +25,7 @@ The OpenAI Build Week deadline has ended, so the former submission repository at
 
 Active development has moved to [`hamma-labs/hammadev`](https://github.com/hamma-labs/hammadev). The local `origin` fetch and push URLs both point exclusively to that repository, and active package, README, issue, homepage, troubleshooting, website, and vulnerability-reporting metadata now use the organization repository.
 
-The beta.2 release commit `a603750` is pushed to `main` and tagged. The release was verified and published from the active organization repository.
+The beta.3 release commit `df4b689` is pushed to `main` and tagged. The release was verified and published from the active organization repository.
 
 ## Public alpha.10
 
@@ -39,9 +39,9 @@ The previous release mismatch remains fixed for the currently advertised public 
 
 The successful alpha.10 registry verification is [GitHub Actions run 29844189826](https://github.com/xayrullonematov/hammadev/actions/runs/29844189826). Final alpha.10 main-branch CI is [run 29844160028](https://github.com/xayrullonematov/hammadev/actions/runs/29844160028).
 
-The `alpha` tag is intentionally frozen at the hackathon submission. Beta.2's documentation, website source, tests, and product contract consistently require `@beta`; `latest` remained unchanged during the release.
+The `alpha` tag is intentionally frozen at the hackathon submission. The current documentation, website source, tests, and product contract consistently require `@beta`; `latest` remained unchanged during the beta releases.
 
-## Released beta.2
+## Released beta.2 foundations
 
 ### 1. Semantic evaluation is larger and more informative
 
@@ -171,11 +171,11 @@ The website consumes both installation and start commands from `product-contract
 
 ## Updated scorecard
 
-| Area | Public alpha.10 | Public beta.2 | Honest assessment |
+| Area | Public alpha.10 | Public beta.3 | Honest assessment |
 | --- | ---: | ---: | --- |
 | Product idea | 9/10 | 9/10 | Project-owned, local continuity remains a strong abstraction. |
-| Feature completeness | 8.2/10 | 8.9/10 | Beta.2 adds a one-command home flow and invisible exact-session transport. Team synchronization remains absent. |
-| CLI and onboarding | 7/10 | 8.8/10 | The normal path is now install, run `hamma`, choose, confirm. It still assumes a terminal, Git, Node, and an agent CLI. |
+| Feature completeness | 8.2/10 | 8.9/10 | Beta.3 retains the one-command home flow and invisible exact-session transport, with focused friction fixes. Team synchronization remains absent. |
+| CLI and onboarding | 7/10 | 9.0/10 | Install, run `hamma`, press a key, press y. Errors show install commands. Still requires terminal, Git, Node, and an agent CLI. |
 | Semantic task-state correctness | 7.5/10 | 8.1/10 | Metrics and stress coverage improved, but only seven labeled cases derive from real sessions. |
 | Exact-session and crash mechanics | 8.5/10 | 9.1/10 | Hidden attachment binding complements explicit fault boundaries, stale-lock ownership, orphan cleanup, and concurrency tests. |
 | Git and concurrency safety | 8.5/10 | 9/10 | One-writer semantics and cleanup behavior are now directly exercised. |
@@ -186,7 +186,7 @@ The website consumes both installation and start commands from `product-contract
 | Team use | 3/10 | 3/10 | Memory remains intentionally local to one machine. |
 | Adoption proof | 4/10 | 4/10 | No verified retention or production-use evidence was added. |
 
-## Release verification evidence
+## Beta.2 release verification evidence
 
 Established locally:
 
@@ -207,18 +207,43 @@ Established remotely:
 - The Ubuntu website job passed typecheck, production build, and all nine Chromium tests.
 - [Publish run 29937207716](https://github.com/hamma-labs/hammadev/actions/runs/29937207716) validated tag identity and every release gate, published `hammadev@0.1.0-beta.2` through npm Trusted Publishing, waited for registry propagation, then installed and verified the exact public artifact. The complete workflow is green.
 - An independent exact registry smoke installed beta.2, matched its CLI version and command contract, and verified the npm SLSA v1 attestation.
-- npm `beta` resolves to `0.1.0-beta.2`; `alpha` remains `0.1.0-alpha.10` and `latest` remains `0.1.0-alpha.5`.
+- At the time of that release, npm `beta` resolved to `0.1.0-beta.2`; `alpha` remained `0.1.0-alpha.10` and `latest` remained `0.1.0-alpha.5`.
+
+## Beta.3 release verification evidence
+
+Beta.3 is the current public beta. Its release commit is `df4b689`, its annotated
+tag is `v0.1.0-beta.3`, and both point to the same commit on `main`.
+
+Established locally from the release checkout:
+
+- Typecheck and CLI build passed.
+- The committed SBOM matched the installed production dependency tree.
+- The 19-case semantic quality gate passed with the same 1.0 task-state,
+  next-action, and recall-usefulness scores, and 0.939 recall MRR.
+- The 14-test portable lifecycle suite and 13 focused fault/recovery tests passed.
+- The packed-artifact smoke passed. Its tarball measured 2,027,959 bytes and
+  completed the installed CLI, simple-save, and actionable-context flows.
+
+Established remotely:
+
+- [CI run 30103497689](https://github.com/hamma-labs/hammadev/actions/runs/30103497689)
+  completed successfully for the beta.3 commit.
+- [Publish run 30103497492](https://github.com/hamma-labs/hammadev/actions/runs/30103497492)
+  completed successfully, verifying the release tag and publishing
+  `hammadev@0.1.0-beta.3` through npm Trusted Publishing.
+- npm `beta` resolves to `0.1.0-beta.3` and exposes an SLSA v1 provenance
+  attestation. `alpha` remains `0.1.0-alpha.10`; `latest` was not changed.
 
 ## Post-release follow-up
 
 1. Test the one-command interaction with people who did not build Hamma and measure where installation, terminology, consent, or agent selection still causes friction.
-2. Design a GUI or native launcher only from that usability evidence; beta.2 is still one unified npm package and is not a native installer.
+2. Design a GUI or native launcher only from that usability evidence; beta.3 is still one unified npm package and is not a native installer.
 3. Consider promotion to `latest` separately. Do not change frozen `alpha` as part of a later promotion decision.
 
-## Post-beta.2 friction fixes (in progress, targeting beta.3)
+## Beta.3 friction fixes
 
 A comprehensive friction audit identified 25 issues across the CLI. The following
-have been implemented and pass the full 441-test suite:
+are included in the published beta.3 release:
 
 **Accessibility:**
 - Early Node version guard before ESM imports (prevents cryptic errors on Node < 22.12).
@@ -254,7 +279,7 @@ have been implemented and pass the full 441-test suite:
 These changes are mechanical improvements. They do not change the semantic
 evaluation corpus, release artifacts, or the overall product posture.
 
-**Noob-friendly CLI (added in beta.3 prep):**
+**Noob-friendly CLI:**
 - Single-keypress agent selection: pressing 1/2/3 selects immediately without Enter (raw mode on TTY, readline fallback for pipes/tests).
 - Auto-heal orphaned task claims: interrupted sessions no longer throw cryptic errors; Hamma abandons the stale claim and continues normally.
 - Plain English error messages: removed `[CATEGORY]` prefix and troubleshooting URL; errors now show `✗ message` + "What to try" with two bullet suggestions.
@@ -263,6 +288,13 @@ evaluation corpus, release artifacts, or the overall product posture.
 - Install guidance in errors: missing Git, not a git repo, and no agents found all provide exact install commands.
 - Simplified help text: all command descriptions rewritten for non-technical users; help footer organized into Everyday/Launch/Troubleshooting sections.
 - Program description: "Your AI coding memory — never lose work when switching between agents".
+
+**Post-tag real-world testing fixes (on main, targeting beta.4 or tag update):**
+- Raw-mode stdin fix: readline is now closed before entering raw mode and recreated after, preventing keystroke duplication and buffer leakage into subsequent prompts. Confirm prompt also uses single-keypress raw mode (y/n without Enter).
+- Agent-not-installed error: `spawn ENOENT` is caught and replaced with a friendly message naming the agent and showing platform-specific install commands (brew on macOS, npm/curl on Linux).
+- `hamma doctor` now reports agent availability: `codex ✓, claude ✓, grok ✗` with install hints when none are found.
+- Claude session-not-found error: explains the likely cause (session too short to write a file) and suggests a workaround.
+- Platform-aware install guidance: all "agent not found" errors show the correct command for the user's OS (brew/npm/curl).
 
 ## What remains before broad production use
 
@@ -278,7 +310,7 @@ evaluation corpus, release artifacts, or the overall product posture.
 
 ## Recommendation
 
-Public alpha.10 remains the frozen hackathon artifact. Public beta.2 is materially easier to start and has complete local, three-OS CI, npm OIDC, registry-installation, and provenance evidence.
+Public alpha.10 remains the frozen hackathon artifact. Public beta.3 is materially easier to start and has complete local, three-OS CI, npm OIDC, registry-installation, and provenance evidence.
 
 HammaDev is still not recommended for unattended autonomous execution, sensitive enterprise repositories, regulated environments, or teams expecting shared memory.
 
