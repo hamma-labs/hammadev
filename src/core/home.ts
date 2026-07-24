@@ -258,7 +258,7 @@ export async function runHammaHome(
 }
 
 export class TerminalHammaPrompt implements HammaHomePrompt {
-  private readonly readline: Interface;
+  private readline: Interface;
   private readonly input: Readable;
   private inputReleased = false;
 
@@ -275,6 +275,9 @@ export class TerminalHammaPrompt implements HammaHomePrompt {
   }
 
   async confirm(message: string): Promise<boolean> {
+    if (this.supportsRawMode()) {
+      return this.confirmRawMode(message);
+    }
     const response = (await this.readline.question(message)).trim().toLowerCase();
     return response === "y" || response === "yes";
   }
@@ -284,8 +287,44 @@ export class TerminalHammaPrompt implements HammaHomePrompt {
     return Boolean(stream.isTTY && typeof stream.setRawMode === "function");
   }
 
+  private confirmRawMode(message: string): Promise<boolean> {
+    const stream = this.input as any;
+    // Close readline so it doesn't compete for stdin data events.
+    this.readline.close();
+    return new Promise((resolve) => {
+      this.write(message);
+      stream.setRawMode(true);
+      stream.resume();
+
+      const onData = (buf: Buffer): void => {
+        const key = buf.toString().toLowerCase();
+        if (key === "y") {
+          cleanup();
+          stream.setRawMode(false);
+          this.write("y\n");
+          this.readline = createInterface({ input: this.input, output: this.output });
+          resolve(true);
+        } else if (key === "n" || key === "\r" || key === "\n" || key === "\x03") {
+          cleanup();
+          stream.setRawMode(false);
+          this.write("n\n");
+          this.readline = createInterface({ input: this.input, output: this.output });
+          resolve(false);
+        }
+        // Ignore other keys — wait for y/n/enter
+      };
+
+      const cleanup = (): void => {
+        stream.removeListener("data", onData);
+      };
+      stream.on("data", onData);
+    });
+  }
+
   private selectRawMode(choices: HammaHomeChoice[], defaultIndex: number): Promise<HammaHomeAgent | undefined> {
     const stream = this.input as any;
+    // Close readline so it doesn't compete for stdin data events.
+    this.readline.close();
     return new Promise((resolve) => {
       this.write(`Press 1–${choices.length} or Enter for default: `);
       stream.setRawMode(true);
@@ -295,11 +334,8 @@ export class TerminalHammaPrompt implements HammaHomePrompt {
         cleanup();
         stream.setRawMode(false);
         this.write(`${echo}\n`);
-        // Drain any extra keystrokes that arrived during the selection
-        // so they don't leak into the next readline prompt.
-        stream.pause();
-        stream.read();
-        stream.resume();
+        // Recreate readline for any subsequent prompts.
+        this.readline = createInterface({ input: this.input, output: this.output });
         resolve(value);
       };
 
