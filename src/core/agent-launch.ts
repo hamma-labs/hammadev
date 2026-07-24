@@ -34,6 +34,27 @@ const AGENT_LABELS: Record<LaunchAgent, string> = {
   grok: "Grok",
 };
 
+function agentInstallHint(agent: LaunchAgent): string {
+  const isMac = process.platform === "darwin";
+  const isWin = process.platform === "win32";
+  switch (agent) {
+    case "codex":
+      return isMac
+        ? "  • brew install codex\n  • or: npm install -g @openai/codex\n"
+        : isWin
+          ? "  • npm install -g @openai/codex\n"
+          : "  • npm install -g @openai/codex\n  • or: brew install codex\n";
+    case "claude":
+      return isMac
+        ? "  • brew install claude-code\n  • or: npm install -g @anthropic-ai/claude-code\n"
+        : "  • npm install -g @anthropic-ai/claude-code\n";
+    case "grok":
+      return isMac || isWin
+        ? "  • curl -fsSL https://x.ai/cli/install.sh | bash\n  • or: npm install -g @xai-official/grok\n"
+        : "  • curl -fsSL https://x.ai/cli/install.sh | bash\n  • or: npm install -g @xai-official/grok\n";
+  }
+}
+
 const LAUNCH_ID_ENV: Record<LaunchAgent, string> = {
   codex: "HAMMA_CODEX_LAUNCH_ID",
   claude: "HAMMA_CLAUDE_LAUNCH_ID",
@@ -776,8 +797,10 @@ export async function launchAgentWithRecovery(
     if (error?.code === "ENOENT") {
       const label = AGENT_LABELS[agent] ?? agent;
       throw new Error(
-        `${label} is not installed (could not find '${command}' on PATH).\n` +
-        `  Install it first, then run this command again.`
+        `${label} is not installed (could not find '${command}' on PATH).\n\n` +
+        `  Install it:\n` +
+        agentInstallHint(agent) +
+        `\n  Then run this command again.`
       );
     }
     throw error;

@@ -166,12 +166,16 @@ export async function runHammaHome(
   const availability = Object.fromEntries(availabilityEntries) as Record<HammaHomeAgent, boolean>;
   const installed = HOME_AGENTS.filter((agent) => availability[agent]);
   if (installed.length === 0) {
+    const isMac = process.platform === "darwin";
+    const codexHint = isMac ? "brew install codex" : "npm install -g @openai/codex";
+    const claudeHint = isMac ? "brew install claude-code" : "npm install -g @anthropic-ai/claude-code";
+    const grokHint = "curl -fsSL https://x.ai/cli/install.sh | bash";
     throw new Error(
       "No AI coding agents found on this machine.\n\n" +
       "  Install one (pick any):\n" +
-      "  • Codex:  npm install -g @openai/codex\n" +
-      "  • Claude: npm install -g @anthropic-ai/claude-code\n" +
-      "  • Grok:   npm install -g grok-cli\n\n" +
+      `  • Codex:  ${codexHint}\n` +
+      `  • Claude: ${claudeHint}\n` +
+      `  • Grok:   ${grokHint}\n\n` +
       "  Then run `hamma` again."
     );
   }

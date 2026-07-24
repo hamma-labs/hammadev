@@ -188,20 +188,32 @@ async function checkGitignoreSafety(projectPath?: string): Promise<Check> {
 async function checkAgentAvailability(): Promise<Check> {
   const agents = ["codex", "claude", "grok"] as const;
   const results: string[] = [];
+  const missing: string[] = [];
   for (const agent of agents) {
     try {
       execSync(`command -v ${agent}`, { stdio: "ignore" });
       results.push(`${agent} ✓`);
     } catch {
       results.push(`${agent} ✗`);
+      missing.push(agent);
     }
   }
-  const available = results.filter((r) => r.includes("✓"));
-  if (available.length === 0) {
+  if (missing.length === 3) {
+    const isMac = process.platform === "darwin";
+    const hint = isMac
+      ? "Install one: brew install codex, brew install claude-code, or curl -fsSL https://x.ai/cli/install.sh | bash"
+      : "Install one: npm install -g @openai/codex, npm install -g @anthropic-ai/claude-code, or curl -fsSL https://x.ai/cli/install.sh | bash";
     return {
       name: "agent availability",
       status: "warn",
-      message: `No agents found on PATH (${results.join(", ")}). Install at least one: codex, claude, or grok.`,
+      message: `No agents on PATH. ${hint}`,
+    };
+  }
+  if (missing.length > 0) {
+    return {
+      name: "agent availability",
+      status: "pass",
+      message: results.join(", "),
     };
   }
   return {
